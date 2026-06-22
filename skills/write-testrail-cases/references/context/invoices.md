@@ -1,13 +1,36 @@
-# FOLIO Invoices App — Business Logic Context
+# FOLIO Invoices App - Business Logic Context
 
-> This file is used by the `write-testrail-cases` skill to understand the business logic of the Invoices app before generating test cases.
-> Sources: https://docs.folio.org/docs/acquisitions/invoices/
+> Generated/refreshed by the build-app-context workflow on 2026-06-18.
+> Sources:
+> - TestRail section subtree under group_id=329 scoped to Invoices roots (sections: 329, 1289, 37957; 276 cases total).
+> - Focus releases requested: Umbrellaleaf, Trillium, Sunflower, Ramsons, 2023 Poppy (175 matching cases; no Umbrellaleaf-tagged cases found in this subtree).
+> - GitHub: folio-org/ui-invoice, folio-org/mod-invoice, folio-org/mod-invoice-storage (4 files read in this run).
+> - Jira: FOLIO component "Invoices" and fallback project scans (0 Done stories, 0 Done bugs returned in this run).
+> Strings marked [confirmed] appear in both GitHub source and TestRail signals.
+> Strings marked [from source] come from GitHub source only.
+> Strings marked [from cases] come from TestRail case corpus.
 
 ---
 
 ## What is Invoices
 
 The Invoices app manages payments and credits for materials acquired by the library. An invoice records what is owed to a vendor, contains invoice lines (individual items being paid), and goes through an Approve → Pay workflow that drives Finance transactions.
+
+Invoices behavior is tightly integrated with Orders and Finance. Approval and payment actions create and transition Finance transactions, update budget balances, and update linked POL payment status.
+
+---
+
+## Key Terms
+
+| Term | Definition |
+|---|---|
+| Invoice | The header record representing a payable (or credit) document for a vendor. |
+| Invoice line | A payable line item, often linked to a POL, with fund distribution and optional adjustments. |
+| Voucher | Payment-request document generated on approval and used in export/accounting flows. |
+| Pending payment | Finance transaction type created during Approve, before payment is finalized. |
+| Payment transaction | Finance transaction type created during Pay, moving cost into Expended. |
+| Lock total | Control requiring calculated invoice total to match a user-entered locked amount before Approve. |
+| Release encumbrance | Option on line/payment flow controlling whether encumbrance releases on Approve vs Pay. |
 
 ---
 
@@ -26,6 +49,22 @@ Paid → Cancelled (only with special capability)
 | **Approved** | Approved for payment; creates Pending payment transactions in Finance; editing is restricted |
 | **Paid** | Payment confirmed; Payment transactions created in Finance; encumbrances released |
 | **Cancelled** | Invoice voided; all transactions reversed |
+
+---
+
+## Record Hierarchy / Architecture
+
+Invoices
+- Invoice list and search
+  - Invoice header
+    - Invoice lines
+      - Fund distributions
+      - Line adjustments
+    - Invoice-level adjustments
+    - Voucher information
+- Related integrations
+  - Orders (POL/PO payment status)
+  - Finance (pending payment, payment, credit/reversal)
 
 ---
 
@@ -192,12 +231,99 @@ When saving a new invoice:
 
 ---
 
-## Required Capability Sets (Eureka)
+## Main Sections / UI Structure
+
+### Panes
+- Invoices [from source]
+- Invoice details [from source]
+- Voucher information [from source]
+- Invoice line details [from source]
+
+### Accordions
+- Adjustments [from source]
+- Voucher lines [from source]
+
+### Key Navigation Paths
+- Apps > Invoices
+- Invoices > Actions > Approve
+- Invoices > Actions > Pay
+- Invoices > Actions > Cancel
+- Invoices > Actions > Export vouchers
+- Settings > Invoices > Adjustments
+- Settings > Invoices > Vouchers
+- Settings > Invoices > Approvals
+
+---
+
+## Exact UI Texts
+
+> Use these verbatim in expected results. Never paraphrase.
+
+### Toast Messages
+
+| Event | Toast text | Source |
+|---|---|---|
+| Approve success | Invoice has been approved successfully | [from source] |
+| Pay success | Invoice has been paid successfully | [from source] |
+| Approve and pay success | Invoice has been approved and paid successfully | [from source] |
+| Save duplicate warning | This appears to be a duplicate invoice | [confirmed] |
+| Voucher save success | Voucher has been successfully saved | [from source] |
+| Manual export error | Vouchers were not exported | [from source] |
+| Accounting code validation | Invoice can not be approved (paid), because the identified vendor must have an accounting code for this invoice to be exported to accounting | [from source] |
+
+### Modal / Dialog Titles
+
+| Modal | Trigger | Source |
+|---|---|---|
+| Approve invoice | Actions > Approve | [confirmed] |
+| Pay invoice | Actions > Pay | [confirmed] |
+| Cancel invoice | Actions > Cancel | [from cases] |
+| Approve & pay invoice | Actions > Approve & pay | [confirmed] |
+| Save invoice | Duplicate detection on save | [confirmed] |
+| Run manual export | Settings voucher export action | [from cases] |
+| Select order lines | Add invoice line from PO lines | [from cases] |
+
+### Button Labels (key actions)
+
+Actions, Submit, Save and close, Save, Cancel, Continue, Add adjustment, Add fund distribution, Run manual export, Confirm, Delete, View voucher.
+
+### Error / Warning Messages
+
+| Condition | Message text | Source |
+|---|---|---|
+| Approve failed | Invoice was not approved | [from source] |
+| Pay failed | Invoice was not paid | [from source] |
+| Approve/pay failed | Invoice was not approved/paid | [from source] |
+| Invoice load failure | Failed to load invoice data | [from source] |
+| Budget restriction | One or more Fund distributions on this invoice can not be paid, because there is not enough money in <b>{fundCodes}</b>. | [from source] |
+| Missing fund distribution | At least one fund distribution should present for every associated invoice line | [from source] |
+| Duplicate detection warning | This appears to be a duplicate invoice | [confirmed] |
+
+---
+
+## Status Values
+
+### Invoice workflow status
+
+Open, Reviewed, Approved, Paid, Cancelled.
+
+### Voucher export status
+
+Pending, Generated, Uploaded, Error.
+
+### POL payment status (integration)
+
+Awaiting Payment, Fully Paid, Partially Paid.
+
+---
+
+## Capability Sets (Eureka)
 
 | Action | Capability Set |
 |---|---|
 | View invoices | `Data - UI-Invoice Invoice - View` |
-| Create/Edit invoices | `Data - UI-Invoice Invoice - Create`, `Edit` |
+| Create invoices | `Data - UI-Invoice Invoice - Create` |
+| Edit invoices | `Data - UI-Invoice Invoice - Edit` |
 | Delete invoices | `Data - UI-Invoice Invoice - Delete` |
 | Approve invoices | `Procedural - UI-Invoice Invoice Approve - Execute` |
 | Pay invoices | `Procedural - UI-Invoice Invoice Pay - Execute` |
@@ -205,31 +331,68 @@ When saving a new invoice:
 | Pay in different fiscal year | `Procedural - UI-Invoice Invoice Pay-Different-Fy - Execute` |
 | Export vouchers | `Procedural - UI-Invoice Voucher Export - Execute` |
 | Download batch file | `Procedural - UI-Invoice BatchVoucher - Execute` |
+| Edit batch export credentials | `Data - UI-Invoice Batchvoucher Exportconfigs Credentials - Edit` |
 | Assign acquisition units | `Procedural - UI-Invoice Acq Unit Assignment - Execute` |
 | Manage acquisition units | `Data - UI-Invoice Acq Unit Assignment - Manage` |
 | Export search results | `Procedural - UI-Invoice Export CSV - Execute` |
 
 ---
 
+## Common Verification Patterns
+
+### Approve creates pending payment
+
+```
+Action:   Click Actions > Approve and confirm in Approve invoice modal.
+Expected: Invoice status changes to Approved; approval metadata is populated; pending payment transactions are created in Finance.
+```
+
+### Pay creates payment and relieves awaiting payment
+
+```
+Action:   Click Actions > Pay and confirm in Pay invoice modal.
+Expected: Invoice status changes to Paid; payment transactions are created; budget Expended increases and Awaiting payment decreases.
+```
+
+### Duplicate detection on save
+
+```
+Action:   Save an invoice with existing vendor + vendor invoice number + invoice date combination.
+Expected: Save invoice dialog appears with warning This appears to be a duplicate invoice; user can submit or cancel.
+```
+
+---
+
+## ECS / Multi-Tenant Notes
+
+Invoices subtree for this run includes ECS coverage (7 ECS-enabled cases), including Consortium (Invoices) section content. Primary behavior remains same as non-ECS invoice lifecycle, with additional tenant/capability gating in consortial contexts.
+
+---
+
 ## Key Business Rules for Test Cases
 
-1. **Default status on creation is Open** — not Draft; invoice is immediately editable after save
-2. **Can approve/pay from both Open and Reviewed** — Reviewed is optional; not required before Approve
-3. **Vendor must be an active vendor org** — selecting a non-vendor org blocks Approve with an error
-4. **Duplicate check on save** — same vendor + vendor invoice number + invoice date triggers popup; user must confirm or cancel
-5. **Lock total blocks Approve** — if Lock total is checked and line amounts don't sum to the lock total, Approve button is blocked or returns an error
-6. **Approve creates Pending payment in Finance** — budget Awaiting payment increases immediately on Approve
-7. **Pay creates Payment transaction** — Expended increases; Awaiting payment decreases; encumbrances released
-8. **Negative total creates credit** — if Calculated total amount is negative, a Credit transaction is recorded in Finance
-9. **"Separate from" adjustments excluded from total** — not counted in Calculated total amount or Total adjustments
-10. **Not-prorated adjustments need a fund** — if Pro rate = Not prorated, a fund distribution must be specified for the adjustment
-11. **Release encumbrance checkbox** — if checked on invoice line, encumbrance is released at Approve rather than at Pay
-12. **Fiscal year defaults to current FY** — only users with the "Pay in different FY" capability see the dropdown and can select a prior FY
-13. **Cancel reverses all transactions** — for Approved: pending payments reversed; for Paid: payments reversed (requires Cancel capability)
-14. **POL payment status updates automatically** — Awaiting Payment on Approve, Fully Paid on Pay; drives PO auto-close
-15. **Voucher generated on Approve** — payment request document for external accounting system; contains disbursement fields for manual entry after external payment
-16. **Export to accounting controls voucher inclusion** — only invoices (and adjustments) with this checkbox checked are included in batch voucher export
-17. **Accounting code required when Export to accounting is on** — if Export to accounting is selected but vendor has no accounting code, invoice cannot be approved
-18. **Acquisition units gate access** — same as Orders/Finance; user must be in the assigned unit to view/edit
-19. **Batch groups control voucher export grouping** — invoices are grouped and exported together by batch group; required field on invoice
-20. **Credit invoice (negative total)** — when invoice total is negative, a Credit transaction is posted to Finance budgets; Available increases
+1. Default invoice workflow status on creation is Open and invoice is editable after save. (cases + source)
+2. Approval is allowed from both Open and Reviewed statuses; Reviewed is optional, not mandatory. (cases + source)
+3. Vendor must be a valid active vendor organization for successful approval. (cases)
+4. Duplicate detection is enforced on vendor + vendor invoice number + invoice date and requires explicit user decision to proceed. (cases + source)
+5. Lock total prevents approval when calculated totals do not match lock total amount. (cases)
+6. Approve creates pending payment transactions and moves budget amounts into Awaiting payment. (cases + source)
+7. Pay creates payment transactions and moves budget amounts into Expended while decreasing Awaiting payment. (cases + source)
+8. Cancel reverses prior finance effect (pending payment or payment) according to invoice state, and paid-invoice cancel requires cancel capability. (cases)
+9. Negative calculated total posts credit behavior in Finance (increasing available budget). (cases)
+10. Separate from adjustments are not included in invoice calculated total and not paid via invoice total flow. (cases)
+11. Not prorated adjustments require explicit fund distribution at adjustment level. (cases)
+12. Release encumbrance option controls whether release occurs at Approve instead of Pay for linked lines. (cases)
+13. Voucher is generated at approval and carries voucher metadata used in export/accounting workflows. (cases + source)
+14. Export to accounting controls voucher inclusion in batch export. (cases + source)
+15. Accounting code is required for approval/payment when export-to-accounting behavior is active. (cases + source)
+16. POL payment status progression is driven by invoice transitions (Awaiting Payment at Approve, Fully/Partially Paid at Pay). (cases)
+
+---
+
+## Known Gaps / Items to Verify
+
+- [ ] Umbrellaleaf-tagged cases are not present in this subtree (release option exists but no matching cases in this run).
+- [ ] Jira extraction for Invoices returned zero Done stories/bugs for all attempted filters; business-rule dating is therefore TestRail/GitHub-led in this refresh.
+- [ ] Some extracted capability strings in old cases include HTML artifacts (for example trailing </li>); use normalized values from table above when writing new cases.
+- [ ] Consortium (Invoices) ECS signals exist but are sparse (7 ECS-enabled cases); verify tenant-specific edge behavior in environment before relying on narrow ECS assumptions.

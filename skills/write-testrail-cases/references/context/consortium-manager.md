@@ -1,15 +1,22 @@
-# FOLIO Consortium Manager App — Business Logic Context
+# FOLIO Consortium Manager App - Business Logic Context
 
-> This file is used by the `write-testrail-cases` skill to understand the business logic of the Consortium manager app before generating test cases.
-> Sources: https://docs.folio.org/docs/consortia/ and https://docs.folio.org/docs/settings/settings_consortium-manager/
+> Generated/refreshed by the build-app-context workflow on 2026-06-18.
+> Sources:
+> - TestRail section subtree under group_id=23689 scoped to Consortium Manager roots (sections: 80, cases: 380 total).
+> - Focus releases requested: Umbrellaleaf, Trillium, Sunflower, Ramsons, 2023 Poppy (312 matching cases; no Umbrellaleaf-tagged cases found in this subtree).
+> - GitHub: folio-org/ui-consortia-settings, folio-org/mod-consortia (7 files read).
+> - Jira: UICONSET, MODCON, and FOLIO component "Consortium manager" (0 Done stories, 0 Done bugs returned in this run).
+> Strings marked [confirmed] appear in both GitHub and TestRail signals.
+> Strings marked [from source] come from GitHub source only.
+> Strings marked [from cases] come from TestRail case corpus.
 
 ---
 
 ## What is Consortium Manager
 
-The Consortium Manager app allows libraries operating under **Enhanced Consortial Support (ECS)** to manage multi-tenant FOLIO deployments. It enables central administration of member libraries, shared settings, user affiliations, and cross-tenant visibility of Data Import/Export logs.
+Consortium Manager is the ECS administration surface used to coordinate centrally-managed and member-scoped settings across a multi-tenant consortium. It lets users in the central tenant pick member libraries, view shared settings, and create local or shared terms for supported settings domains (Inventory, Users, Circulation, Authorization roles/policies, and log visibility areas).
 
-**ECS must be enabled** at the tenant level — Consortium Manager is not available in standard single-tenant FOLIO deployments.
+The app is ECS-specific and relies on tenant affiliation context. In practical test design, behavior is strongly permission-scoped per tenant and per setting domain.
 
 ---
 
@@ -17,200 +24,221 @@ The Consortium Manager app allows libraries operating under **Enhanced Consortia
 
 | Term | Definition |
 |---|---|
-| **ECS** | Enhanced Consortial Support — the architecture enabling multi-tenant consortia in FOLIO |
-| **Central tenant** | The administrative/primary tenant managing the consortium |
-| **Member** | An independent library's FOLIO tenant affiliated with the consortium |
-| **Affiliation** | A user's association with a given tenant; "active affiliation" = tenant currently being worked in |
-| **Primary affiliation** | The tenant where a user record was originally created; cannot be changed or removed |
-| **Shadow account** | Auto-created copy of a staff user record in member tenants when affiliated; becomes inactive if affiliation removed |
-| **Shared setting** | A setting managed centrally for ALL members; cannot be edited locally once shared |
-| **Local setting** | A setting specific to one member library; not shared consortium-wide |
+| ECS | Enhanced Consortial Support multi-tenant architecture in FOLIO. |
+| Central tenant | Consortium administrative tenant where shared actions are initiated. |
+| Member tenant | Affiliated library tenant receiving shared settings and/or local updates. |
+| Shared setting | Setting saved with Share enabled and confirmed for ALL selected members. |
+| Local setting | Setting created for selected members only (without Share-to-all). |
+| Select members | Modal workflow used to scope target member libraries for local operations. |
+| Affiliation | Tenant context tied to the acting user; impacts accessible settings and logs. |
 
 ---
 
-## User Types in ECS
+## Record Hierarchy / Architecture
 
-User type is a **required field** in ECS-enabled environments.
+Consortium Manager
+- Management pane
+  - Users settings
+    - Departments
+    - Patron groups
+  - Circulation settings
+    - Request cancellation reasons
+  - Inventory settings
+    - Formats, call number types, material types, etc.
+  - Authorization
+    - Authorization roles
+    - Authorization policies
+  - Logs and reports
+    - Data import logs by member
+    - Data export logs by member
+- Select members modal
+  - Search and filter pane
+  - Members pane
+  - Total selected counter
 
-| Type | Description |
+---
+
+## Lifecycle / Workflow
+
+Main create/update flow used across most managed setting types:
+
+1. Open Consortium Manager.
+2. Select target members in Select members.
+3. Choose settings area from Management pane.
+4. Click New or open existing record.
+5. Save with either shared or local intent.
+6. Confirm in modal:
+   - shared path: Confirm share to all
+   - local path: Confirm member libraries
+7. Verify list update and resulting toast.
+
+Status values are not consistently explicit in this section subtree (log tables expose a Status column but canonical status vocabularies are not fully enumerated in extracted cases).
+
+---
+
+## Main Sections / UI Structure
+
+### Panes
+- Management [confirmed]
+- Members [confirmed]
+- Inventory [from cases]
+- Search and filter [from cases]
+- Authorization roles [from cases]
+- Holdings sources [from cases]
+- Subject types [from cases]
+- Subject sources [from cases]
+
+### Accordions
+- Capability sets [from cases]
+- Capabilities [from cases]
+- Assigned users [from cases]
+- User roles [from cases]
+- User permissions [from cases]
+
+### Key Navigation Paths
+- Apps > Consortium manager > Management > Data import
+- Apps > Consortium manager > Management > Data export
+- Apps > Consortium manager > Management > Inventory > Subject types
+- Settings > Authorization roles
+- Settings > Authorization policies
+
+---
+
+## Exact UI Texts
+
+> Use these verbatim in expected results. Never paraphrase.
+
+### Toast Messages
+
+| Event | Toast text | Source |
+|---|---|---|
+| Permission boundary | You do not have permissions at one or more members: | [confirmed] |
+| Duplicate role | The role has been successfully duplicated | [confirmed] |
+| Shared create success | was successfully created for All libraries. | [from cases (37.45)] |
+| Shared update success | was successfully updated for All libraries. | [from cases (20.20)] |
+| Role delete success | Role has been deleted successfully | [from cases (7.40)] |
+| Role share success | Role has been shared successfully | [from cases (6.70)] |
+| Role update success | Role has been updated successfully | [from cases (6.10)] |
+| Access denied create | Role could not be created: Access Denied | [from cases (2.50)] |
+
+### Modal / Dialog Titles
+
+| Modal | Trigger | Source |
+|---|---|---|
+| Select members | Click Select members on main page | [confirmed] |
+| Confirm member libraries | Save local setting | [confirmed] |
+| Confirm share to all | Save shared setting | [confirmed] |
+| Delete holdings source | Delete Holdings Source term | [from cases (15.50)] |
+| Delete holdings type | Delete Holdings Type term | [from cases (13.05)] |
+| Delete resource type | Delete Resource Type term | [from cases (11.70)] |
+| Delete role | Delete authorization role | [from cases (6.50)] |
+
+### Button Labels (key actions)
+
+Select members, Save and close, Save, New, Edit, Delete, Confirm, Cancel, Keep editing, Actions.
+
+### Error / Warning Messages
+
+| Condition | Message text | Source |
+|---|---|---|
+| Missing cross-tenant permission | You do not have permissions at one or more members: <b>{members}</b> | [from source] |
+| Data loading failure | Could not load jobs data. | [from source] |
+| Permission failure in logs/policies | User does not have required permissions. | [from source] |
+| Role create denied | Role could not be created: Access Denied | [from cases] |
+
+---
+
+## Status Values
+
+### Log table status field (Data import / Data export)
+Not consistently enumerated in extracted focus-release case text; verify concrete status vocabulary in environment before asserting exact values.
+
+---
+
+## Capability Sets (Eureka)
+
+> Extracted from TestRail preconditions and normalized for repeated patterns.
+
+| Action | Capability Set |
 |---|---|
-| **Staff** | Library employees; have username, login to FOLIO, can have multiple affiliations and per-tenant permissions |
-| **Patron** | Borrowers; have user records but do NOT log in to FOLIO; assigned primary tenant only; no affiliations with other tenants |
-| **Shadow** | Auto-created in central tenant when a staff user is created; displays user's permissions for member tenants; deleted if staff user is deleted |
-| **System** | At least one system-level account required to assign other roles/permissions |
+| View Consortium Manager | Data - UI-Consortia-Settings Consortium-Manager - View |
+| Edit Consortium Manager settings | Data - UI-Consortia-Settings Consortium-Manager - Edit |
+| Execute share to all | Procedural - UI-Consortia-Settings Consortium-Manager Share - Execute |
+| View data import logs | Data - UI-Data-Import - view |
+| View or edit data export context | Data - UI-Data-Export - view, Data - UI-Data-Export - edit |
+| Manage authorization roles | Settings - UI-Authorization-Roles Settings - View/Edit/Delete/Create |
+| Manage role assignments | Settings - UI-Authorization-Roles Users Settings - Manage |
+| View authorization policies | Settings - UI-Authorization-Policies Settings Admin - View |
+| Manage inventory shared settings | Settings - UI-Inventory Settings <Setting-Type> - View (per setting type and tenant) |
+| Manage users settings terms | Settings - UI-Users Settings Departments - manage, Settings - UI-Users Settings Usergroups - manage |
+
+Warning: Legacy permission-style strings are still present in several older cases and mixed-format preconditions. Validate final Eureka naming in environment where exact capability IDs are required.
 
 ---
 
-## Members
+## Common Verification Patterns
 
-- Members = individual library FOLIO tenants affiliated with the consortium
-- **Cannot be added or removed** via Consortium Manager UI — only membership details (Code, Name) can be edited
-- To add/remove members: requires the Consortia API module permission
-- Member list viewable from the central tenant active affiliation
-- Settings → Consortium Manager → Membership → edit Code or Name via pencil icon
+> Copy these into expected results where applicable.
 
----
+### Data import logs by selected member
 
-## Affiliations
+```
+Action:   Do not change selection in Member dropdown and verify table.
+Expected: Data import logs table displays jobs only for selected tenant; count text matches; default sort is by Ended running descending with v icon.
+```
 
-Every user in ECS must be affiliated with at least one tenant. Primary affiliation = the tenant where the record was created.
+### Data import member switch behavior
 
-### Active affiliation
-- User works in one tenant at a time — the "active affiliation"
-- Switch via: service point menu (top right) → Switch active affiliation → select tenant → Save & close
-- When active affiliation is switched: local data for that tenant + shared consortium data is displayed
+```
+Action:   Select a different tenant in Member dropdown.
+Expected: Table refreshes to selected tenant data; logs count updates; active sort indicator remains on selected column.
+```
 
-### Assign an affiliation
-- Staff can only assign affiliations to other users **for tenants they themselves are affiliated with**
-- If a staff user is in only one tenant, they will NOT see the Affiliations accordion when editing other users
-- Steps: Users app → find user → Edit → Affiliations accordion → Assign/unassign → check member → Save & close
-- A shadow account is automatically created in the new member tenant when affiliation is assigned
+### Data export logs by selected member
 
-### Unassign an affiliation
-- **Primary affiliation and central tenant affiliation CANNOT be removed**
-- Removing an affiliation → user status becomes **Inactive** for that member
-- If staff user's primary tenant record is deleted → all shadow accounts in member tenants are also deleted
-- Same prerequisite: staff must themselves be in the affiliation they want to unassign from another user
+```
+Action:   Keep default member selection in Data export pane.
+Expected: Data export jobs are scoped to selected tenant and sorted by Ended running descending by default.
+```
 
-### Permissions per affiliation
-- Staff can have **different permissions** in each affiliated tenant
-- Managed via: Users app → Edit user → User permissions accordion → select Affiliation from dropdown → manage permissions
-- To remove all permissions for an affiliation: click "Unassign all permissions" button or unassign the affiliation entirely
-- Staff can only manage permissions for affiliations they themselves are assigned to
+### Data export member switch sorting
+
+```
+Action:   Change member selection after applying sort on a data column.
+Expected: Selected tenant value persists; table updates for tenant; sort order/indicator remains applied.
+```
 
 ---
 
-## Shared Settings
+## ECS / Multi-Tenant Notes
 
-Shared settings are created at the **central tenant** and applied to **ALL members**. They ensure controlled vocabulary consistency across the consortium.
-
-### Critical shared settings rule
-- **The Share option cannot be changed after a setting is created and saved**
-- To change from shared to local (or vice versa): delete the setting and recreate it with the correct Share option
-- When shared: fields Source = "consortium", Member libraries = "ALL", Update = "System Consortia"
-
-### Creating a shared setting (general flow)
-1. Switch active affiliation to **central tenant**
-2. Open Consortium Manager → select the app (Circulation, Data Import, etc.)
-3. Click New
-4. Fill in required fields
-5. Check **Share** checkbox
-6. Save → "Confirm share to all" modal appears: *"Are you sure you want to share [Name] with ALL members?"*
-7. Click Confirm → setting shared to all members
-
-### Creating a local (unshared) setting
-1. In Consortium Manager → select app
-2. Click **Select members** → check member(s) for which to create the local setting
-3. Click New → fill fields → do NOT check Share
-4. Save → "Confirm member libraries" modal lists the affected members
-5. Click Confirm → setting saved for selected members only
-
----
-
-## Shared Settings — Available by App
-
-### Circulation
-- **Request cancellation reasons** — can be shared so all members use the same cancellation reasons
-
-### Data Import
-- Shared **job profiles, mapping profiles, action profiles, match profiles** — central management of import workflows across members
-
-### Data Export
-- Shared **job profiles** — central management of export workflows
-
-### Inventory
-- **Alternative title types**
-- **Classification identifier types**
-- **Contributor types**
-- **Formats**
-- **Holdings note types**
-- **Holdings sources**
-- **Holdings types**
-- **Identifier types**
-- **Ill policies**
-- **Instance note types**
-- **Instance status types**
-- **Item damaged statuses**
-- **Item note types**
-- **Loan types**
-- **Location**
-- **Material types**
-- **Nature of content terms**
-- **Resource types**
-- **Statistical codes**
-- **Statistical code types**
-
-### Users
-- **Address types**
-- **Custom fields**
-- **Departments**
-- **Patron groups**
-- **Waiver reasons**
-- **Fee/fine — Manual charge types (owner)**
-- **Fee/fine — Payment methods**
-- **Fee/fine — Refund reasons**
-- **Fee/fine — Transfer accounts**
-
----
-
-## Cross-Tenant Log Visibility
-
-From the central tenant, staff can view Data Import and Data Export logs for **any member tenant** without switching active affiliation.
-
-### Viewing Data Export logs for a member
-1. Switch to central tenant active affiliation
-2. Apps → Consortium Manager → Settings pane → Data export
-3. Select member from the **Member** dropdown
-4. Log columns: File name, Status, Total, Exported, Failed, Job profile, Ended running, Run by, ID
-
-### Viewing Data Import logs for a member
-1. Switch to central tenant active affiliation
-2. Apps → Consortium Manager → Settings pane → Data import
-3. Select member from the **Member** dropdown
-4. Log columns: File name, Status, Records, Job profile, Started running, Ended running, Run by, ID
-
----
-
-## Sharing Local Instance Records
-
-Individual instance records can be shared from a member tenant to the consortium (making them visible to all members):
-- From Inventory: Actions → Share local instance with consortium
-- Requires `Inventory: Share local instance with consortium` permission
-
----
-
-## Required Permissions (Note: pre-Eureka permission names used in documentation)
-
-| Permission | Description |
-|---|---|
-| **Consortia API module - all permissions** | Add/remove members via API |
-| **Consortia: Assign and unassign affiliations** | Manage other users' affiliations |
-| **Consortia: View affiliations** | View other users' affiliations (read-only) |
-| **Consortium manager: Can create, edit and remove settings** | Full settings management (must also have per-tenant permissions) |
-| **Consortium manager: Can share settings to all members** | Create settings shared to all members; only editable at central tenant |
-| **Consortium manager: Can view existing settings** | View settings of affiliated members |
-| **Inventory: Share local instance with consortium** | Share individual instance records consortium-wide |
-| **Settings (Consortia): Can view and edit consortia membership** | Edit member details in Settings |
-| **Settings (Consortia): Can view consortia membership** | View member list in Settings (read-only) |
+- Cases are heavily ECS-specific (custom_ecs_enabled=true is common in this subtree).
+- Central tenant context is required for most share-to-all flows and cross-tenant log visibility checks.
+- Select members controls target scope for local setting management and is repeatedly asserted in expected results.
+- Negative cases repeatedly verify tenant-scoped permission boundaries where a user can see one member but not another.
 
 ---
 
 ## Key Business Rules for Test Cases
 
-1. **ECS must be enabled** — Consortium Manager is completely unavailable in non-ECS tenants; all ECS-specific tests require an ECS environment
-2. **Share option is irreversible after save** — cannot toggle shared/local after creation; delete and recreate is the only way to change
-3. **Shared settings confirmed with "Confirm share to all" modal** — saving with Share checked always triggers a confirmation dialog; tests must include this step
-4. **Local settings confirmed with "Confirm member libraries" modal** — saving without Share also triggers a confirmation; different modal content
-5. **Primary affiliation cannot be removed** — unassigning all affiliations is impossible; primary stays; tests that try to remove primary should expect failure
-6. **Central tenant affiliation also cannot be removed** — same protection as primary affiliation
-7. **Unassigning affiliation sets user Inactive for that member** — shadow account deactivated; user can no longer work in that member tenant
-8. **Shadow accounts auto-created and auto-deleted** — created when affiliation assigned; deleted when primary staff user deleted; cannot be manually created
-9. **Staff can only manage affiliations for tenants they are in** — if user A is only in tenant X, they cannot assign/unassign tenant Y affiliations for anyone
-10. **Staff can only manage permissions for tenants they are affiliated with** — same scoping rule applies to permission management
-11. **Members cannot be added or removed via UI** — only Code and Name fields are editable; requires API for actual membership changes
-12. **Active affiliation determines visible data** — switching affiliation changes which tenant's local data is shown; shared data always visible
-13. **Patron users have no affiliations** — patrons exist only in their primary tenant; no cross-tenant access; no shadow accounts
-14. **Permissions in Consortium Manager require per-tenant permissions too** — having "Can create, edit and remove settings" is not sufficient alone; user must also have permissions in each member tenant to carry out the actions
-15. **Cross-tenant log viewing requires central tenant active affiliation** — cannot view other members' logs from a member tenant affiliation
-16. **Inventory shared settings are the largest group** — ~20 controlled vocabulary types can be shared; all follow the same shared/local pattern
-17. **Switching active affiliation is done via service point menu (top right)** — not via the main navigation; important for precondition steps in test cases
+1. Consortium Manager behavior is tenant-scoped and requires ECS-enabled affiliation context. (cases + github)
+2. Shared vs local persistence is chosen at save time and confirmed by different modals (Confirm share to all vs Confirm member libraries). (cases + github)
+3. A user can access logs/settings only for members where required capability sets are present; missing capabilities produce explicit permission errors. (cases + github)
+4. Select members determines operation scope and displayed member count; Save and close must persist selection state. (cases)
+5. Data import log view validates tenant-specific rows, row counts, and sortable table columns under selected member. (cases)
+6. Data export log view follows the same tenant-scoped pattern as import logs. (cases)
+7. Shared setting create/edit/delete flows for many Inventory vocabularies follow one reusable pattern with setting-type substitution. (cases)
+8. Local setting management requires both central access and member-level setting capabilities; this is enforced in negative tests per setting type. (cases)
+9. Authorization roles/policies flows are represented as Consortium Manager scenarios in Eureka context, including role duplication and role capability boundaries. (cases)
+10. Deletion flows use explicit Delete <type> modal variants and must verify successful deletion toast or usage-blocking message. (cases + github)
+11. Error-state UI for insufficient permissions is part of expected behavior and should be asserted explicitly, not treated as setup failure. (cases + github)
+12. Release signal in this subtree is concentrated in Poppy, Trillium, Sunflower, and Ramsons; Umbrellaleaf-specific updates are not yet represented. (cases)
+
+---
+
+## Known Gaps / Items to Verify
+
+- [ ] Umbrellaleaf-tagged cases are not present in this Consortium Manager subtree; verify new-release deltas in environment.
+- [ ] Jira extraction for UICONSET/MODCON/FOLIO component returned zero Done issues in this run; rule dating is therefore TestRail/GitHub-led.
+- [ ] Exact Status value vocabularies in Data import/export tables are not consistently enumerated in current case text.
+- [ ] Some TestRail capability lines are mixed-format (legacy + Eureka + free text); validate exact capability-set names before posting new cases.

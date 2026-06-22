@@ -1,13 +1,19 @@
 # FOLIO Receiving App — Business Logic Context
 
-> This file is used by the `write-testrail-cases` skill to understand the business logic of the Receiving app before generating test cases.
-> Sources: https://docs.folio.org/docs/acquisitions/receiving/
+> Generated/refreshed by the build-app-context workflow on 2026-06-17.
+> Sources:
+> - TestRail section subtree rooted at section_id=17995 (suite_id=21): sections 17995, 17996, 36735
+> - TestRail coverage: 244 cases total in subtree; 0 cases tagged to focus releases (Umbrellaleaf, Trillium, Sunflower, Ramsons)
+> - GitHub signal scan: folio-org/ui-receiving (labels/callouts/permission usage snippets)
+> - Jira signal scan: project=FOLIO component=Receiving and project=UIREC (Done stories/bugs: 0 with current token scope)
+> Strings marked [from cases] are mined from TestRail corpus.
+> Strings marked [from source, verify in env] come from source scan and should be validated in target tenant UI before strict assertions.
 
 ---
 
 ## What is Receiving
 
-The Receiving app confirms that materials ordered through the Orders app have been physically delivered to the library. It manages **pieces** — individual receiving units tied to a Purchase Order Line (POL). Receiving is only possible for orders with status **Open** or **Closed**.
+The Receiving app confirms that materials ordered through the Orders app have been physically delivered to the library. It manages pieces (individual receiving units) tied to a Purchase Order Line (POL). Receiving is possible only for Open or Closed orders.
 
 ---
 
@@ -15,204 +21,199 @@ The Receiving app confirms that materials ordered through the Orders app have be
 
 | Term | Definition |
 |---|---|
-| **Receiving title** | The title of the ordered material; may have one or more pieces attached |
-| **Piece** | A single receivable unit under a receiving title (e.g. one issue of a journal subscription) |
-| **Package** | A PO representing multiple titles; individual titles must be added before they can be received |
-| **Receive** | Confirm that a piece has been delivered to the library |
-| **Unreceive** | Reverse a received piece back to Expected status |
-| **Unreceivable** | Mark a piece that cannot be received (damaged, lost in transit, etc.) |
+| Receiving title | The title of ordered material; can have one or more pieces |
+| Piece | A single receivable unit under a receiving title |
+| Package | A PO representing multiple titles; titles must be added before receive |
+| Receive | Confirm piece delivery |
+| Unreceive | Move received piece back to Expected |
+| Unreceivable | Mark a piece that cannot be received |
 
 ---
 
-## Receiving Title
+## Piece Lifecycle
 
-### How receiving titles are created
-- **Automatically** when a PO is opened (for non-Package POLs with "Create inventory" setting)
-- **Manually** for Package POLs — user creates receiving titles in Receiving app and links them to the Package POL
-
-### Receiving title detail view — accordions
-- **Title information** — title, publisher, edition, product IDs, subscription dates, claiming settings
-- **POL details** — linked POL number, expected receipt date, receiving note
-- **Expected** — list of pieces not yet received
-- **Received** — list of pieces already received
-- **Unreceivable** — list of pieces marked as unreceivable
-- **Bound items** — pieces that have been bound together
-- **Routing lists** — routing lists attached to this title
-
----
-
-## Piece
-
-### Piece lifecycle
-```
-Expected → Received
-Expected → Unreceivable
-Received → Expected (via Unreceive)
-```
-
-### Piece fields (when adding/editing)
-**Piece details:**
-- Caption — label for this piece (e.g. "v.1", "no.1", "Jan 2024")
-- Copy number
-- Enumeration
-- Chronology
-- Display summary
-- Barcode
-- Call number
-- Receiving note
-- Request (link to patron request)
-- Claiming active / Claiming interval
-- Internal note
-- Display on holding
-
-**Item details (when creating item on receive):**
-- Create item — checkbox; when checked, creates an Item in Inventory on receive
-- Material type
-- Item status (set automatically to "In process" on receive)
-- Location (receiving location)
-
-### Piece status values
-| Status | Meaning |
-|---|---|
-| **Expected** | Piece is expected but not yet received |
-| **Received** | Piece has been confirmed as received |
-| **Unreceivable** | Piece cannot be received (e.g. damaged, not delivered) |
-| **Late** | Piece is past its expected receipt date (displayed as indicator, not a separate status) |
+Expected -> Received
+Expected -> Unreceivable
+Received -> Expected (via Unreceive)
 
 ---
 
 ## Receiving Workflow
 
-### Receiving a piece — two methods
+### Quick receive
+1. In Expected accordion, select piece checkbox.
+2. Click Quick receive.
+3. Piece moves to Received immediately.
 
-**Quick receive** (fastest):
-1. In the Expected accordion, click the checkbox next to a piece
-2. Click "Quick receive" — piece moves to Received immediately with no additional prompts
+### Receive with detail form
+1. Open piece from Expected accordion.
+2. Edit piece/item fields as needed.
+3. Click Receive.
+4. Piece moves to Received.
 
-**Receive** (with details):
-1. In the Expected accordion, click the piece row to open it
-2. Edit details if needed (barcode, call number, location, etc.)
-3. Click "Receive" button — piece moves to Received
+### Must acknowledge receiving note
+If POL has this flag enabled, receiving is blocked until user confirms Continue in dialog.
 
-### "Must acknowledge receiving note" flag
-If the POL has "Must acknowledge receiving note" checked:
-- A dialog appears when receiving any piece from that title
-- User must click "Continue" to proceed with receiving
-- Cannot skip this step
+### Receive side effects
+1. Piece status changes to Received.
+2. If Create item is enabled, Inventory item status is In process.
+3. POL receipt status recalculates (Partially Received or Fully Received).
+4. PO can auto-close when all POLs are fully received and fully paid.
 
-### What happens when a piece is received
-1. Piece status → **Received**
-2. If "Create item" was enabled on the piece: Item in Inventory status → **In process**
-3. POL receipt status updates based on total pieces received:
-   - Some received, not all → **Partially Received**
-   - All received → **Fully Received**
-4. If all POLs reach Fully Received + Fully Paid: PO auto-closes
-
-### Unreceiving a piece
-1. In the Received accordion, click the piece
-2. Click "Unreceive" — piece moves back to Expected
-3. If an Item was created: Item status reverts to **On order**
-4. POL receipt status recalculates accordingly
+### Unreceive side effects
+1. Piece moves back to Expected.
+2. If item was created on receive, item is removed and lifecycle state is reversed.
+3. POL receipt status recalculates.
 
 ---
 
-## Inventory Integration on Receiving
+## Inventory Integration
 
-| "Create item" setting | On Receive | On Unreceive |
+| Create item on piece | On Receive | On Unreceive |
 |---|---|---|
-| Yes (create item) | Item created in Inventory with status "In process" | Item deleted from Inventory; piece returns to Expected |
-| No (don't create item) | No item created; Holdings still updated | Piece returns to Expected; no inventory changes |
+| Yes | Item created with status In process | Created item removed; piece returns to Expected |
+| No | No item created | Piece returns to Expected only |
 
-### After receiving and Check in
-Staff should check in the item using the Check in app to complete the technical services workflow:
-- Check in updates item status from "In process" to "Available" (or to "Awaiting pickup" if there is an open request)
+Check in is a separate workflow: after receive, Check in app transitions item from In process to Available (or Awaiting pickup if request exists).
 
 ---
 
-## Package POLs and Receiving
+## Package POL Rules
 
-- A Package POL in Orders cannot be directly received in Receiving app
-- Titles in the package must first be **added** (either via Orders app "Add package title" or via Receiving app "New" action)
-- Each added title then has its own pieces and can be received independently
-
----
-
-## Claiming
-
-If a piece is overdue (past expected receipt date and claiming is active):
-- Piece displays a claiming indicator
-- User can claim the piece: Actions → Claim
-- Claiming generates a notification/claim to the vendor
-- Claiming interval is configurable per title
+- Package POL cannot be received directly.
+- Titles must be added first (Orders Add package title or Receiving New action).
+- Each added title is then receivable independently.
 
 ---
 
-## Routing Lists
+## Exact UI Signals (TestRail-mined)
 
-- A routing list can be attached to a receiving title
-- When a piece is received, the routing list can be printed to accompany the item through an internal routing workflow
-- Routing lists contain: patron names, notes, sequence order
+### Toast messages
+- The piece was successfully saved [from cases]
+- Receiving successful [from cases]
+- The piece was successfully deleted [from cases]
+- The piece was successfully received [from cases]
+- Item (barcode) created successfully [from cases]
+
+### Modal and dialog titles
+- Select order lines [from cases]
+- Delete Holdings [from cases]
+- Send claim [from cases]
+- Select locations [from cases]
+- Delete piece [from cases]
+- Select user [from cases]
+- Add piece [from cases]
+- Select Organization [from cases]
+- Delay piece [from cases]
+- Are you sure? [from cases]
+- Select instance [from cases]
+
+### Pane titles
+- Receiving [from cases]
+- Search & filter [from cases]
+- Search results [from cases]
+- Title name [from cases]
+- PO Line details [from cases]
+
+### Accordion names
+- Expected [from cases]
+- Received [from cases]
+- Unreceivable [from cases]
+- Item details [from cases]
+- Title information [from cases]
+- POL details [from cases]
+- Bound items [from cases]
+- Routing lists [from cases]
+
+### Frequent button labels
+- Actions [from cases]
+- Receive [from cases]
+- Quick receive [from cases]
+- Add piece [from cases]
+- Save & close [from cases]
+- Save [from cases]
+- Cancel [from cases]
+- Edit [from cases]
+- Confirm [from cases]
+- Unreceivable [from cases]
 
 ---
 
-## Binding
+## Capability Sets (Eureka)
 
-- Multiple physical pieces can be bound together into a single bound item
-- Bound pieces move to the **Bound items** accordion
-- Binding creates a single Item in Inventory representing the bound volume
+Curated receiving capabilities for test preconditions:
+
+- Data - UI-Receiving - View
+- Data - UI-Receiving - Create
+- Data - UI-Receiving - Edit
+- Data - UI-Receiving - Delete
+- Procedural - UI-Receiving - Execute
+- Data - UI-Receiving Acq-Units Assignment - Manage
+- Procedural - UI-Receiving Acq-Units Assignment - Execute
+
+Frequently co-required in cross-app flows:
+
+- Data - UI-Orders Orders - View [from cases]
+- Data - UI-Inventory Instance - View [from cases]
+
+---
+
+## Common Verification Patterns (from cases)
+
+1. Title details verification pattern
+- Open receiving title.
+- Verify Expected and Received accordion state/counts.
+- Add or receive piece.
+- Re-verify movement between Expected and Received accordions plus status value.
+
+2. Order linkage verification pattern
+- From title details, open POL number link.
+- Verify Orders app opens correct PO line.
+- Verify receipt status update after receive/unreceive action.
+
+3. Claiming state verification pattern
+- Validate piece state labels in Expected/Received (for example Expected, Late, Claim delayed).
+- Trigger claim action.
+- Verify claim-related status text and piece placement.
 
 ---
 
 ## Search and Filters
 
-### Main search
-Searches across: Title, POL number, Package name, Vendor reference number
+Main search covers title, POL number, package name, vendor reference number.
 
-### Key filters
-- **Order status**: Open, Closed, Pending
-- **Receiving status**: Expected, Received, Unreceivable
-- **Order type**: One-time, Ongoing
-- **Order format**: Physical resource, Electronic resource, P/E mix, Other
-- **Location**, **Vendor**, **Material type**
-- **Expected receipt date**, **Received date**, **Receipt due**
-- **Acquisition unit**, **Rush**, **Bindery active**
+Key filters used in receiving tests:
+- Order status (Open, Closed, Pending)
+- Receiving status (Expected, Received, Unreceivable)
+- Order type, order format
+- Location, vendor, material type
+- Expected receipt date, received date, receipt due
+- Acquisition unit, rush, bindery active
 
-**Important**: Receiving is only possible for Open or Closed orders. Pending orders do not appear as receivable.
-
----
-
-## Exporting Search Results
-
-- Actions → Export — downloads a .csv file
-- Can select Title fields and/or Piece fields to include in export
-
----
-
-## Required Capability Sets (Eureka)
-
-| Action | Capability Set |
-|---|---|
-| View receiving information | `Data - UI-Receiving - View` |
-| Receive and edit pieces | `Data - UI-Receiving - Edit` |
-| Create pieces | `Data - UI-Receiving - Create` |
-| Delete pieces | `Data - UI-Receiving - Delete` |
-| Assign acquisition units to receiving title | `Procedural - UI-Receiving Acq-Units Assignment - Execute` |
-| Manage acquisition units on receiving | `Data - UI-Receiving Acq-Units Assignment - Manage` |
-| Export search results | `Procedural - UI-Receiving - Execute` |
+Important: Pending orders are not receivable.
 
 ---
 
 ## Key Business Rules for Test Cases
 
-1. **Receiving only available for Open or Closed orders** — Pending orders cannot be received; attempting to receive against a closed order shows a pop-up warning
-2. **Piece lifecycle is Expected → Received; reversible via Unreceive** — no skip steps
-3. **"Must acknowledge receiving note" blocks receive until confirmed** — dialog must be dismissed with "Continue"
-4. **Creating item on receive changes Item status to "In process"** — not "Available"; Check in is needed for that
-5. **Unreceiving reverses Item creation** — if item was created on receive, it's deleted on unreceive
-6. **Package POLs cannot be received directly** — titles must be added first
-7. **POL receipt status updates automatically** — Partially Received when some pieces done; Fully Received when all done
-8. **Auto-close triggers from Receiving** — when last piece is received AND all payment complete, PO closes automatically
-9. **Quick receive vs Receive** — Quick receive skips the detail form; Receive allows editing piece data before confirming
-10. **Check in is a separate step** — receiving marks "In process"; Check in app is needed to make item "Available"
-11. **Claiming requires claiming to be active on the title** — configured per receiving title, not globally
-12. **Acquisition units on receiving titles** — inherited from the order; can be managed by users with the appropriate capability
+1. Receiving is available only for Open or Closed orders.
+2. Piece lifecycle is Expected -> Received and reversible via Unreceive.
+3. Must acknowledge receiving note blocks receive until Continue is confirmed.
+4. Create item on receive sets item status to In process.
+5. Unreceive reverses receive-side inventory effects.
+6. Package POLs cannot be received directly.
+7. POL receipt status recalculates automatically (Partially/Fully Received).
+8. Auto-close can trigger from Receiving when receiving and payment completion conditions are met.
+9. Quick receive skips detail form; Receive flow supports field edits first.
+10. Check in is a separate step after receiving.
+11. Claiming requires claiming to be active on the title.
+12. Acquisition units on receiving titles follow order/acq-unit governance.
+
+---
+
+## Known Gaps and Verification Notes
+
+- Focus release slice requested by user (Umbrellaleaf, Trillium, Sunflower, Ramsons) returned 0 tagged cases in this TestRail subtree. Context above therefore relies on full subtree corpus (244 cases) plus source/docs.
+- Jira done stories/bugs for component/prefix queries returned 0 with current token scope.
+- Some mined capability and status strings were noisy due free-text preconditions; this file keeps a curated capability set list for reliable precondition authoring.
+- Before strict string matching in new manual tests, verify toast/modal wording in the target environment.
