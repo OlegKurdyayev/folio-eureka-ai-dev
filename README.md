@@ -13,6 +13,8 @@ This repository serves as a skills registry containing guidelines (`SKILL.md`). 
 - `liquibase-migration` - Guides FOLIO Liquibase migration authoring, structure, naming, and database conventions.
 - `skill-feedback` - Captures user-validated feedback after a skill session and prepares a GitHub-ready report.
 - `unit-testing` - Applies Java unit testing guidance for JUnit 5, Mockito, strict stubbing, and clear test structure.
+- `write-karate-first-cases` - Writes TestRail cases API-first: business rules as Karate cases, thin Cypress cases only for UI wiring; raises open questions and can post them to Jira.
+- `write-testrail-cases` - Writes structured TestRail manual test cases from a user story, with scenario analysis, metadata and optional posting via the TestRail API.
 - `write-bug` - Drafts reproducible FOLIO bug reports with steps, expected and actual results, and supporting evidence.
 - `write-pr-description` - Drafts PR descriptions following team conventions for purpose, approach, and checklist.
 - `write-user-story` - Drafts user stories with scope, requirements, acceptance criteria, and manual testing guidance.

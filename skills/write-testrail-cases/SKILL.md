@@ -20,7 +20,7 @@ description: Use when writing, generating, or adding manual test cases to TestRa
 
 2. **Read `references/examples.md`** — golden cases from the team's TestRail. New cases must match their verification depth and style.
 3. **Read the User Story / Jira ticket** (fetch via Jira MCP if an ID is given). Extract: Summary, Description, Acceptance Criteria, Development Team (→ `custom_dev_team`), the story's own ticket key (→ `refs`). **`refs` is the key(s) the user explicitly gave or the story being covered — never linked bugs, subtasks, parent epics, or review tasks**, even if Jira shows them as related.
-4. **Map the story to the context file's "Key Business Rules"** section: list every rule the story touches or changes. Each touched rule is a scenario candidate. Each acceptance criterion is a scenario candidate.head -2 ~/Library/CloudStorage/OneDrive-EPAM/teams_coverage_long.csv
+4. **Map the story to the context file's "Key Business Rules"** section: list every rule the story touches or changes. Each touched rule is a scenario candidate. Each acceptance criterion is a scenario candidate.
 5. **Perform Scenario Analysis** and present the scenario list to the user for confirmation (format below). Wait for confirmation.
 6. **Generate cases**, one per confirmed scenario, following the Writing Guidelines and Step Patterns.
 7. **Self-review every case** against the Self-review gate before showing it. Fix violations silently.
