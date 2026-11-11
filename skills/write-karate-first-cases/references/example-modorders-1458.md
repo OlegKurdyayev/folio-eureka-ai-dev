@@ -1,6 +1,6 @@
 # Worked example: MODORDERS-1458
 
-End-to-end run of this skill (November 2026). Result: TestRail C1621341, C1621342; draft PR folio-org/folio-integration-tests#2619.
+End-to-end run of this skill (November 2026). Result: TestRail C1621341, C1621342; PR folio-org/folio-integration-tests#2619.
 
 ## Phase 1 — Analysis
 
@@ -19,29 +19,33 @@ Scenario 2 also proves the per-field "only when null" logic: `approvalDate` is k
 
 ## Phase 2 — TestRail case (C1621342, as posted)
 
+Plain business language: no endpoints, no status codes, no UI clicks. Capabilities are listed for people; the feature does not model them.
+
 - Title: Approval date set on a pending order is not overwritten when the order is opened
-- Section 105 (Orders), Type Functional, Priority Medium, Test Group Extended, Execution Type Karate, Automation Scope Karate Approved, Dev Team Thunderjet, refs `MODORDERS-1458,MODORDERS-1456`, label AI.
+- Section 105 (Orders), Type Functional, Priority Medium, Test Group Extended, Execution Type Karate, Automation Scope Karate Approved, Dev Team Thunderjet, refs `MODORDERS-1458,MODORDERS-1456`, label ai.
 
 Preconditions (HTML):
 
 ```html
 <ol>
-<li>Contract: merged (mod-orders, MODORDERS-1456)</li>
-<li>Tenant setting "Approval required to open orders" (<code>approvals.isApprovalRequired</code>) is <strong>not</strong> enabled (default). The fix does not depend on it; the setting is tenant-wide and is not toggled to keep the test parallel-safe.</li>
-<li>User with backend permissions: orders.item.post, orders.item.put, orders.item.get, orders.item.approve, orders.po-lines.item.post</li>
-<li>Records created by the test:<ul>
-<li>Fund A with active budget, allocated = 1000.00 (createFund, createBudget)</li>
-<li>Order O: One-Time, Pending, no approvalDate, no approvedById (createOrder)</li>
-<li>PO line L in Order O, fund distribution Fund A 100% (createOrderLine)</li></ul></li>
+<li>"Approval required" in Settings &gt; Orders &gt; Approvals is <strong>off</strong> (default). The behaviour does not depend on this setting.</li>
+<li>User with the following capabilities/sets:<ul>
+<li>data - UI-Orders Orders - view, create, edit</li>
+<li>procedural - UI-Orders Order Approve - execute</li></ul></li>
+<li>Records:<ul>
+<li>Fund A with an active budget of $1,000.00</li>
+<li>Order O: One-time, Pending, not approved, with one PO line paid from Fund A (100%)</li></ul></li>
 </ol>
 ```
 
 | # | Action | Expected |
 |---|---|---|
-| 1 | GET order O, then PUT /orders/composite-orders/{O.id} with approved = true, approvalDate = "2026-01-15T10:00:00.000+00:00" (approvedById not set) | 204 |
-| 2 | GET /orders/composite-orders/{O.id} | 200; workflowStatus = "Pending"; approved = true; approvalDate = 2026-01-15T10:00:00 UTC (remember as D0); approvedById absent or null |
-| 3 | Open Order O (openOrder) | 204 |
-| 4 | GET /orders/composite-orders/{O.id} (poll until workflowStatus = "Open") | 200; approved = true; approvalDate = D0; approvedById is a UUID (opening user) |
+| 1 | Approve Order O with approval date 15 January 2026, 10:00 UTC, leaving Approved by empty | Order O is saved |
+| 2 | Check the approval details of Order O | Pending; Approved = yes; Approval date = 15 January 2026, 10:00 UTC (remember as D0); Approved by is empty |
+| 3 | Open Order O | Order O is opened |
+| 4 | Check the approval details of Order O | Open; Approved = yes; Approval date = D0, not the time of opening; Approved by is the user who opened the order |
+
+The feature turns these steps into requests (`PUT /orders/composite-orders/{id}` with `approved`, `approvalDate`; `openOrder`; `GET` with `match`), keeping the step numbers as `# 1.` to `# 4.` comments.
 
 ## Phase 3 — Feature
 

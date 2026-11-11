@@ -1,11 +1,11 @@
 ---
 name: write-karate-first-cases
-description: Use when a FOLIO story or bug fix needs API test coverage end to end — writes Karate-first TestRail cases, implements them as Karate features in folio-org/folio-integration-tests following the owning team's conventions, and opens a draft PR. Also use to automate existing TestRail cases (C-ids) as Karate features. Thin UI (Cypress) cases only for behaviour with no API equivalent.
+description: Use when a FOLIO story or bug fix needs API test coverage end to end — writes Karate-first TestRail cases, implements them as Karate features in folio-org/folio-integration-tests following the owning team's conventions, and opens a PR. Also use to automate existing TestRail cases (C-ids) as Karate features. Thin UI (Cypress) cases only for behaviour with no API equivalent.
 ---
 
-# Karate-first: TestRail cases → Karate feature → draft PR
+# Karate-first: TestRail cases → Karate feature → pull request
 
-> **Core principle.** A business rule is verified at the API layer. The deliverable is not only a TestRail case: it is the TestRail case **and** the Karate scenario that implements it, mapped 1:1 by the `@C<id>` tag and by step numbers, delivered as a draft PR to `folio-org/folio-integration-tests`.
+> **Core principle.** A business rule is verified at the API layer. The deliverable is not only a TestRail case: it is the TestRail case **and** the Karate scenario that implements it, mapped 1:1 by the `@C<id>` tag and by step numbers, delivered as a PR to `folio-org/folio-integration-tests`.
 
 > **Second principle.** A test that would also pass on the code *before* the change verifies nothing. Every scenario must be traceable to a line of the fix and must fail without it.
 
@@ -13,7 +13,7 @@ Outputs of one run:
 
 1. TestRail cases (Karate cases + thin UI cases where unavoidable), posted with C-ids.
 2. A new or extended `.feature` in the owning team's folder of `folio-integration-tests`, registered in the runner.
-3. A draft PR from the user's fork, with reviewer notes.
+3. A PR from the user's fork, ready for review, with reviewer notes.
 4. A run summary.
 
 The user can stop after any phase ("cases only", "feature only, no PR"). If the input is a list of existing C-ids, skip Phase 2 and implement those cases.
@@ -89,21 +89,21 @@ Columns are mandatory. A Karate row with an empty "Fails before fix because" is 
 Karate by default: the outcome is decidable from HTTP requests/responses (including follow-up GETs, job polling, other modules' APIs). UI case only for UI wiring with no API equivalent (rendering, client-side validation, navigation, UI-only capability hiding) — written per `../write-testrail-cases/SKILL.md`, thin, and never re-asserting what a Karate case asserts.
 
 ### 2.2 Karate case content
-Write each case so the scenario can be generated from it without questions, and so that **step N in TestRail = `# N.` comment in the feature**.
+TestRail cases are read and reviewed by people (QA, PO, developers), so they are written in **plain business language**. Endpoints, payloads, field paths and error codes live only in the Karate feature; translating the case into requests is the job of Phase 3. Step N in TestRail still equals the `# N.` comment in the feature, so the PR covers exactly what the case says.
 
 - **Title:** the business outcome, sentence case, no "API:" prefix.
 - **Preconditions** (`<ol>`):
-  1. `Contract: merged (<module>, <FIX-KEY>)` | `PoC branch <branch>` | `not available — placeholder`.
-  2. Tenant settings the rule depends on, with exact values — and an explicit note when a tenant-wide setting is intentionally left at default.
-  3. Backend permissions from `permissionsRequired` (+ `permissionsDesired` that the scenario relies on).
-  4. Records created by the test, with exact meaningful values and the reusable feature that creates each one (`createFund`, `createOrder`…). Symbolic names (Fund A, Order O).
-- **Steps:** one request per step — `METHOD /path` + only the fields that matter. Name the reusable feature when one is used (`Open Order O (openOrder)`).
-- **Expected:** status code + business fields with exact values. Values captured at run time are named (`remember as D1`) and compared later (`approvalDate = D1`).
+  1. Tenant settings the rule depends on, in UI terms (Settings > Orders > Approvals...), with values, and an explicit note when a setting is intentionally left at default.
+  2. **Capabilities the user needs, as Eureka capability sets** in the team's usual wording (`data - UI-Orders Orders - create`, `procedural - UI-Orders Order Unopen - execute`). Take the names from existing cases of the same area. They document the access a real user needs; the Karate implementation does **not** model them (the test users of the project have a fixed permission set), so do not create per-case users or permission setup in the feature.
+  3. Records the case needs, with meaningful values and symbolic names (Fund A with $10,000 budget, Order O in Pending). No reusable names, no UUIDs.
+- **Steps:** one business action per step, in the domain's words ("Open Order O", "Unopen Order O, deleting holdings", "Add a PO line with multi-year payment on, prepayment term 2 years, 1 fiscal year distribution"). No URLs, no HTTP methods, no UI clicks.
+- **Expected:** the business outcome with exact values ("Order O is rejected with the message that the number of fiscal year distributions must match the prepayment term", "Approval date is the same as after the first opening"). Status codes and error codes are not written in the case; the feature asserts them. Values captured during the run are named (remember as D1) and compared later.
+- No UI-only checks (labels, toasts, layout) in a Karate case; those belong to a UI case.
 
-Assertion rules:
-- A step whose only expectation is a status code is allowed only for a trigger call and must be followed by a GET asserting the resulting state.
+Assertion rules (apply to the case and, more concretely, to the feature):
+- A trigger step must be followed by a step that checks the resulting state.
 - Assert the state, not the echo: re-read the entity and every related entity (child entities through their own endpoint).
-- Negative cases: exact status + `errors[0].code` (and message when stable) + a GET proving nothing changed.
+- Negative cases: the case states what is rejected and that nothing changed; the feature asserts the exact status, `errors[*].code` and a GET proving nothing changed.
 - **False-pass guard:** for every case answer "would this pass on the pre-fix code, or if the feature ran twice?" If yes, rewrite (add a control record, capture-and-compare, or a state that makes the old behaviour visible).
 - Unsourced values are written as `<value> [Qn]` and logged as open questions (see `../write-testrail-cases/SKILL.md`, "Clarifying Questions").
 
@@ -157,16 +157,16 @@ Do not run `mvn test` unless the user asks and an environment is available (it n
 
 ---
 
-## Phase 4 — Draft PR
+## Phase 4 — Pull request
 
 1. Branch `<JIRA-KEY>-<short-slug>` from current upstream `master`; one commit `<JIRA-KEY>: Karate test - <outcome>`.
-2. Push to the user's fork. Open a **draft** PR to `folio-org/folio-integration-tests:master` (`gh pr create --draft`, or the GitHub compare page with `?expand=1&title=…&body=…` and the "Draft pull request" button when the API is unavailable).
+2. Push to the user's fork. Open a PR **ready for review** to `folio-org/folio-integration-tests:master` (`gh pr create`, or the GitHub compare page with `?expand=1&title=…&body=…` when the API is unavailable). Running the tests is not a merge gate: Karate runs nightly, independent of builds, and a failing test produces a Slack report and a P2 defect that the team fixes. Run locally (or via the Rancher Jenkins job) when the developer can; otherwise say in the PR that it was not executed.
 3. PR body (English, business style):
    - **Purpose** — story and fix keys, the rule in one sentence.
    - **Changes** — feature file, each scenario with its `@C` tag, registration (runner + root feature).
-   - **Notes for reviewers** — why each scenario fails on the pre-fix code; shared-state decisions; assumptions (`[Qn]`, unverified API behaviour); "Not run locally — please run `sh ./runtests.sh <project> snapshot` or rely on CI".
+   - **Notes for reviewers** — why each scenario fails on the pre-fix code; shared-state decisions; assumptions (`[Qn]`, unverified API behaviour); execution status (run locally / Rancher job link / not executed, will be covered by the nightly run).
    - **TestRail** — case links.
-4. Never mark the PR ready for review and never request reviewers on the user's behalf; tell the user who usually reviews the folder (recent committers: `git log -5 --format='%an' -- <folder>`).
+4. Do not request reviewers on the user's behalf; tell the user who usually reviews the folder (recent committers: `git log -5 --format='%an' -- <folder>`).
 5. If the user wants it, add the PR link as a comment on the Jira story.
 
 ---
@@ -180,6 +180,7 @@ Do not run `mvn test` unless the user asks and an environment is available (it n
 - [ ] Child entities verified through their own endpoint; cross-module effects verified in the other module.
 - [ ] All reusable keys exist; parameters match their headers.
 - [ ] TestRail fields are HTML and carry the "AI" label; Execution Type = Karate, Automation Scope = Karate Approved.
+- [ ] TestRail cases contain no endpoints, HTTP methods, status codes or UI clicks; capabilities are listed as Eureka capability sets; the feature does not model them.
 - [ ] Static validation passed; registration is append-only.
 
 ## Run summary (always print at the end; keep field names stable)
@@ -192,7 +193,7 @@ Cases:            2 posted (Karate 2 / UI 0): C1621341, C1621342
 Existing coverage: C736774 (manual UI, updated by the team) — not duplicated
 Feature:          acquisitions/.../mod-orders/features/open-order-approval-details-not-overwritten.feature (2 scenarios)
 Registered in:    OrdersExtendedApiTest, orders.feature
-PR:               folio-org/folio-integration-tests#2619 (draft, not executed)
+PR:               folio-org/folio-integration-tests#2619 (ready for review, not executed; nightly run covers it)
 Shared state:     approvals.isApprovalRequired left at default
 Open questions:   Q1 — mod-orders keeps client-supplied approvalDate on PUT (scenario 2)
 Rules source:     acquisitions/ai/ACQ_ORDERS_SYSTEM_PROMPT.md

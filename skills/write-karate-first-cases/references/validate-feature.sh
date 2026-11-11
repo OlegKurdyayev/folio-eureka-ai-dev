@@ -27,9 +27,14 @@ EOF
 then ok "Gherkin parses"; else fail "Gherkin does not parse"; fi
 
 # 2. Reusable keys exist in karate-config.js
-for key in $(grep -oE "call(once)? [A-Za-z][A-Za-z0-9]*" "$FEATURE" | awk '{print $2}' | sort -u); do
-  case "$key" in uuid|read|login|randomMillis|random_string) continue ;; esac
-  grep -qE "^[[:space:]]*$key[[:space:]]*:" "$CONFIG" && ok "reusable $key" || fail "reusable $key not in karate-config.js"
+REPO_ROOT="$(dirname "$PROJECT_DIR")"
+for key in $(grep -oE "call(once)? [A-Za-z_][A-Za-z0-9_]*" "$FEATURE" | awk '{print $2}' | sort -u); do
+  case "$key" in read|login) continue ;; esac
+  # uuid1..uuid100 are generated in a loop in karate-config.js (karate.set("uuid"+i, ...))
+  if [[ "$key" =~ ^uuid[0-9]+$ ]] && grep -q 'karate.set("uuid"+i' "$CONFIG"; then ok "helper $key (generated in karate-config.js)"; continue; fi
+  if grep -qE "^[[:space:]]*$key[[:space:]]*:" "$CONFIG"; then ok "reusable $key"
+  elif grep -rqsE "def $key = function" "$REPO_ROOT/common/src/main/resources/common/util/"; then ok "helper $key (common/util)"
+  else fail "reusable $key not in karate-config.js or common/util"; fi
 done
 
 # 3. Conventions
