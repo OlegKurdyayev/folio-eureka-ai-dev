@@ -1,212 +1,278 @@
 # FOLIO Patron Notices — Business Logic Context
 
-> Built: 2026-07-21 · Delta-refreshed: 2026-11-07 · Release: not recorded · Builder: build-app-context/manual — header normalized 2026-11-07, see area-map.md → Freshness
+> Built: 2026-07-21 · Refreshed: 2026-11-24 · Release: Umbrellaleaf R2 2026 (master: ui-circulation 13.0.0 in progress, mod-circulation 24.6.0-SNAPSHOT, mod-circulation-storage 17.6.0-SNAPSHOT, mod-template-engine 1.24.0-SNAPSHOT) · Builder: build-app-context (refresh mode, full merge of the 2026-11-07 delta)
 
-> Built 2026-07-21 (browser-based). **Exact UI Texts confirmed against `folio-org/ui-circulation/translations/ui-circulation/en_US.json` (2026-07-21).** TestRail: suite 21, parent section **328 "Patron notices"** with children **331 "Patron notices settings"** (notice-template AND notice-policy editor cases — e.g. UICIRC-1355 posted here 2026-08), **17059 "Loan patron notices"**, **17139 "Request notice triggers"**, **17145 "Fees/fines patron notices"**, **111082 "ECS patron notices"**. Two related settings live under `Settings > Circulation > Patron notices`: **Patron notice templates** (the message content) and **Patron notice policies** (which template fires on which event, and when). The runtime effect (a notice landing in the mailbox) is asserted in the circulation apps — see check-in.md / requests.md / loans.md.
+> Sources (refresh 2026-11-24): GitHub folio-org/ui-circulation master (`translations/ui-circulation/en.json`, `src/settings/PatronNotices/**`, `src/settings/NoticePolicy/**`, `src/settings/Validation/**`, `src/constants.js`, `package.json`, CHANGELOG), mod-circulation-storage (`descriptors/ModuleDescriptor-template.json`, `ramls/patron-notice-policy.json`, `ramls/scheduled-notice.json`, `PatronNoticePoliciesAPI.java`), mod-template-engine (ModuleDescriptor, NEWS.md, `TemplateContextPreProcessor.java`, `TemplateServiceImpl.java`), mod-circulation (ModuleDescriptor timers, `domain/notice/*`, NEWS.md), mod-notify (ModuleDescriptor); folio-integration-tests; stripes-testing; docs.folio.org source (`content/en/docs/Settings/Settings_circulation/settings_circulation.md`); Confluence FOLIOtips "Settings - Circulation - Patron notice templates" (page 5672543, v. 2026-07-30); Jira UICIRC / CIRC / MODTEMPENG / MODNOTIFY / CIRCSTORE / UXPROD Done-Closed 2024-06..2026-11 (~80 issues listed, 33 read in detail); TestRail suite 21 sections 331, 17059, 17139, 17145, 111082 (79 cases listed, key ones read).
+> TestRail: suite 21, parent section **328 "Patron notices"** with children **331 "Patron notices settings"** (template and policy editor cases), **17059 "Loan patron notices"**, **17139 "Request notice triggers"**, **17145 "Fees/fines patron notices"**, **111082 "ECS patron notices"**. Settings live under `Settings > Circulation > Patron notices` (`settings.index.patronNoticesSettings`): **Patron notice templates** (message content), **Patron notice policies** (which template fires on which event and when), **TLR patron notice templates** (`settings.index.tlrPatronNotices`). The runtime effect (a notice in the mailbox) is asserted in the circulation apps — see check-in.md / requests.md / loans.md.
+> UI strings: `en.json` is the source of truth. `en_US.json` (Lokalise copy) lags: it still lacks the 11 Text-message/reorder keys below and still carries the removed key `settings.patronNotices.emailOrPrint` ("Email or print").
 
 ---
 
 ## What is Patron Notices
 
-Patron notices are automated messages (email or print) sent to patrons/requesters on circulation events. A **template** defines the Subject + Body with **tokens**; a **notice policy** binds templates to **triggering events** with a **timing** and **frequency**; a circulation rule assigns a notice policy to a patron-group × material-type × loan-type × location combination. So a real notice requires: a template + a notice policy referencing it + a circulation rule pointing at that policy + the triggering event occurring.
+Patron notices are automated messages sent to patrons/requesters on circulation events. A **template** defines the content (Notice format, Subject for email, Body) with **tokens**; a **notice policy** binds templates to **triggering events** with **timing** and **frequency**; a circulation rule assigns a notice policy to a patron-group × material-type × loan-type × location combination. A real notice requires: an active template + a notice policy referencing it for the event + a circulation rule pointing at that policy + the triggering event occurring. Delivery: mod-circulation builds the context and calls mod-notify `POST /patron-notice`, which renders through mod-template-engine and hands off to the sender.
 
 ---
 
 ## Patron notice templates [confirmed]
 
-`Settings > Circulation > Patron notice templates`. Fields: `Patron notice template name`, `Active`, `Description`, `Category`, `Email` (delivery), `Subject`, `Body`. New pane: `New patron notice template`; buttons `Save` / `Save new`; `Email or print` / `Print only`.
+`Settings > Circulation > Patron notice templates`. New pane title `New patron notice template` (`settings.patronNotices.newLabel`); existing template pane title = template name.
 
-**Categories:** `Loan`, `Request`, `Manual fee/fine charge`, `Manual fee/fine action (pay, waive, refund, transfer or cancel/error)`, `Automated fee/fine charge`, `Automated fee/fine adjustment (refund or cancel)`.
+**Accordions** (`PatronNoticeForm.js`): `General information` (metadata + name/Active/Description/Category) and `Patron notice content` (`settings.patronNotices.patronNoticeContent`, UICIRC-1350). The old `Email` accordion with the `Print only` checkbox is gone; `Email or print` was removed — do not assert it.
 
-**Token groups** (`Add token`): `Item`, `User`, `User Address`, `Request`, `Loan`, `Effective location`, `Fee/fine charge`, `Fee/fine action`, plus multiples `Multiple loans`, `Multiple requests`, `Multiple fee/fine actions`, `Multiple fee/fine charges`. Preview: `Preview of patron notice template` (view: `… - {name}`).
+**General information fields:** `Patron notice template name` (required, unique), `Active`, `Description`, `Category` (required).
 
-**Item-group tokens confirmed live (C692204, 2025, story CIRC-2260/UICIRC-1178 — 7 new item tokens added to the Email template):** `{{item.accessionNumber}}`, `{{item.administrativeNotes}}`, `{{item.datesOfPublication}}`, `{{item.editions}}`, `{{item.physicalDescriptions}}`, `{{item.instanceHrid}}`, `{{item.instanceHridImage}}`. Selecting a token in the `Add token` modal inserts it into the `Display` field of the Template content accordion; `Preview` then shows sample resolved values before save.
+**Patron notice content fields** (`PatronNoticeEmailSection.js`, UICIRC-1350):
+- `Notice format` (required Select, InfoPopover `settings.patronNotices.noticeFormat.infoPopover`). Options in order: `Select notice format` (empty default), `Email`, `Print only`, `Text message`.
+- `Subject` — enabled and required **only** for `Email`; disabled for empty/`Print only`/`Text message`. InfoPopover: `To enable the Subject field, select Email in the Notice format drop-down list.` (`settings.patronNotices.subject.infoPopover`, bold markup on Subject/Email/Notice format).
+- `Body` — disabled until a Notice format is selected, then required. InfoPopover: `To enable the Body field, select an option in the Notice format drop-down list.` (`settings.patronNotices.body.infoPopover`). For `Text message` the editor is plain text and image tokens (`item.barcodeImage`, `item.instanceHridImage`, `user.barcodeImage`) are disabled in `Add token`.
+- Text-message InfoPopover text: `If text message is selected, it has a maximum limit of 160 characters, including spaces, numbers, and symbols. If more than 160 characters are used, multiple text messages will be sent.` No character counter or validation is enforced in UI (UXPROD-1532 comment 2026-05-04: token values are resolved at send time).
+- Switching Notice format back to a previously selected one restores the Subject/Body typed for that format; first switch to Email restores the saved template values; other not-yet-visited formats start blank (`resolveNoticeFormatFieldValues.js`).
+- Saved payload: format stored as `additionalProperties.noticeFormat` (`email` / `print` / `textMessage`), legacy `additionalProperties.printOnly` = true only for Print; `outputFormats` = `text/plain` for Text message, else `text/html`; for non-email formats the BE-required `header` is auto-filled with `print` / `textMessage` (`PatronNotices.js` handleBeforeSave). Legacy templates without `noticeFormat` open as Print if `printOnly` = true, else Email (`getNoticeFormat.js`).
+- Buttons: `Save` / `Save new` labels exist (`settings.patronNotices.saveLabel`, `saveNewLabel`); footer Save is disabled while the form is pristine or submitting (`PatronNoticeForm.js`). Preview modal: `Preview of patron notice template` (form) / `Preview of patron notice template - {name}` (view).
 
-**Errors / guards:** `A patron notice with this name already exists`; delete guard `Cannot delete Patron notice template` / `This Patron notice template cannot be deleted, as it is in use by one or more records.`; `This is a predefined notice and cannot be deleted`; subject `Should not begin with a space`.
+**Categories** (`settings.patronNotices.categories.*`, order in dropdown): `Loan`, `Request`, `Automated fee/fine charge`, `Automated fee/fine adjustment (refund or cancel)`, `Manual fee/fine charge`, `Manual fee/fine action (pay, waive, refund, transfer or cancel/error)`.
 
-**Record metadata dropdown [confirmed — C411862]:** the template's Edit pane shows a `Record last updated: {Month/Day/Year time}` dropdown (labeled `Record created` on first save). Expanding it reveals two `Source` fields plus dates: `Record created` (date, frozen forever) with its own `Source` (the creating user's name, or `Unknown user` if migrated), and `Record last updated` with its own `Source` (the user who made the most recent edit). Editing ANY field (name, Active checkbox, Description, Category, etc.) and clicking `Save & close` updates `Record last updated` to the current date/time (tenant timezone) and its `Source` to the editing user's name — `Record created`/its `Source` never change after the initial save.
+**Token groups** (`Add token`): `Item`, `Effective location`, `Loan`, `Request`, `User`, `User Address`, `Fee/fine charge`, `Fee/fine action`; loops `Multiple loans` (`{{#loans}}…{{/loans}}`) and `Multiple fee/fine charges` (`{{#feeCharges}}…{{/feeCharges}}`, enabled only for category `Automated fee/fine charge` — `TokensList.js` isDisabledLoop). Keys `Multiple requests` / `Multiple fee/fine actions` exist in en.json but are not wired in TokensList.js.
+
+**Token availability by category** (`src/settings/PatronNotices/tokens.js`):
+- Item / Effective location / User / User Address tokens: all categories. Item tokens in order: `item.title`, `item.titleShort`, `item.primaryContributor`, `item.allContributors`, `item.barcode`, `item.barcodeImage`, `item.callNumber`, `item.callNumberPrefix`, `item.callNumberSuffix`, `item.displaySummary`, `item.enumeration`, `item.volume`, `item.chronology`, `item.yearCaption`, `item.materialType`, `item.copy`, `item.numberOfPieces`, `item.descriptionOfPieces`, `item.loanType`, `item.accessionNumber`, `item.administrativeNotes`, `item.datesOfPublication`, `item.editions`, `item.physicalDescriptions`, `item.instanceHrid`, `item.instanceHridImage`, then `item.effectiveLocation{DiscoveryDisplayName,Specific,Library,Campus,Institution}`.
+- User: `user.firstName`, `user.lastName`, `user.middleName`, `user.preferredFirstName`, `user.barcode`, `user.barcodeImage`, `user.primaryDeliveryAddressType`, `user.primaryAddressLine1/2`, `user.primaryCity`, `user.primaryStateProvRegion`, `user.primaryZipPostalCode`, `user.primaryCountry`.
+- Request (category `Request` only): `request.servicePointPickup`, `request.requestExpirationDate(Time)`, `request.holdShelfExpirationDate(Time)`, `request.reasonForCancellation`, `request.additionalInfo`.
+- `loan.additionalInfo`: `Loan` only. Other loan tokens (`loan.dueDate(Time)`, `loan.initialBorrowDate(Time)`, `loan.checkedInDate(Time)`, `loan.numberOfRenewalsAllowed/Taken/Remaining`): Loan + Automated fee/fine charge/adjustment + Manual fee/fine action.
+- `feeCharge.*` (`owner`, `type`, `paymentStatus`, `chargeDate(Time)`, `amount`, `remainingAmount`, `additionalInfo`): all four fee/fine categories. `feeAction.*` (`type`, `actionDate(Time)`, `amount`, `remainingAmount`, `additionalInfo`): Manual fee/fine action + Automated fee/fine adjustment.
+
+**Item-group tokens confirmed live (C692204, story CIRC-2260/UICIRC-1178):** `{{item.accessionNumber}}`, `{{item.administrativeNotes}}`, `{{item.datesOfPublication}}`, `{{item.editions}}`, `{{item.physicalDescriptions}}`, `{{item.instanceHrid}}`, `{{item.instanceHridImage}}`. Selecting a token in `Add token` inserts it into the Body; `Preview` shows hard-coded sample values (same for every template, multiples not expanded — Confluence FOLIOtips 5672543).
+
+**`item.titleShort` (UICIRC-1353, C1453636, C1453637):** listed below `item.title` and above `item.primaryContributor`; preview shows the first 25 characters (preview sample `The Wines of Italy: A Comprehensive Guide to Regional Varietals` → `The Wines of Italy: A Com`). See Known Gaps — the backend resolves `item.shortTitle`, not `item.titleShort`.
+
+**Errors / guards:** name `A patron notice with this name already exists` (`settings.patronNotices.errors.nameExists`); delete guard `Cannot delete Patron notice template` / `This Patron notice template cannot be deleted, as it is in use by one or more records.` (UI checks whether any notice policy references the template id — `PatronNotices.js` isTemplateExist; BE also refuses with InUseTemplateException — `TemplateServiceImpl.java`); delete confirm `Confirm delete` / `Are you sure you want to delete this patron notice?`; predefined: `This is a predefined notice and cannot be deleted`; Subject `Should not begin with a space` (`settings.validate.subject`, C356783 / UICIRC-782).
+
+**Record metadata dropdown [confirmed — C411862, C380408, C387439, C387440]:** the template's Edit pane shows a `Record last updated: {Month/Day/Year time}` dropdown (labeled `Record created` on first save). Expanding it reveals `Record created` (frozen) with its `Source` (creator name, or `Unknown user` if migrated) and `Record last updated` with its `Source` (last editor). Editing ANY field and clicking `Save & close` updates `Record last updated` and its `Source`; `Record created` never changes. Viewing it needs `users.collection.get` (added to view-templates set in UICIRC-1232; missing it caused 403 "updaters" popups).
 
 ---
 
 ## Patron notice policies [confirmed]
 
-`Settings > Circulation > Patron notice policies`. Accordions: `General information`, `Loan notices - sent to borrower`, `Fee/fine notices`, `Request notices - sent to requester`. Fields: `Patron notice policy name`, `Description`, `Active`. Each notice row (`Add notice`, `Notice {counter}`): `Template`, `Format` (`Email`), `Frequency` (`One Time` / `Recurring`), `Triggering event` (`Send`), timing `Before` / `After` / `Upon/At` (+ `and every` for recurring).
+`Settings > Circulation > Patron notice policies`. Pane `Patron notice policies`; new `New patron notice policy`, edit `Edit patron notice policy`. Accordions: `General information`, `Loan notices - sent to borrower`, `Fee/fine notices`, `Request notices - sent to requester`. Fields: `Patron notice policy name` (required, unique — BE 422 `'<name>' name in not unique`, `PatronNoticePoliciesAPI.java`), `Description`, `Active`.
 
-### Triggering events [confirmed]
+**Notice card** (`NoticeCard.js`): header = drag handle (tooltip `Drag & drop`) + `Notice {counter}`, then per-card icons plus `Add notice above` and trash `Delete notice` (tooltips and aria-labels). Fields: `Template` (required) `via` `Format` (required) + `Triggering event` (required). No default is pre-selected in Template/Format/Triggering event (UICIRC-1349). For time-based events the `Send` select appears; for `Before`/`After` it adds `by` + duration + interval, and `Frequency` (`One Time` / `Recurring`); Recurring adds `and every` + duration + interval. Interval options: `Minute(s)`, `Hour(s)`, `Day(s)`, `Week(s)`, `Month(s)`, `Year(s)`.
 
-**Loan notices:** `Loan due date/time`, `Item renewed`, `Check in`, `Check out`, `Loan due date change`, `Item recalled`, `Item aged to lost`, `Hold request for item`.
-**Request notices:** `Page request`, `Hold request`, `Recall request`, `Awaiting pickup`, `Hold shelf expiration`, `Request expiration`, `Cancel request`.
-**Fee/fine notices:** `Overdue fine, returned`, `Overdue fine, renewed`, `Lost item fee(s) charged`, `Lost item returned - fee(s) adjusted`.
+**Format dropdown:** `Email`, `Text message` (stored `Email` / `SMS`; UICIRC-1349, `noticesFormats` in `src/constants.js`). BE schema also accepts `Print`, but the UI does not offer it.
 
-### Send-behaviour notes [confirmed]
+**Template dropdown:** lists only **active** templates of the matching category — Loan notices → `Loan`; Request notices → `Request`; Fee/fine notices → `Automated fee/fine charge` + `Automated fee/fine adjustment (refund or cancel)` (`NoticePolicyForm.js` + `get-templates.js`). Manual fee/fine templates never appear in a policy (they are chosen in Settings > Users > Fee/fine: Manual charges — FOLIOtips 5672543).
+
+### Triggering events and Send options [confirmed — en.json + constants.js]
+
+| Accordion | UI label (en.json) | Stored `sendWhen` | `Send` options | Info banner |
+|---|---|---|---|---|
+| Loan | `Check in` | `Check in` | none | postponed |
+| Loan | `Check out` | `Check out` | none | postponed |
+| Loan | `Item renewed` | `Renewed` | none | real time |
+| Loan | `Loan due date/time` | `Due date` | `Upon/At`, `Before`, `After` | none; required long/short-term radio |
+| Loan | `Loan due date change` | `Manual due date change` | none | real time |
+| Loan | `Item recalled` | `Item recalled` | none | real time |
+| Loan | `Hold request for item` | `Hold request for item` | none | real time |
+| Loan | `Item aged to lost` | `Aged to lost` | `Upon/At`, `After` | conditional |
+| Request | `Awaiting pickup` | `Available` | none | real time |
+| Request | `Page request` | `Paging request` | none | real time |
+| Request | `Hold request` | `Hold request` | none | real time |
+| Request | `Recall request` | `Recall request` | none | real time |
+| Request | `Cancel request` | `Request cancellation` | none | real time |
+| Request | `Hold shelf expiration` | `Hold expiration` | `Upon/At`, `Before` | real time |
+| Request | `Request expiration` | `Request expiration` | `Upon/At`, `Before` | real time |
+| Fee/fine | `Overdue fine, returned` | `Overdue fine returned` | `Upon/At`, `After` | real time |
+| Fee/fine | `Overdue fine, renewed` | `Overdue fine renewed` | `Upon/At`, `After` | real time |
+| Fee/fine | `Lost item fee(s) charged` | `Aged to lost - fine charged` | `Upon/At`, `After` | none; required long/short-term radio |
+| Fee/fine | `Lost item returned - fee(s) adjusted` | `Aged to lost & item returned - fine adjusted` | none | real time |
+
+Banner texts (`notice-description.js`):
+- Postponed (Check in / Check out): `Always sent at the end of a session and loans are bundled into a single notice for each patron.`
 - Real time: `Always sent when event is triggered.`
-- Conditional: `Always sent when event is triggered and send conditions are met.`
-- Postponed/bundled: `Always sent at the end of a session and loans are bundled into a single notice for each patron.`
-- Long-term: `Send overnight with multiple loans/items by patron. Useful for long-term loans.`
-- Short-term: `Send throughout the day without multiple loans/items. Useful for short-term loans.`
+- Conditional (Item aged to lost): `Always sent when event is triggered and send conditions are met.`
 
-Delete guard: `Cannot delete patron notice` / `This notice policy cannot be deleted, as it is in use by one or more records.`
+Radio pairs (`get-real-time-labels.js`, required, none pre-selected; error `Please fill this in to continue` — C385643):
+- `Loan due date/time`: `Send overnight with multiple loans/items by patron. Useful for long-term loans.` / `Send throughout the day without multiple loans/items. Useful for short-term loans.`
+- `Lost item fee(s) charged`: `Send overnight with multiple lost item fee charges by patron.` / `Send throughout the day with one lost item fee charge per notice.` (en.json strings end with a period; C385643 quotes them without it — assert the en.json text).
 
-### Multiples radio options — "Lost item fee(s) charged" event only [confirmed — C385643]
+**Validation** (`section-config-generator.js`): Template, Format, Triggering event are always required; `Send` is required when shown; durations (`by`, `and every`) must be integer 1–100 (`settings.validate.isFromOneToHundred` = `The value must be between 1 and 100`); interval and Frequency required when shown. BE rejects `frequency` on a scheduled loan notice whose Send is not Before/After, `sendHow` on non-scheduled loan notices, and `sendEvery` with `One time` (422 `This option is not valid for selected Send/Frequency` — `PatronNoticePoliciesAPI.java`).
 
-Selecting Triggering event = `Lost item fee(s) charged` uniquely swaps the usual descriptive text for two mutually-exclusive REQUIRED radio buttons (not a dropdown): `Send overnight with multiple lost item fee charges by patron` / `Send throughout the day with one lost item fee charge per notice`. Neither is pre-selected; Save & close is blocked with `Please fill this in to continue` under both radios until one is chosen. Switching the Triggering event away and back to this option clears the radio selection again. Every OTHER triggering event instead shows the plain description text (e.g. `Always sent when event is triggered`) with no radio choice.
+**Delete guard:** `Cannot delete patron notice` / `This notice policy cannot be deleted, as it is in use by one or more records.` UI and BE both check whether the policy id appears in the circulation rules text (BE 400 `Cannot delete in use notice policy`). Delete confirm entry label `Delete patron notice policy`.
 
-### Notice-card reordering controls — "Add notice above" / "Delete notice" [from UICIRC-1355, In Code Review 2026-08 — verify exact labels/tooltips on first execution]
+### Notice-card reordering — implemented (UICIRC-1355, UICIRC-1372; closed 2026-08/09)
 
-Groundwork for reordering notice cards inside a policy (full drag & drop tracked separately in UICIRC-1372). Each `Notice {counter}` card in the `Loan notices`, `Request notices`, and `Fee/fine notices` accordions carries two per-card icon buttons in its header: a **plus** icon ("Add notice above") to the LEFT of the existing **trash** icon ("Delete notice"). Behavior derived from the story:
-- **Plus / Add notice above** inserts a NEW empty notice card DIRECTLY ABOVE the card whose plus was clicked (contrast with the accordion-level `Add notice` button, which appends a card at the BOTTOM). After insertion the `Notice {counter}` labels renumber sequentially top-to-bottom, so an inserted card pushes the ones below it up by one.
-- **Trash / Delete notice** removes that specific card; remaining cards renumber. Deleting the last remaining card returns the accordion to its empty state (no `Notice 1` card, only the `Add notice` button).
-- The two icons appear on every notice card regardless of accordion and regardless of whether the card is fully filled in or still empty — i.e. present on brand-new (unsaved) policies too, not only on existing/saved ones.
-- **View-only / no-edit capability:** whether these controls are hidden vs. merely disabled in read-only mode was NOT confirmed from the story — verify on execution.
-
-> **Known gap — policy-level toasts unverified.** This file confirms *template* toasts (`A patron notice with this name already exists`, `Cannot delete Patron notice template`), but the verbatim success toast for saving/creating/updating/deleting a notice **policy** is not captured here. Do not assert an exact policy-save toast string from memory; verify wording on execution (expected pattern, unconfirmed: `The patron notice policy <name> was successfully updated`).
+- `Add notice above` inserts a new empty card directly above the clicked card; accordion-level `Add notice` appends at the bottom; `Notice {counter}` labels renumber top-to-bottom (C1464321).
+- `Delete notice` removes that card; deleting the last card returns the accordion to its empty state with only `Add notice` (C1464323).
+- Drag handle (tooltip `Drag & drop`) reorders cards within one accordion only; numbers re-sequence; order persists after `Save & close` and reopen (C1464326, C1464328, C1464330).
+- Controls appear on new and existing policies and in all three accordions (C1464320, C1464322, C1464327). Adding/deleting and re-adding without saving leaves the form unchanged (C1464319).
+- View-only user (`Settings (Circulation): Can view notice policies`): policy opens read-only, no Edit action, no add/delete/drag controls (C1464324, C1464331).
 
 ---
 
-## Patron Notice Template Duplication [confirmed — C396392; previously undocumented]
+## TLR patron notice templates
 
-Actions > Duplicate on an existing template redirects to the "New patron notice template" page, pre-filled with the source's Description and Category and with "Active" checked by default. The Name field is pre-filled with the SOURCE name and immediately shows `A patron notice with this name already exists`, blocking Save & close until renamed to something unique. Before saving, the duplicate-in-progress's own "Record Last update" accordion shows Source = "Unknown user" (this is expected pre-save UI state, not a bug — real usernames display normally once the duplicate is actually saved).
+`Settings > Circulation > Title level requests` → `Notice templates`: `Confirmation notice`, `Cancellation notice`, `Expiration notice` (en.json `settings.titleLevelRequests.*`). Only `Request`-category templates can be selected (FOLIOtips 5672543). Title-level hold creation/cancellation notices come from here, not from the policy (docs.folio.org settings_circulation.md "Request notices triggering events"). Details: circulation-settings.md.
+
+---
+
+## Runtime behaviour (backend)
+
+- **Timers** (mod-circulation ModuleDescriptor `_timer`): loan scheduled notices every 5 min; due-date not-real-time, request, fee/fine, overdue-fine, fee/fine not-real-time scheduled notices every 2 min; patron action session expiration by timeout every 3 min. docs.folio.org says "scanned every five minutes" — allow up to ~5 min plus mail latency in expected results.
+- **Sessions:** Check in / Check out notices are queued as patron action sessions (`Check-out` / `Check-in`) and sent when the session ends (`End session` or automatic session end) — `POST /circulation/end-patron-action-session`; storage `patron-action-session-storage` (C347621–C347625, C347879).
+- **Grouped context:** Check in / Check out notices always use the grouped `loans` context, even for one item. Item, Effective location and Loan tokens must be inside `{{#loans}}…{{/loans}}`, otherwise only User tokens are filled (CIRC-2702 closed as not a bug; FOLIOtips 5672543). Renewal notices use a single-loan context, so the same template works without the loop (CIRC-2702).
+- **Format resolution** (mod-circulation `NoticeFormat.java`, `UserPreferredNoticeFormats.java`, CIRC-2661): `Email` → channel `email` / `text/html`; `SMS` → `sms` / `text/plain`; `Print` → `mail` / `text/html`. Patron preferred contact type ids map 002 → Email, 001 → Print (mail), 003 → SMS.
+- **Short title** (mod-template-engine `TemplateContextPreProcessor.java`, MODTEMPENG-137): `{{item.shortTitle}}` = `item.title` if ≤ 25 characters, else first 25 characters + `…` (U+2026); generated only when the template references it; empty, no error, when the title is missing or blank (C1538649–C1538651).
+- **Template engine:** `POST /template-request/preview` renders without saving (MODTEMPENG-135; barcode images out of scope); Handlebars resolver available alongside Mustache (`templateResolver`, MODTEMPENG-136; unsupported resolver → 400).
+- **Fee amounts** are rendered as scaled strings (`toScaledString()` in `TemplateContextUtil.java`) — 2 decimal places (C357041).
+- **Scheduled notice hygiene:** a scheduled notice whose loan was charged a lost item fee before the aged-to-lost notice ran is skipped as irrelevant (CIRC-2679); after an unexpected processing/cleanup error the scheduled-notice record is deleted so it is not re-sent (CIRC-2664 fix); notices for closed anonymized loans are skipped silently (CIRC-1891).
+
+---
+
+## API surface (endpoints + permissionsRequired)
+
+| Module | Method + path | permissionsRequired |
+|---|---|---|
+| mod-template-engine (`template-engine` 2.3) | GET `/templates` · POST `/templates` · GET/PUT/DELETE `/templates/{templateId}` | `templates.collection.get` · `templates.item.post` · `templates.item.get` / `.put` / `.delete` |
+| mod-template-engine | POST `/template-request` · POST `/template-request/preview` | `template-request.post` · `template-request.preview.post` |
+| mod-circulation-storage (`patron-notice-policy-storage` 0.13) | GET/POST `/patron-notice-policy-storage/patron-notice-policies` · GET/PUT/DELETE `…/{id}` | `circulation-storage.patron-notice-policies.collection.get` / `.item.post` / `.item.get` / `.item.put` / `.item.delete` |
+| mod-circulation-storage (`scheduled-notice-storage` 0.6) | GET/POST/DELETE `/scheduled-notice-storage/scheduled-notices` · GET/PUT/DELETE `…/{id}` | `scheduled-notice-storage.scheduled-notices.*` |
+| mod-circulation-storage (`patron-action-session-storage` 0.3) | `/patron-action-session-storage/patron-action-sessions[/{id}]`, GET `/patron-action-session-storage/expired-session-patron-ids` | `patron-action-session-storage.*` |
+| mod-circulation | GET `/circulation/rules/notice-policy` · `/circulation/rules/notice-policy-all` · POST `/circulation/end-patron-action-session` | `circulation.rules.notice-policy.get` · `circulation.rules.notice-policy-all.get` · `circulation.end-patron-action-session.post` |
+| mod-notify (`patron-notice` 1.2) | POST `/patron-notice` | `patron-notice.post` |
+
+Template list query used by the UI: `cql.allRecords=1 AND category=""` (all categories). Policy schema (`ramls/patron-notice-policy.json`): required `name`; each notice requires `templateId`, `format`, `realTime`, `sendOptions.sendWhen`. BE-only enum values not exposed in UI: format `Print`; fee/fine `Aged to lost & item replaced - fine adjusted`. Scheduled-notice `triggeringEvent` enum also contains `Due date - with reminder fee` and `Title level request expiration`.
+
+---
+
+## Capability Sets (Eureka)
+
+| Action | Permission display name (`package.json`, en.json `permission.settings.*`) | Eureka capability set |
+|---|---|---|
+| View templates | `Settings (Circulation): Can view patron notice templates` | not confirmed in sources (see Known Gaps) |
+| Create/edit/delete templates | `Settings (Circulation): Can create, edit and remove patron notice templates` | `settings - UI-Circulation Settings Notice-Templates - manage` [C1453637; UICIRC-1232 writes `settings.UI-Circulation Settings Notice-Templates.manage`] |
+| View policies | `Settings (Circulation): Can view notice policies` | not confirmed in sources |
+| Create/edit/delete policies | `Settings (Circulation): Can create, edit and remove notice policies` | not confirmed in sources |
+
+Sub-permissions (`package.json`): view-notice-policies = `circulation.rules.get`, `circulation-storage.patron-notice-policies.collection.get` / `.item.get`, `templates.collection.get` / `.item.get`, `users.collection.get` / `.item.get`, `settings.circulation.enabled`; notice-policies adds `.item.post/.put/.delete`. view-notice-templates = `circulation-storage.patron-notice-policies.collection.get`, `templates.collection.get` / `.item.get`, `settings.circulation.enabled`, `users.collection.get`; notice-templates adds `templates.item.post/.put/.delete`, `template-request.post`.
+
+---
+
+## ECS / Multi-Tenant Notes
+
+- ECS notice setup (C1322907–C1322909): templates, notice policy and the circulation rule with that policy live in the **Central** tenant (shared loan type / patron group created in Consortium manager); the **Member** tenant rule allows requests and uses a notice policy with no notices; patron is a Central-tenant `Patron` user; item on a shared instance in a Member tenant; check-ins switch affiliation between Member and Central.
+- Central-tenant ECS request notices have limited item/title token data by design; item barcode and title must always be present (CIRC-2639 closed as design limitation; C1322907 step note). Notices are sent when the Primary request is created in Requests, not when a Mediated request is created or confirmed (CIRC-2639).
+- ECS TLR: request-creation notice is sent once the placeholder patron is resolved to the real one (CIRC-2269).
+- Hold shelf expiration notice was sent twice on Trillium ECS TLS — regress single delivery (CIRC-2664, C1322907).
+
+---
+
+## Existing automated coverage
+
+**Cypress (stripes-testing):**
+- Settings: `cypress/e2e/settings/circulation/patron-notices/` — `create-edit-delete-patron-notice-template.cy.js`, `create-edit-delete-patron-notice-policies.cy.js`, `patron-notice-template-format-and-tokens.cy.js` (C1453636, C1453637), `patron-notice-policy-add-above-delete-notice.cy.js` (C1464319–C1464323), `patron-notice-policy-reorder-notices-drag-and-drop.cy.js` (C1464326–C1464330), `patron-notice-policy-view-only-notice-controls.cy.js` (C1464324, C1464331).
+- Delivery flows: `cypress/e2e/patron-notices/*.cy.js` (check-in/check-out sessions, triggers for aged to lost, recall/awaiting pickup/hold shelf expiration, page/cancel request, overdue fine returned/renewed, manual fee/fine notices, multi-options lost item fee, duplication, metadata, loan.additionalInfo, pickup notices), `cypress/e2e/recieve-notice/*.cy.js`, `cypress/e2e/circulation-log/filter-notice-send.cy.js`, `cypress/e2e/fees-&-fines/*notice*.cy.js`.
+- Fragments: `cypress/support/fragments/settings/circulation/patron-notices/{newNoticePolicy,newNoticePolicyTemplate,noticePolicies,noticeTemplates}.js`.
+
+**Karate (folio-integration-tests):** `mod-template-engine/.../features/templates.feature` (CRUD, 400 unsupported resolver, 422 validation, 404) and `templateRequest.feature` (200, 400 missing template / unsupported output format / missing language, 422); `mod-notify/.../features/patronNotice.feature` (multiple-loans notice). No Karate feature covers `patron-notice-policy-storage` CRUD/validation, the in-use delete guard, `item.shortTitle`, or scheduled-notice timers. MODTEMPENG-137 was verified with Postman cases C1538649–C1538651.
+
+---
+
+## Patron Notice Template Duplication [confirmed — C396392]
+
+Actions > Duplicate on an existing template redirects to the "New patron notice template" page, pre-filled with the source's Description and Category and with "Active" checked by default. The Name field is pre-filled with the SOURCE name and immediately shows `A patron notice with this name already exists`, blocking Save & close until renamed. Before saving, the duplicate's own metadata accordion shows Source = "Unknown user" (expected pre-save state). Policies can be duplicated the same way; two policies cannot share a name (docs.folio.org settings_circulation.md).
 
 ## `loan.additionalInfo` Token — Always Resolves to the Latest Comment [confirmed — C414969]
 
-When a loan has multiple patron/staff comments (see loans.md's "Additional Loan Comments" — new comments mark prior ones "superseded"), the `{{loan.additionalInfo}}` token in ANY notice template — whether the notice is triggered manually/immediately (e.g. Loan due date change) or automatically later (e.g. Loan due date/time reached) — always resolves to only the MOST RECENT, non-superseded comment. Superseded comments are never concatenated or otherwise included in the rendered token value.
+When a loan has multiple patron/staff comments (see loans.md "Additional Loan Comments"), `{{loan.additionalInfo}}` in any notice — immediate (e.g. Loan due date change) or scheduled (e.g. Loan due date/time) — resolves only to the most recent, non-superseded comment. Parsing relies on the words STAFF and PATRON; tenants that translate them get no comment in notices (FOLIOtips 5672543, UXPROD-4106).
 
-## Proxy / Sponsor Notification Routing [confirmed — C784435, C784436, C784437, C784438; previously undocumented]
+## Proxy / Sponsor Notification Routing [confirmed — C784435–C784438, CIRC-2385]
 
-A proxy relationship record (linking a Sponsor and their Proxy) carries its own "Notifications sent to" field with two mutually exclusive options: **Proxy** or **Sponsor**. This single per-relationship setting governs the delivery target for EVERY notice type — both Loan notices (Check out, Check in, etc.) and Request notices (Page request, Awaiting pickup, Cancel request, Hold request, etc.) triggered by activity performed "acting as proxy for" that sponsor:
-- Set to **Proxy**: every such notice is delivered ONLY to the Proxy's mailbox; the Sponsor receives nothing.
-- Set to **Sponsor**: every such notice is delivered ONLY to the Sponsor's mailbox; the Proxy receives nothing.
-- There is no per-template or per-policy override — the routing is entirely determined by this one relationship-level field, consistently across all notice categories.
+A proxy relationship carries "Notifications sent to" = **Proxy** or **Sponsor**. It governs every Loan notice (Check out, Check in, …) and Request notice (Page request, Hold request, Awaiting pickup, Cancel request, …) triggered by activity "acting as proxy for" that sponsor: Proxy → only the proxy's mailbox; Sponsor → only the sponsor's mailbox. No per-template or per-policy override.
 
-## Anonymized Loans — No Circulation-Log Error on Notice Send [confirmed — C729196]
+## Anonymized / Closed Loans [confirmed — C729196, CIRC-1891]
 
-If a notice's timing (e.g. an "After" due-date notice) is still pending when the underlying loan gets anonymized before the notice fires, the eventual attempt to send that notice does NOT produce a "Send error" entry in the Circulation log's Notice-type events for that patron — the notice engine handles the now-anonymized/unlinked loan gracefully rather than surfacing a visible error.
+If a scheduled notice is still pending when the loan is closed and anonymized, no notice is sent and no "Send error" entry appears in the Circulation log.
 
-## Overdue-Fine Notice Bundling — Precise Scope [confirmed — C397372, C397373, C397380; refines Key Business Rule 5]
+## Overdue-Fine Notice Bundling — Precise Scope [confirmed — C397371, C397372, C397373, C397356, C397380]
 
-Multiple SEPARATE overdue-fine charges (e.g. from two different items resolved together in one Check-in or Users-app bulk-action session) bundle into a SINGLE notice email via the template's `{{#feeCharges}}...{{/feeCharges}}` loop, as long as they share the SAME triggering-event type — both "Overdue fine, returned" or both "Overdue fine, renewed". This bundling works identically for both "Send = After" and "Send = Upon/At" timing.
-- **Critical boundary**: bundling never crosses event-type lines. If one item is renewed ("Overdue fine, renewed") and a different item is separately returned ("Overdue fine, returned") within the same session/timeframe for the same patron, TWO SEPARATE emails are sent — one per triggering-event type — even though both derive from the same notice policy and patron. Test design for bundling must therefore always specify same-vs-different trigger type as a distinct axis, not just "multiple fees, one notice."
+Multiple overdue-fine charges resolved in one Check-in or Users-app session bundle into a single email via `{{#feeCharges}}…{{/feeCharges}}` when they share the same triggering event ("Overdue fine, returned" or "Overdue fine, renewed"), for both `After` and `Upon/At`. Bundling never crosses event types: one item renewed + another returned → two emails.
 
 ## Fee Amount Token — Always 2 Decimal Places [confirmed — C357041]
 
-`{{feeCharge.amount}}` and `{{feeCharge.remainingAmount}}` always render with exactly two decimal places, even when the second digit is a trailing zero (e.g. `110.90`, never `110.9` or `111`). This formatting is identical between the Loan-details "Fees/fines incurred" UI field and the actual rendered notice email body — both share the same 2-decimal rule.
+`{{feeCharge.amount}}` / `{{feeCharge.remainingAmount}}` always render with two decimals (e.g. `110.90`), same as the Loan-details "Fees/fines incurred" field.
 
 ## `item.displaySummary` Token [confirmed — C449392]
 
-Listed in the Add-token modal immediately BEFORE `item.enumeration`. Preview shows a realistic combined enumeration/chronology/volume sample, e.g. `no.1-2v. 121948-1962 (Board)` — a concrete example of the token's resolved format, useful when writing expected-result text for cases that exercise it.
+Listed immediately before `item.enumeration`. Preview sample `no.1-2v. 121948-1962 (Board)` (also `tokens.js`).
 
 ## Awaiting-Pickup Notices Are Scoped Per-Request [confirmed — C400642]
 
-When a title-level-request-enabled item is checked in and becomes "Awaiting pickup" for a specific requester, only THAT requester receives the Awaiting-pickup notice. Repeating the exact same flow for a second item/requester pair (same notice policy, same circulation rule) produces an entirely independent second notice to the second requester — notices are never deduplicated or merged across different requesters, even under identical policy/rule configuration.
-
----
-
-## Capability Sets (Eureka) [confirmed permission display names]
-
-`Settings (Circulation): Can create, edit and remove patron notice templates` / `… Can view patron notice templates`; `… Can create, edit and remove notice policies` / `… Can view notice policies`.
+Each requester whose item becomes Awaiting pickup gets their own notice; notices are never merged across requesters, even under identical policy/rule.
 
 ---
 
 ## Key Business Rules for Test Cases
 
-1. A notice is produced only when **all four** exist: an active template, a notice policy that references it for the event, a circulation rule assigning that policy to the item/patron combination, and the triggering event occurring. (github + requests.md/check-in.md)
-2. Template **category constrains** which token groups and which notice-policy section can use it (a `Request` template only in request notices, etc.). (github)
-3. Notice policies split by recipient: **loan notices → borrower**, **request notices → requester**, plus fee/fine notices. (github)
-4. Timing is `Before` / `Upon/At` / `After` the event; recurring notices add `and every {interval}`. (github)
-5. **Check-in/Check-out receipt notices bundle** multiple loans/items into one notice per patron per session (sent at session end). Reminder/overdue for long-term loans can bundle overnight; short-term cannot. (github + check-in.md pickup-notice-at-session-end rule)
-6. Templates/policies **in use cannot be deleted**; predefined templates cannot be deleted at all. (github)
-7. Verify a notice's real effect **at the mailbox** — exact Subject + Body with the configured tokens resolved — not only the "Notice sent" circulation-log entry (see write-testrail-cases "verify effects at their real destination"). (skill + notices subsections)
-8. TLR patron notices (Confirmation/Cancellation/Expiration) are selected under Title level requests (TLR) settings, separate from per-policy request notices. (github + circulation-settings.md)
-9. Patron notice templates can be duplicated via Actions > Duplicate, which pre-fills Description/Category but always requires a renamed, unique template name before it can save. (cases — C396392)
-10. The `loan.additionalInfo` token always resolves to the single most recent (non-superseded) loan comment, never a concatenation of comment history. (cases — C414969)
-11. Proxy/Sponsor notice routing is a single per-relationship setting ("Notifications sent to" = Proxy or Sponsor) that applies uniformly to every Loan and Request notice for that relationship — never overridden per template or policy. (cases — C784435, C784436, C784437, C784438)
-12. Overdue-fine notice bundling only merges charges that share the identical triggering-event type (both "returned" or both "renewed"); different event types for the same patron in the same window always produce separate emails. (cases — C397372, C397373, C397380)
-13. Fee-amount tokens always render with exactly two decimal places, matching the same formatting used in the Loan-details "Fees/fines incurred" field. (cases — C357041)
-14. Anonymizing a loan before its pending notice fires does not produce a Circulation-log "Send error" — the notice engine handles it silently. (cases — C729196)
+1. A notice is produced only when all four exist: an active template, a notice policy referencing it for the event, a circulation rule assigning that policy, and the triggering event occurring. (docs.folio.org settings_circulation.md; C1322907 preconditions)
+2. Template Category constrains token availability and where the template can be selected: Loan → Loan notices; Request → Request notices and TLR notices; Automated fee/fine charge/adjustment → Fee/fine notices; Manual fee/fine categories → Settings > Users manual charges only. (NoticePolicyForm.js + get-templates.js; FOLIOtips 5672543)
+3. The policy Template dropdown lists only active templates of the allowed categories; an inactive template disappears from the dropdown. (get-templates.js)
+4. Notice policies split by recipient: Loan notices → borrower, Request notices → requester, plus Fee/fine notices. (en.json `settings.noticePolicy.loanNotices`, `requestNotices`)
+5. Send options exist only for time-based events: Loan due date/time (Upon/At, Before, After), Item aged to lost (Upon/At, After), Hold shelf expiration and Request expiration (Upon/At, Before), Overdue fine returned/renewed and Lost item fee(s) charged (Upon/At, After). All other events have no Send/Frequency fields. (LoanNoticesSection.js, RequestNoticesSection.js, FeeFineNoticesSection.js, constants.js)
+6. Frequency appears only with Before/After; Recurring adds `and every`; durations must be integers 1–100. (NoticeSendOptions.js, section-config-generator.js)
+7. Loan due date/time and Lost item fee(s) charged require choosing one of two long-/short-term radios; none is pre-selected and Save is blocked with `Please fill this in to continue`. (section-config-generator.js `realTime`; C385643)
+8. Check in / Check out notices are sent only at session end and always bundle all loans of the patron's session into one notice. (en.json `settings.noticePolicy.notices.postponed.notification`; C347621–C347625)
+9. Check in / Check out templates must wrap Item, Effective location and Loan tokens in `{{#loans}}…{{/loans}}`; without the loop only User tokens are filled. Renewal notices work without it. (CIRC-2702; FOLIOtips 5672543)
+10. Multiple fee/fine charges loop is selectable only for category Automated fee/fine charge; Multiple loans must not be used in fee/fine templates. (TokensList.js; FOLIOtips 5672543)
+11. Templates referenced by any notice policy cannot be deleted (UI modal + BE InUseTemplateException); predefined templates cannot be deleted at all. (PatronNotices.js, TemplateServiceImpl.java, en.json `settings.patronNotices.predefinedWarning`)
+12. A notice policy whose id appears in the circulation rules cannot be deleted (UI modal; BE 400 `Cannot delete in use notice policy`). (NoticePolicySettings.js, PatronNoticePoliciesAPI.java)
+13. Template names and policy names must be unique; duplicate template name shows `A patron notice with this name already exists`; duplicate policy name gets BE 422. (en.json `settings.patronNotices.errors.nameExists`; PatronNoticePoliciesAPI.java)
+14. Template Notice format is required; Body stays disabled until a format is chosen; Subject is enabled and required only for Email. (PatronNoticeEmailSection.js; patron-notice-template.js; UICIRC-1350)
+15. Subject must not begin with a space. (en.json `settings.validate.subject`; C356783)
+16. Switching Notice format restores the Subject/Body previously typed for that format; the first switch back to Email restores the saved template values. (resolveNoticeFormatFieldValues.js)
+17. Text message templates are plain text, image tokens are disabled, and no 160-character validation is enforced in UI (only an InfoPopover). (PatronNoticeEmailSection.js; UXPROD-1532 comment 2026-05-04)
+18. Saving a Text message template stores `outputFormats` = `text/plain` and an auto header `textMessage`; Print stores header `print` and `printOnly` = true. (PatronNotices.js handleBeforeSave)
+19. Policy Format offers exactly `Email` and `Text message`; no default is selected for Template, Format or Triggering event. (constants.js `noticesFormats`; UICIRC-1349)
+20. `Add notice above` inserts a card above the clicked one; `Add notice` appends at the bottom; `Notice {counter}` always renumbers sequentially. (UICIRC-1355; C1464321)
+21. Drag & drop reorders cards only within the same accordion, and the order persists after Save & close. (UICIRC-1372; C1464328, C1464330)
+22. Users with only view-notice-policies see no Edit action and no add/delete/drag controls on notice cards. (C1464324, C1464331)
+23. `item.titleShort` is listed between `item.title` and `item.primaryContributor`; preview shows the first 25 characters. (UICIRC-1353; C1453636, C1453637)
+24. `{{item.shortTitle}}` renders the title unchanged up to 25 characters, else 25 characters + `…`; missing/blank title renders empty without error. (MODTEMPENG-137; TemplateContextPreProcessor.java; C1538649–C1538651)
+25. Notice delivery format follows the policy row: Email → email (`text/html`), SMS → text message (`text/plain`), Print → mail. (NoticeFormat.java; CIRC-2661)
+26. Verify a notice's real effect at the mailbox — exact Subject + Body with tokens resolved — not only the Circulation-log entry. (write-testrail-cases skill; C1322907)
+27. TLR Confirmation/Cancellation/Expiration notices are selected under Title level requests settings, separate from policy request notices; title-level hold creation/cancellation use those templates. (en.json `settings.titleLevelRequests.*`; docs.folio.org settings_circulation.md)
+28. Patron notice templates can be duplicated via Actions > Duplicate; the copy keeps Description/Category but needs a new unique name before saving. (C396392)
+29. `loan.additionalInfo` resolves to the single most recent non-superseded loan comment. (C414969)
+30. Proxy/Sponsor routing ("Notifications sent to") applies uniformly to every Loan and Request notice for that relationship; no per-template or per-policy override. (C784435–C784438; CIRC-2385)
+31. Overdue-fine bundling merges only charges with the same triggering event; returned + renewed for the same patron in one window gives two emails. (C397372, C397373, C397380)
+32. Fee-amount tokens always render with two decimal places. (C357041; TemplateContextUtil.java)
+33. Pending scheduled notices for closed, anonymized loans are dropped silently — no Circulation-log "Send error". (C729196; CIRC-1891)
+34. An aged-to-lost notice is skipped if a lost item fee was already charged before it ran; for testing set "Patron billed after aged to lost" to at least 2 hours. (CIRC-2679; C347630)
+35. A scheduled notice must be delivered once only; hold shelf expiration notices must not duplicate. (CIRC-2664; CIRC-2329)
+36. "Item recalled" notices go to every borrower whose item is recalled, not only the first item in the title queue. (CIRC-2168)
+37. Each requester whose item becomes Awaiting pickup gets their own independent notice. (C400642)
+38. In ECS, notices are configured in the Central tenant; Central-tenant request notices may lack some item/title tokens but always carry item barcode and title; mediated requests notify only when the primary request is created. (CIRC-2639; C1322907)
+39. Template record metadata (`Record created` / `Record last updated` + `Source`) updates only the last-updated pair on edit. (C411862)
 
 ---
 
 ## Authoring style (measured 2026-07-23)
 
-Patron Notices: mixed **`Other` ~53% / `Func` ~40%**, median **~12 steps** (large — among the biggest), `User Journey` ~2%. Template/policy configuration cases lean `Other`; end-to-end "configure notice → trigger event → notice lands in mailbox with resolved tokens" cases lean `Func` and run long. Verify the notice at its real destination (the mailbox: exact subject + body with resolved item/user/loan tokens), not only the Circulation-log "Notice sent" entry. Preconditions carry the template + policy + circulation-rule + triggering setup; the flow walks event→delivery.
+Patron Notices: mixed **`Other` ~53% / `Func` ~40%**, median **~12 steps**, `User Journey` ~2%. Template/policy configuration cases lean `Other`; end-to-end "configure notice → trigger event → notice lands in mailbox with resolved tokens" cases lean `Func` and run long. Preconditions carry template + policy + circulation-rule + triggering setup (see C1322907 for the ECS pattern); the flow walks event → delivery. Scheduled triggers need waits sized to the timers (2–5 min) and to policy intervals.
 
 ---
 
 ## Known Gaps / Items to Verify
 
-- [x] Item-group token strings — confirmed live (C692204, 2025): see "Item-group tokens confirmed live" above. Other groups (`User`, `Loan`, `Request`, `Fee/fine charge`/`action`) still need their exact `{{…}}` names captured the same way (requests.md has confirmed request/staff-slip tokens for the Requests app's own slips, which is a different token set from these Patron Notice templates). This round confirmed `item.displaySummary` and `feeCharge.amount`/`feeCharge.remainingAmount` (2-decimal rule) specifically.
-- [x] TestRail Patron notices cases (sec 328 subsections) — **pulled this round** (14 cases): realistic notice-setup preconditions, bundling scope, proxy/sponsor routing, and template duplication are now documented above with cited case IDs.
-- [ ] Exact Eureka capability-set strings — permission display names confirmed; verify capability-set form in env.
-- [ ] Whether the Proxy/Sponsor notice-routing setting has any per-template or per-policy override path in newer releases was not tested — the sampled cases show it as a single relationship-level switch with no override.
+- [ ] **Token name mismatch — likely defect.** UI inserts `{{item.titleShort}}` (`tokens.js`, UICIRC-1353, C1453636/C1453637 check only the Preview), but mod-template-engine generates `item.shortTitle` (`TemplateContextPreProcessor.java`, MODTEMPENG-137, Postman C1538649–C1538651); mod-circulation supplies neither key. A real notice with `{{item.titleShort}}` probably renders empty. Not verified end-to-end in any source — verify at the mailbox before asserting a value.
+- [ ] **"Hold request for item" loan trigger.** Present in ui-circulation master and the storage schema enum, but UICIRC-1245 is Blocked, the trigger was removed from Trillium 12.0.1 (UICIRC-1362), and mod-circulation `NoticeEventType.java` has no such event. Selecting it likely sends nothing; do not write delivery cases until BE support lands.
+- [ ] **Formats settings pane / "User preference" format — not in master.** C1504502–C1504508 (refs CIRC-2661, UICIRC-149) describe a `Formats` pane and a `User preference` / `Print` policy format, but UICIRC-149 is Closed as Won't Do, en.json has no Formats keys, and the policy Format dropdown offers only Email / Text message. CIRC-2661 (BE format resolution) is Closed without a resolution. Treat those cases as unexecutable on current master until confirmed.
+- [ ] Policy-level success toasts (create/update/delete notice policy) and template save toast — no en.json key is specific to notice policies/templates; wording not confirmed in any source.
+- [ ] Eureka capability-set names for view templates, view policies and manage policies are not in any source read; only `settings - UI-Circulation Settings Notice-Templates - manage` is confirmed (C1453637).
+- [ ] docs.folio.org is outdated: it still says Format "email is the only option" and describes an "Email or print" section with a "Print only" checkbox (settings_circulation.md); master UI has Notice format with Email / Print only / Text message.
+- [ ] en.json keys `settings.patronNotices.multipleRequests` / `multipleFeeFineActions` exist but are not used by `TokensList.js` — do not assert those loops.
+- [ ] Text message delivery end-to-end (SMS provider, URL shortening promised in UICIRC-1350) is not covered by any test case or Karate feature read; depends on MODSENDER work under UXPROD-1532 (In Review).
+- [ ] TestRail C385643 quotes the Lost-item radio labels without the final period; en.json has a period — confirm on execution.
+- [ ] Exact `{{…}}` token rendering for `User`, `Request`, `Fee/fine action` groups at the mailbox is confirmed only for item tokens (C692204), fee amounts (C357041) and `loan.additionalInfo` (C414969).
+- [ ] Whether Proxy/Sponsor routing has any override path in newer releases was not tested (single relationship-level switch in C784435–C784438).
 
-> N≥10 audit round (2026-07-22): 14 cases read (C396392, C414969, C784435, C784436, C784437, C784438, C729196, C397372, C397373, C397380, C357041, C385643, C449392, C400642). Resolved the file's main open Known Gap by pulling directly from TestRail section 328 and its subsections. Surfaced several previously undocumented rules: Patron Notice Template Duplication, Proxy/Sponsor notification routing (a single relationship-level switch governing all notice types), the exact scope-boundary of overdue-fine notice bundling (same-event-type only), the always-latest-comment behavior of `loan.additionalInfo`, the 2-decimal-place rule for fee tokens, and the "Lost item fee(s) charged" event's unique dual-radio Multiples UI. Added 6 new Key Business Rules (9-14).
-
-> Random spot-check (2026-07-23): picked one fresh uncited case at random from section 328 (C411862) — found the template Edit pane's `Record last updated`/`Record created` metadata dropdown (with per-field `Source`/timestamp) was entirely undocumented. Added a new subsection under "Patron notice templates".
-
-
----
-
-## Changes since 2026-07-21 (delta refresh 2026-11-07)
-
-> Delta, not a rebuild: sections above reflect the original build. Where this section contradicts them, **this section wins**.
-> Sources: GitHub folio-org/ui-circulation (translations/ui-circulation/en.json, HEAD v12.0.0); Jira folio-org.atlassian.net Done issues resolved since 2026-07-21; TestRail suite 21 cases created since 2026-07-21.
-
-### What changed
-- Notice templates: **Notice format** dropdown (Email / Text message); text message limited to 160 characters; Subject enabled only for Email; Body enabled after a format is chosen (UICIRC-1353). String "Email or print" removed — do not assert it.
-- Notice policies: notices can be reordered by **drag & drop**; "Add notice above", "Delete notice" (UICIRC-1355/1372).
-- Bugs to regress: hold shelf expiration notice sent twice (CIRC-2664); notice after aged to lost (CIRC-2679); item/title missing for ECS and mediated requests (CIRC-2639).
-
-### UI strings changed since 2026-07-21 [source — en.json, 2026-11-07]
-
-> `en.json` is the source of truth; `en_US.json` is a Lokalise copy that can lag behind. `<b>`/`<strong>` render as bold; `{x}` are placeholders.
-
-**New strings**
-
-| Key | Text |
-|---|---|
-| `settings.patronNotices.patronNoticeContent` | Patron notice content |
-| `settings.patronNotices.textMessage` | Text message |
-| `settings.patronNotices.noticeFormat` | Notice format |
-| `settings.patronNotices.selectNoticeFormat` | Select notice format |
-| `settings.patronNotices.noticeFormat.infoPopover` | If text message is selected, it has a maximum limit of 160 characters, including spaces, numbers, and symbols. If more than 160 characters are used, multiple text messages will be sent. |
-| `settings.patronNotices.subject.infoPopover` | To enable the <strong>Subject</strong> field, select <strong>Email</strong> in the <strong>Notice format</strong> drop-down list. |
-| `settings.patronNotices.body.infoPopover` | To enable the <strong>Body</strong> field, select an option in the <strong>Notice format</strong> drop-down list. |
-| `settings.noticePolicy.addNoticeAbove` | Add notice above |
-| `settings.noticePolicy.deleteNotice` | Delete notice |
-| `settings.noticePolicy.dragAndDrop` | Drag & drop |
-| `settings.noticePolicy.notices.textMessage` | Text message |
-
-**Removed strings — do not assert**
-
-| Key | Text |
-|---|---|
-| `settings.patronNotices.emailOrPrint` | Email or print |
-
-### Jira — Done since build (circulation: check-in / check-out / circulation-settings / patron-notices / requests / mediated / circulation-log (CIRC, UICIRC, UICHKIN, UICHKOUT, UIREQ, UIREQMED, MODREQMED, UICIRCLOG, MODAUD) since 2026-07-21)
-
-- UICIRC-1351 / 1387 / 1390 Story — "Automatic renewals" section on Loan policy form and page (settings + validation)
-- UICIRC-1355 / 1372 Story — Reordering of patron notice policies (drag & drop)
-- UICIRC-1353 Story — Shortened tokens in patron notices for text messages
-- UICHKIN-515 / CIRC-2685 Story — [PoC] In-house use option in Check in (inHouseUse persisted on check-in-by-barcode)
-- UICHKIN-510 Story — Check in modals: default focus on the action button, not "X"
-- CIRC-2130 Story — Both Set cost and Actual cost fees/fines closed when item returned
-- CIRC-2705/2706/2707 Bug — America/Vancouver time zone: due date cut-off by patron expiration; releases for Sunflower/Trillium (see Vancouver incident)
-- CIRC-2664 Bug — Hold shelf expiration notice sent twice; CIRC-2679 notice not sent after aged to lost; CIRC-2639 item/title missing in email notices for ECS and mediated requests
-- CIRC-2697 Bug — [LoC] batch requests duplicated queue positions; CIRC-2538 ECS pick slips printed from wrong SP; CIRC-2629 extra "Aged to lost" action (ECS); CIRC-2673 declare lost 500
-- CIRC-2496 Bug — staff slip preview name always "Transit"
-- MODAUD-324 Bug — fee/fine actions missing from Circulation log; MODAUD-323 circ logs not appearing; MODAUD-326 preferred contact changes missing in user version history
-- (2026-06-16..07-21) UIREQ-1365 Bug — Requests app crashes opening a request with erased data; CIRC-2497 Bug — staff slip name missing in due date receipt; UICHKOUT-1012 Bug — all custom fields shown at Check out with default Other settings; UICIRC-1354 staff slips localisation; UICIRC-1316 Save button state for "Patron id(s) for checkout scanning"
-- (no other Done issues found for UIREQ / UIREQMED / MODREQMED / UICHKOUT / UICIRCLOG in this window)
-
-### TestRail — cases created since 2026-07-21: 24 (10 manual, 14 automated/Karate)
-
-- C1538651 Postman \| item.shortTitle with missing, blank, or absent token in template — refs MODTEMPENG-137
-- C1538650 Postman \| Render item.shortTitle alongside item.title in one template — refs MODTEMPENG-137
-- C1538649 Postman \| Render item.shortTitle token with titles of varying length — refs MODTEMPENG-137
-- C1504508 User without notice policy edit permission cannot modify the Formats settings pane — refs CIRC-2661,UICIRC-149,UXPROD-1532
-- C1504507 Formats enabled in the Formats settings pane control which options appear in the patron record "Preferred notification method" field — refs CIRC-2661,UICIRC-149,UXPROD-1532
-- C1504506 Formats enabled in the Formats settings pane are the only options available in the patron notice policy "Format" dropdown — refs CIRC-2661,UICIRC-149,UXPROD-1532
-- C1504505 "Formats" pane appears in Settings > Circulation > Patron notices and displays correct elements — refs CIRC-2661,UICIRC-149,UXPROD-1532
-- C1504504 Two notice rows with identical Template, Triggering event, Send, and Frequency but different Formats send in patron's preferred format; email is the fallback when no preference is set — refs CIRC-2661,UICIRC-149,UXPROD-1532
-- C1504503 Notice with Format set to "User preference" is delivered in the patron's preferred format; fallback to email applies when patron has no preferred format set — refs CIRC-2661,UICIRC-149,UXPROD-1532
-- C1504502 Notice with Format set to "Print" is delivered via print regardless of patron's preferred notification method — refs CIRC-2661,UICIRC-149,UXPROD-1532
+> Refresh 2026-11-24: folded the 2026-11-07 delta into the main sections. Corrected: policy Format options (Email / Text message, not Email only), template Notice format options (Email / Print only / Text message — the delta listed only Email / Text message), template accordion name (`Patron notice content`), source of UI strings (`en.json`, not `en_US.json`), reorder controls (implemented, view-only behaviour confirmed by C1464324/C1464331). Added: Send-options matrix, token availability by category, validation rules, API surface, timers, ECS notes, automated coverage, BE-only enum values, and 25 new rules (15–39 plus rewritten 1–14).
