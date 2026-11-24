@@ -215,7 +215,7 @@ Dates inside Description (Changed due date, Closed loan, Recall requested, Renew
 ## Existing automated coverage
 
 - **Karate** — `folio-integration-tests/mod-audit/src/main/resources/vega/mod-audit/features/` (`ModAuditApiTest.java`): `checkInCheckOutEvent.feature` (check-out → +1 row; check-out + check-in closing loan → +3 rows; invalid user/item barcode → 0 new rows), `loanEvent.feature` (closed loan → last action `Closed loan`; renew → +2 rows, see CIRC-1165), `requestEvent.feature` (create/update request → +1 row; invalid itemId/requesterId → 0 rows). Endpoint covered: `GET audit-data/circulation/logs`. No Karate for export, filters/CQL, fee/fine, notice or block events.
-- **Cypress** — `stripes-testing/cypress/e2e/circulation-log/*.cy.js` (28 specs) automate C15483–C17137 filter + "Check the Actions button" pairs, C350710–C350712 date/time, C358981, C360106, C360553, C360554, C365625, C368490, C407706, C645–C647, C770448, C770456; fragments `cypress/support/fragments/circulation-log/{searchPane,searchResults}.js`; FSE smoke `cypress/e2e/fse/{api,ui}/circulation-log-*.cy.js`.
+- **Cypress** — `stripes-testing/cypress/e2e/circulation-log/*.cy.js` (27 specs) automate C15483–C17137 filter + "Check the Actions button" pairs, C350710–C350712 date/time, C358981, C360106, C360553, C360554, C365625, C368490, C407706, C645–C647, C770448, C770456; fragments `cypress/support/fragments/circulation-log/{searchPane,searchResults}.js`; FSE smoke `cypress/e2e/fse/{api,ui}/circulation-log-*.cy.js`.
 - **Manual only** (no spec found): C1307995 pagination, C825329/C353955 export parity, C411752, C449382/83, C1543989, C1259771/86, C1282808–10, C958914, C380404, C770449/50/55, C1554373/74/83/431, C1621493, C402743/46.
 
 ---
