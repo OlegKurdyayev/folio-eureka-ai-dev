@@ -1,8 +1,9 @@
 # FOLIO Mediated Requests — Business Logic Context
 
-> Built: 2026-07-21 · Delta-refreshed: 2026-11-07 · Release: not recorded · Builder: build-app-context/manual — header normalized 2026-11-07, see area-map.md → Freshness
+> Built: 2026-07-21 · Delta-refreshed: 2026-11-07 · Refreshed: 2026-11-24 · Release: Umbrellaleaf (R2 2026, in development — master `ui-requests-mediated` 4.1.0 IN_PROGRESS, `mod-requests-mediated` 1.4.0-SNAPSHOT; last released: Trillium R1 2026 = ui 4.0.1 / mod 1.3.3) · Builder: build-app-context (refresh mode, full merge)
+> Sources (2026-11-24 refresh): Jira UIREQMED (≈100 issues) + MODREQMED (≈100 issues), 54 read in detail; GitHub `ui-requests-mediated` (translations/ui-requests-mediated/en.json — identical to en_US.json at HEAD, package.json, CHANGELOG.md), `mod-requests-mediated` (descriptors/ModuleDescriptor-template.json, swagger.api schemas, ErrorCode.java, RequestEventHandler.java, MediatedRequestsRepository.java, README.md, NEWS.md); `folio-integration-tests` folio-ecs-circulation (vega/mediated-requests); `stripes-testing`; TestRail suite 21 sections 32570 (74 cases), 57628 (10), 61629 (5), 74667 (2); Confluence (Secure notices design page 815431766, "Workflows (Both non-Congressional and Congressional)" 803962948). docs.folio.org has no Mediated requests page.
 
-> Built 2026-07-21 (browser-based); **corrected 2026-07-21 same day** after re-verification found real 2025 TestRail coverage that was missed on first pass. **Exact UI Texts confirmed against `folio-org/ui-requests-mediated/translations/ui-requests-mediated/en_US.json`.** TestRail: suite 21 section 32570 "Mediated requests" (subsections 57628 "oLOAN", 61629 "Mediated request notices", 74667 "Mediated request patron blocks") — contains 15+ cases created in 2025 alone (releases Sunflower=19/Trillium=20); this is NOT a thin-coverage area, it was simply not pulled when this file was first built from GitHub translations only. Business rules below now include both translation-derived and live-case-confirmed content (marked accordingly).
+> Built 2026-07-21 (browser-based); **corrected 2026-07-21 same day** after re-verification found real 2025 TestRail coverage that was missed on first pass. **Exact UI Texts confirmed against `folio-org/ui-requests-mediated/translations/ui-requests-mediated/en_US.json`** (re-checked 2026-11-24 against `en.json` HEAD: 211 keys, no differences between en.json and en_US.json). TestRail: suite 21 section 32570 "Mediated requests" (subsections 57628 "oLOAN", 61629 "Mediated request notices", 74667 "Mediated request patron blocks") — contains 15+ cases created in 2025 alone (releases Sunflower=19/Trillium=20); this is NOT a thin-coverage area, it was simply not pulled when this file was first built from GitHub translations only. Business rules below now include both translation-derived and live-case-confirmed content (marked accordingly).
 
 ---
 
@@ -10,7 +11,9 @@
 
 Mediated Requests lets library staff place and manage requests **on behalf of patrons** (a mediated / "secure" workflow, typically used with a **secure tenant** holding sensitive patrons). A staff-created request starts as **New - Awaiting confirmation** and must be reviewed and **confirmed** (which creates the real request in the Requests app) or **declined**. The app also drives the physical hand-off: **Confirm item arrival** and **Send item in transit** activities move the item toward the requester's pickup service point.
 
-Jira/repo: `UIREQMED` / `MODREQMED`, `folio-org/ui-requests-mediated`.
+Jira/repo: `UIREQMED` / `MODREQMED`, `folio-org/ui-requests-mediated`, `folio-org/mod-requests-mediated` (Vega team). Related BE flows live in `mod-circulation-bff` (MCBFF — confirm, check-in/out, declare lost), `mod-tlr` (MODTLR — ECS TLR / fake patrons) and `mod-dcb` (MODDCB — circulation items).
+
+**Where the app runs:** the Mediated requests app is displayed and usable only in the **Secure** tenant; it is not shown in the Central tenant or any non-Secure member tenant (C1434658, BF-1522; UIREQMED-75 comment: "Mediated app is not working" in Central). The BE identifies the Secure tenant from env var `SECURE_TENANT_ID` (mod-requests-mediated README.md) — Kafka-driven status changes are applied in that tenant only (folio-integration-tests `vega/mediated-requests/mediated-requests.feature` comment).
 
 ---
 
@@ -51,7 +54,23 @@ Open - Not yet filled
    → Closed - Filled   (or Closed - Cancelled)
 ```
 
-Confirmed status values: `New - Awaiting confirmation`, `Open - Not yet filled`, `Open - In transit for approval`, `Open - Item arrived`, `Open - In transit to be checked out`, `Open - Awaiting pickup`, `Open - Awaiting delivery`, `Closed - Filled`, `Closed - Cancelled`, `Closed - Declined`.
+Confirmed status values: `New - Awaiting confirmation`, `Open - Not yet filled`, `Open - In transit for approval`, `Open - Item arrived`, `Open - In transit to be checked out`, `Open - Awaiting pickup`, `Open - Awaiting delivery`, `Closed - Filled`, `Closed - Cancelled`, `Closed - Declined`. Same 10 values in the BE enum `status` (mod-requests-mediated `swagger.api/schemas/mediatedRequest.yaml`), in en.json keys `mediatedRequestStatus.*`, and in the filter list of C494032 / UIREQMED-37. In the API the status is also split into `mediatedRequestStatus` (`New` / `Open` / `Closed`) + `mediatedRequestStep`. Obsolete filter values `Open - In progress` / `Open - In transit` in UIREQMED-25 were replaced by UIREQMED-37 — do not use them.
+
+### Transitions and what triggers them [source-confirmed]
+
+| From → To | Trigger | Source |
+|---|---|---|
+| (none) → `New - Awaiting confirmation` | `Save & close` on New mediated request form (POST `/requests-mediated/mediated-requests`) | UIREQMED-7/22, C584493, C584498 |
+| `New - Awaiting confirmation` / form → `Open - Not yet filled` | `Confirm` (POST `/requests-mediated/mediated-requests/{id}/confirm`, called via `circulation-bff.confirm-mediated-request.execute`) — creates the circulation request(s) and fills `Confirmed request` | UIREQMED-48/49, C584500, Karate `mediated-requests.feature` |
+| `New - Awaiting confirmation` → `Closed - Declined` | `Decline` — BE rejects decline for any other status with validation error `Mediated request status should be 'New - Awaiting conformation'` (typo is in the code) | UIREQMED-42, `MediatedRequestActionsServiceImpl.declineRequest` |
+| `Open - Not yet filled` → `Open - In transit for approval` | Check in of the item in the lending tenant: primary circulation request goes `Open - Not yet filled` → `Open - In transit` (routed to the Interim service point) | `RequestEventHandler.java`, C1061228, C957383 |
+| `Open - In transit for approval` → `Open - Item arrived` | Mediated requests > `Confirm item arrival` — BE only finds requests in step `In transit for approval` | `MediatedRequestsRepository.java`, Karate comment |
+| `Open - Item arrived` → `Open - In transit to be checked out` | Mediated requests > `Send item in transit` — BE only finds requests in step `Item arrived`; prints the `Transit (Mediated requests)` staff slip | `MediatedRequestsRepository.java`, UIREQMED-40 |
+| `Open - In transit to be checked out` → `Open - Awaiting pickup` / `Open - Awaiting delivery` | Check in at the pickup SP (Secure tenant): circulation request `Open - In transit` → `Open - Awaiting pickup` / `Open - Awaiting delivery` | `RequestEventHandler.java`, MODREQMED-127 |
+| `Open - Awaiting pickup` / `Open - Awaiting delivery` → `Closed - Filled` | Check out in the Secure tenant (circulation request → `Closed - Filled`) | `RequestEventHandler.java`, C1061228 |
+| any status → `Closed - Cancelled` | The confirmed circulation request is cancelled in the Requests app; Open mediated requests cannot be cancelled in the Mediated requests UI | `RequestEventHandler.java`, UIREQMED-37 note, C630441/C630442 |
+
+Only events for the **primary** ECS request (or a non-ECS request) are processed; secondary/intermediate request events are ignored (`RequestEventHandler.java`). Each transition fires only when both the old circulation status and the current mediated step match — e.g. checking in at the pickup SP before `Send item in transit` does not move the mediated request to `Open - Awaiting pickup`.
 
 ---
 
@@ -90,7 +109,7 @@ Confirmed status values: `New - Awaiting confirmation`, `Open - Not yet filled`,
 - Decline modal: title `Confirm Mediated request decline`; message `<b>{title}</b> will be <b>declined</b>`; `Confirm` / `Back`.
 
 ### Search by UUID + CSV export (confirmed live, C844200, 2025)
-The `Select activity` pane's search box accepts the **mediated request UUID** directly (not just barcode/name text), including exact and partial matches. `Reset all` clears the result table entirely (not just the filters). No-match message (exact team wording): `No results found for "{search value}". Please check your spelling and filters.` — this fires both for a *partial* UUID and for a value that matches nothing. `Actions > Export results (CSV)` downloads a CSV whose row count must equal the on-screen result count — a case should verify the file's row-for-row content, not just that a download happened.
+The `Select activity` pane's search box accepts the **mediated request UUID** directly (not just barcode/name text). **Correction 2026-11-24:** the UUID search is an **exact** match only (UIREQMED-112 note: "The Mediated requests UUID search is an Exact search"); a partial UUID or a UUID with extra characters returns the no-results message, not a 400 error (MODREQMED-167). The text fields are "starts with" searches: Title, Item barcode, Requester barcode, Effective call number string (prefix + call number + suffix) (UIREQMED-26, C503170–C503173); search is case-insensitive (C648521, MODREQMED-17) and accent-insensitive (C663264). `Reset all` clears the result table entirely (not just the filters). No-match message (exact team wording): `No results found for "{search value}". Please check your spelling and filters.` — this fires both for a *partial* UUID and for a value that matches nothing. `Actions > Export results (CSV)` downloads a CSV whose row count must equal the on-screen result count — a case should verify the file's row-for-row content, not just that a download happened.
 
 ### Three-tenant structure is the norm, not the exception (confirmed live, C692196, 2025)
 A realistic mediated-request scenario typically spans **three** tenants at once, not just "a secure tenant": a **Central** tenant where `Settings > Circulation > General > Consortium title level requests (TLR) > Enable consortium title level requests (TLR)` must be turned on first; the **Secure** tenant (e.g. "University") where the mediated patron/requester lives and where staff work in the Mediated Requests app; and a **member** tenant (e.g. "College") holding the shared Instance/item actually being requested. Preconditions for a new case should name all three roles explicitly, not just "secure tenant" — and `ECS Enabled = true` is the norm for this app's cases, not an exception.
@@ -136,7 +155,84 @@ The `New mediated request` form itself exposes a `Confirm` button (enabled once 
 
 - **Inactive-user confirm failure** [C825435]: attempting to `Confirm` a new mediated request for a patron who has since become Inactive fails with toast `Request was not successfully created`; the form stays open; after Cancel, searches in ALL THREE tenants (Secure/Member/Central) consistently show zero open requests for that item — no orphaned partial request is left anywhere in the consortium.
 - **Proxy/Sponsor UI is deliberately hidden** [C624245]: scanning a user with an active proxy/sponsor relationship into "Requester barcode" during mediated-request CREATION does NOT trigger the normal "Who are you acting as?" modal seen in Requests/Check-out — the mediated request is always created directly for the scanned patron, with no proxy-substitution path offered in this app.
+- **Secure loan renewal re-applies circulation rules** [C1307996, UIU-3512]: when the patron group, material type, loan type or location of a Secure loan from a mediated request changes, the next renewal applies the new loan policy, and Loan details show it at once without a page refresh. API-only renewal and renewal-override error handling for Secure loans is covered by C1525841 and C1528161 (UIU-3537, CIRC-2632; C1525841 is also automated in Karate `mediated-requests.feature`).
+- **Mediated request full flows** end-to-end (create → confirm → check-in lending → Confirm item arrival → Send item in transit → check-in pickup → check-out → congressional loan): item level C651488, title level C651489. Due date receipt for a mediated loan: C736679. Returns routing for non-oLOAN Delivery: C729206.
 - **Deleted-Title edit error retains the stale value** [C594453]: if the Instance behind an existing `New - Awaiting confirmation` request is deleted after creation, opening `Edit & confirm` still shows the original (now-stale) HRID/UUID in the search box alongside the standard `Title with this HRID or UUID does not exist` error — the form surfaces the broken reference rather than silently clearing it.
+
+## Form, list and export behaviour (from Jira ACs and bug fixes)
+
+- **Save & close minimum:** Title/Item information + Requester information are enough to `Save & close`; removing either disables `Save & close` (UIREQMED-22 scenarios 2–3). `Confirm` needs item/title, requester, request type, fulfillment preference and pickup SP / delivery address (UIREQMED-49; C594452 `Confirm` disabled when a required field is empty).
+- **Cancel with unsaved changes:** `Cancel` on the Edit form opens an `Are you sure?` modal ("There are unsaved changes", `Close without saving` / `Keep editing`) — wording from UIREQMED-22 AC, not in ui-requests-mediated en.json (stripes-components); no modal when nothing was changed (UIREQMED-64).
+- **Request type disabled by circ rules:** if circulation rules allow no request type for the item/patron, `Request type` is greyed out but the mediated request can still be saved (UIREQMED-97, fixed in 2.0.3).
+- **Title-level form:** `Create title level request` checkbox default follows the TLR setting "Create title level request selected by default" (C584491). Unchecking TLR after an instance is scanned opens the item list (`Select item`, `Other items in {title}` — en.json `itemsDialog.*`); items without barcode can be selected and confirmed (UIREQMED-99/100, MODREQMED-109). `Title look-up` works with only `View, create, edit` or `manage` capability (UIREQMED-116, fixed 4.0.0).
+- **TLR Page before confirmation has no item:** a title-level Page mediated request in `New - Awaiting confirmation` shows no item information — expected, because no circulation request and no item match exist before confirmation (MODREQMED-208, closed "Not a bug"); en.json `mediatedRequestDetail.item.noInformation` = `There is no item information for this request.`
+- **Titles longer than 255 characters** must save (verified with ≥3000 chars) (MODREQMED-136/137, C584498).
+- **Missing data shows "-"** in list (Item barcode, Effective call number string), Select item modal (Barcode, Loan type), Confirm item arrival and Send item in transit lists (UIREQMED-91, C688778).
+- **List:** only the `Title` cell is a link to details; clicking elsewhere on a row does nothing (UIREQMED-76). Filters persist when switching activity and back (UIREQMED-44). Clearing the search box with filters applied still shows the filtered results (UIREQMED-75). >100 results paginate (C543880).
+- **Filters:** `Mediated request status` (10 values) and `Mediated request level` (`Item`/`Title`, shown only when TLR is enabled) (UIREQMED-25/37, C494032). No results from filters: `No results found. Please check your filters.`; after `Reset all`: `Choose a filter or enter a search query to show results.` (UIREQMED-25/26 AC wording — stripes SearchAndSort, not in en.json). Status/level filtering must not fail with 500 when two tenants share a location ID (MODREQMED-194/197, C958454) or for the Level filter (MODREQMED-205).
+- **Export results (CSV):** inactive when there are no results; toast `A CSV results report is being generated. This may take some time for larger result sets.`; button shows `CSV report is being generated. Please wait.` while running (en.json `mediatedRequestList.actionMenu.reportPending`). CSV columns = en.json `report.*` (Mediated request type, Mediated request status, Mediated request date, Item barcode, Title, Contributor, Library, Effective call number prefix/number/suffix, Volume, Enumeration, Chronology, Item Copy, Requester name, Requester barcode, Requester patron group, Request fulfillment preference, Pickup service point, Delivery address, Requester's proxy name, Requester's proxy barcode, Patron comments) (UIREQMED-34, C553035). Export of all requests (Item + Title selected) must complete on large data (MODREQMED-176).
+- **Staff notes accordion** needs Notes capabilities in addition to Mediated requests capabilities (UIREQMED-66 closed "Not a bug"; C523649).
+- **Proxy hidden everywhere:** no `Who are you acting as?` modal on New or Edit, no proxy info on details, no proxy in reports (UIREQMED-59, C624245, C624246) — the CSV still has the proxy columns (en.json `report.proxy.*`), expected empty.
+- **Timestamps:** Edit/Confirm update only `updatedDate` (not `createdDate`); Decline updates `updatedDate` (MODREQMED-199, C594449, C648516).
+- **Send item in transit date** shows the current date/time, not `1/1/1970, 12:00 AM` (UIREQMED-104, C569599).
+
+## Delivery requests and the Interim service point
+
+- Confirmed requests are placed with `Hold Shelf` at the **Interim service point** (fixed ID `32c6f0c7-26e4-4350-8c29-1e11c2e3efc4`, `Constants.INTERIM_SERVICE_POINT_ID`), so the lending-tenant check-in routes the item to `Interim service point` (C957383 popup text "Route … to **Interim service point**."; C1061228). On `Confirm item arrival` the BE restores the mediated request's own fulfillment preference and delivery address onto the circulation request (`MediatedRequestActionsServiceImpl.revertConfirmedRequestDeliveryInfo`), so Delivery requests end in `Open - Awaiting delivery` (C633458, C633459, MODREQMED-127).
+- The Interim SP must exist in Central and all member tenants; today it comes from mod-inventory-storage reference data, moving to automatic creation by mod-requests-mediated (MODREQMED-245, In Code Review; MODINVSTOR-1613). Missing Interim SP blocks the Secure workflow.
+
+## Multi-item (batch) requests [new in Trillium, mod-requests-mediated 1.3.0]
+
+- Patron (edge-patron/mod-patron) multi-item requests for secure patrons create a mediated batch with one individual request per item (MODREQMED-158/160/162/179). Batch status values: `Pending`, `In progress`, `Completed`, `Failed`; `mediatedWorkflow` = `Multi-Item request` (`schemas/batch/*.yaml`). `GET …/batch-mediated-requests/{batchId}` returns `itemRequestsStats` (total/pending/inProgress/completed/failed) (MODREQMED-164).
+- Patron comments are copied to each individual request with the suffix `Batch request ID: {uuid}` (MODREQMED-158 AC).
+- Max items per batch: mod-settings scope `mod-requests-mediated.manage`, key `multiItemBatchRequestItemsValidation`, value `maxAllowedItemsCount`; fallback env `BATCH_REQUEST_MAX_ITEMS` (default 50) (README.md, MODREQMED-161). Exceeding it → error 107 `The maximum number of items per batch request has been exceeded.` (ErrorCode.java).
+- Two batches for the same items must not produce duplicate queue positions (CIRC-2697; Karate `batch-requests-queue.feature`). Batch requests for different tenants must be created reliably (MODREQMED-211). Coverage: C1250456, C1301731 (FAT reviews).
+
+## API surface (mod-requests-mediated, ModuleDescriptor-template.json)
+
+| Interface | Method + path | permissionsRequired |
+|---|---|---|
+| requests-mediated 2.0 | GET `/requests-mediated/mediated-requests` (CQL `query`, `limit`, `offset`) | `requests-mediated.mediated-request.collection.get` |
+| | GET `/requests-mediated/mediated-requests/{requestId}` | `requests-mediated.mediated-request.item.get` |
+| | POST `/requests-mediated/mediated-requests` | `requests-mediated.mediated-request.item.post` |
+| | PUT `/requests-mediated/mediated-requests/{requestId}` | `requests-mediated.mediated-request.item.put` |
+| | DELETE `/requests-mediated/mediated-requests/{requestId}` | `requests-mediated.mediated-request.item.delete` |
+| requests-mediated-actions 1.2 | POST `/requests-mediated/mediated-requests/{requestId}/confirm` | `requests-mediated.mediated-request.confirm.post` |
+| | POST `/requests-mediated/mediated-requests/{requestId}/decline` | `requests-mediated.mediated-requests.decline.execute` |
+| | POST `/requests-mediated/confirm-item-arrival` | `requests-mediated.confirm-item-arrival.post` |
+| | POST `/requests-mediated/send-item-in-transit` | `requests-mediated.send-item-in-transit.post` |
+| requests-mediated-loans 1.4 | POST `/requests-mediated/loans/check-out-by-barcode` | `requests-mediated.loans.check-out-by-barcode.execute` |
+| | POST `/requests-mediated/loans/check-in-by-barcode` (secure check-in: replaces real secure patron with Central fake patron in the response — MODREQMED-191) | `requests-mediated.loans.check-in-by-barcode.execute` |
+| | POST `/requests-mediated/loans/{loanId}/declare-item-lost` (MODREQMED-146) | `requests-mediated.loans.declare-item-lost.execute` |
+| | POST `/requests-mediated/loans/{loanId}/claim-item-returned` (MODREQMED-135) | `requests-mediated.loans.claim-item-returned.execute` |
+| | POST `/requests-mediated/loans/{loanId}/declare-claimed-returned-item-as-missing` (MODREQMED-152) | `requests-mediated.loans.declare-claimed-returned-item-as-missing.execute` |
+| requests-mediated-batch 1.0 | POST / GET `/requests-mediated/batch-mediated-requests`; GET `…/{batchId}`, `…/{batchId}/details`, `…/details` (CQL by `batchId`, `requesterId`, `itemId`, `confirmedRequestId`, `mediatedRequestStatus` — MODREQMED-190) | `requests-mediated.batch-mediated-requests.item.post` / `.collection.get` / `.item.get` / `.batch-details.collection.get` / `.details.collection.get` |
+
+Loans endpoints forward to mod-circulation in the Secure tenant, then mirror the action to the Central fake-patron loan via mod-tlr (MODREQMED-135/146/152 "Logic"). UI calls confirm via `circulation-bff`, not directly (UIREQMED-39, package.json).
+
+### Error codes (mod-requests-mediated `ErrorCode.java`)
+
+| Code | Message | When |
+|---|---|---|
+| 100 | `Mediated request cannot be saved for inactive patron` | Save for an Inactive requester — HTTP 422, UI toast `Mediated request cannot be successfully saved`, nothing created in any tenant (MODREQMED-149, C825436) |
+| 102 | `Mediated request cannot be confirmed for inactive patron` | Confirm for an Inactive requester — UI toast `Request was not successfully created` (MODREQMED-149, C825435) |
+| 103 | `Mediated batch request with the given 'id' already exists.` | Batch POST with an existing batchId |
+| 104 | `Invalid initial status for mediated batch request.` | Batch POST |
+| 105 | `Not allowed to create Request for the given service point id.` | Batch item with a pickup SP not allowed |
+| 106 | `Mediated Batch Request contains duplicate item IDs.` | Batch POST |
+| 107 | `The maximum number of items per batch request has been exceeded.` | Batch over the max items |
+
+Confirm item arrival / Send item in transit for an item with no matching mediated request → 404 (`Mediated request for arrival confirmation of item with barcode '…' was not found` / `Send item in transit: mediated request for item '…' was not found`), shown in the UI as the `Item not confirmed as arrived` / `Item not sent in transit` modals (MediatedRequestActionsServiceImpl.java, en.json `confirmItem.errorModal.*`).
+
+## Existing automated coverage
+
+- **Karate** (`folio-integration-tests/folio-ecs-circulation`, runner `src/test/java/org/folio/FolioEcsCirculationTests.java`; setup `vega/common/mediated-requests-consortium-setup.feature`):
+  - `vega/mediated-requests/mediated-requests.feature` — create and decline item-level Page; create, edit and decline; create and confirm item-level Page; send item in transit + confirm arrival (statuses of secondary/intermediate/primary requests checked at every step); FAT-27420 item-level Page full workflow; FAT-27421 title-level Page full workflow; `@C1525841` renew-by-barcode validation errors for a loan created via mediated request.
+  - `vega/mediated-requests/mediated-request-staff-slips.feature` (FAT-27423) — pick slip from Central for item-level Page; search slip for title-level Hold; hold/transit/request delivery slips provisioned in printing tenants.
+  - `vega/mediated-requests/batch-requests-queue.feature` — two batches for the same three items keep unique queue positions before/after checkout.
+  - Not covered by Karate: batch error codes 103–107, inactive-patron errors 100/102, loans endpoints (declare lost / claim returned / missing), search/filter CQL, CSV export.
+- **Cypress** (`stripes-testing`): only an FSE API smoke test `cypress/e2e/fse/api/mediated-requests-api.cy.js` (TC195956, GET `requests-mediated/mediated-requests` returns 200 with `mediatedRequests`) and command `cypress/support/api/mediated-requests.js`. No UI e2e specs or fragments for the Mediated requests app.
+- **TestRail**: all 74 cases in section 32570 have the same `custom_automation_type` value (2); the automation type was not pulled for subsections 57628/61629/74667.
 
 ---
 
@@ -152,6 +248,13 @@ The `New mediated request` form itself exposes a `Confirm` button (enabled once 
 | Confirm item arrival | `Mediated requests: Confirm item arrival` | `procedural — UI-Requests-Mediated Requests-Mediated Confirm-Item-Arrival — execute` |
 | Send item in transit | `Mediated requests: Send item in transit` | `procedural — UI-Requests-Mediated Requests-Mediated Send-Item-In-Transit — execute` |
 
+Source mapping (ui-requests-mediated `package.json` → `stripes.permissionSets`, display names = en.json `permission.*`):
+- Visible sets: `ui-requests-mediated.view`, `…requests-mediated.view-create-edit.execute`, `…view-decline.execute`, `…view-confirm.execute`, `…confirm-item-arrival.execute`, `…send-item-in-transit.execute`, `ui-requests-mediated.all` (= all five procedural sets).
+- Hidden building blocks (`visible: false`, not assignable alone in the UI): `ui-requests-mediated.create` (Mediated requests: Create), `ui-requests-mediated.requests-mediated.edit` (Edit), `ui-requests-mediated.requests-mediated.confirm.execute` (Confirm).
+- BE permissions per set: view → `requests-mediated.mediated-request.collection.get` / `.item.get`; create/edit → `.item.post` / `.item.put` + `circulation-bff.requests.allowed-service-points.get` + `circulation-bff.requests.search-instances.get`; confirm → `circulation-bff.confirm-mediated-request.execute`; decline → `requests-mediated.mediated-requests.decline.execute`; confirm item arrival → `requests-mediated.confirm-item-arrival.post`; send item in transit → `requests-mediated.send-item-in-transit.post` + `circulation-storage.staff-slips.collection.get`.
+- Actions menu per set (UIREQMED-36, UIREQMED-11, C523643–C523647): `Edit & confirm` needs `View, create, edit` or `View, confirm` (or All); `Decline` needs `View, decline` (or All); with only `View`, `Confirm item arrival` or `Send item in transit` there is no Actions menu on details. Actions are shown only for `New - Awaiting confirmation` (C523645). `New mediated request` needs `View, create, edit` (C503144). Confirm item arrival / Send item in transit activities need their own sets (C553048, C569596). No capability → app not visible (C434068).
+- Other capability strings seen in cases: `data — Requests-Mediated Internal Fetch-Request-Details — manage` (C825436, BE set `requests-mediated.internal.fetch-request-details.all`) — needed on staff users in Central/Member/Secure for cross-tenant request details.
+
 > Real cases test each permission/capability **separately** (C844200 precondition note: "best to test each permission separately") — a capability-boundary scenario set for this app should cover each row individually, not just "manage" vs "view".
 
 ---
@@ -162,7 +265,7 @@ The `New mediated request` form itself exposes a `Confirm` button (enabled once 
 2. **Edit & confirm** creates the actual request (`Request has been successfully created for {requester}` toast) and links it — details show `Confirmed request` and a `View details in Requests` link. (github)
 3. **Decline** closes the mediated request as `Closed - Declined` after the `Confirm Mediated request decline` modal. (github)
 4. Request type offered (`Page`/`Hold`/`Recall`) and fulfillment (`Hold Shelf`/`Delivery`) follow the same rules as normal Requests; a title-level request uses the `Create title level request` checkbox. (github + requests.md)
-5. The **Confirm item arrival** and **Send item in transit** activities require a matching transaction for the scanned item, else the error modal appears (`No "…" transaction could be found for this item`). (github)
+5. The **Confirm item arrival** and **Send item in transit** activities require a matching transaction for the scanned item, else the error modal appears (`No "…" transaction could be found for this item`). (github — en.json `confirmItem.errorModal.*`; C553036, C569599)
 6. Mediated request statuses extend the normal request lifecycle with mediation-specific states (`Open - In transit for approval`, `Open - Item arrived`, `Open - In transit to be checked out`). (github)
 7. Separate capability sets gate create/edit vs confirm vs decline vs the two item activities — a user may see mediated requests but lack confirm/decline. Confirmed concretely: a user with ONLY `Mediated requests: View, decline` opens a `New - Awaiting confirmation` request's details and the `Actions` menu shows exactly one option, `Decline` — no `Edit & confirm` (that requires the separate View-create-edit or View-confirm capability). Each of the 7 capability rows in the table above gates its own Actions-menu entry independently; don't assume "decline visible" implies "confirm visible" or vice versa. (github + cases — C523647)
 8. Notes: staff notes can be attached to a mediated request (`New staff note` / `Staff notes`). (github)
@@ -174,6 +277,28 @@ The `New mediated request` form itself exposes a `Confirm` button (enabled once 
 14. A confirmed mediated request's post-checkout loan ("congressional loan") permits Declare-lost/Claim-returned actions only from the Secure tenant, while Member/Central tenants get a read-only mirrored view with the action disabled; resolution can require multiple cross-tenant check-in passes. A $0 Set-cost Lost item fee policy auto-closes the congressional loan at Declare-lost confirm itself (same rule as ordinary loans in `loans.md`), and Central tenant has literally NO record of the request/loan at all — not just a masked view. Checking in a declared-lost congressional item from outside the Secure tenant also suppresses `Loan details`/`Patron details` on that check-in row's actions menu. (cases — C812848, C825272, C895640)
 15. Requests and Borrowing patron blocks are independent gates in the mediated-request flow — overriding one does not carry over to the other, even for the same patron/item journey. (cases — C831971, C831973)
 16. Proxy/Sponsor substitution is never offered during mediated-request creation, regardless of whether the scanned patron has an active proxy relationship. (cases — C624245)
+17. The Mediated requests app is available only in the Secure tenant — not in Central and not in any non-Secure member tenant. (C1434658, BF-1522)
+18. `Decline` is accepted only for `New - Awaiting confirmation`; the BE returns a validation error for any other status. (UIREQMED-42; mod-requests-mediated `MediatedRequestActionsServiceImpl.declineRequest`)
+19. Open mediated requests cannot be cancelled in the Mediated requests app; they become `Closed - Cancelled` only when the confirmed circulation request is cancelled. (UIREQMED-37 note; `RequestEventHandler.java`; C630441, C630442)
+20. `Confirm item arrival` finds only mediated requests in `Open - In transit for approval`, and `Send item in transit` only those in `Open - Item arrived`; scanning an item in any other state shows the matching "transaction could not be found" modal. (mod-requests-mediated `MediatedRequestsRepository.java`; Karate `mediated-requests.feature`; en.json `confirmItem.errorModal.*`)
+21. Mediated status follows the primary circulation request: lending-tenant check-in → `Open - In transit for approval`; check-in at pickup SP after Send item in transit → `Open - Awaiting pickup` / `Open - Awaiting delivery`; Secure check-out → `Closed - Filled`. Each step fires only from the expected previous step. (`RequestEventHandler.java`; C1061228)
+22. Confirmed requests are routed through the Interim service point (Hold Shelf); the original fulfillment preference and delivery address are restored on Confirm item arrival, so Delivery requests end in `Open - Awaiting delivery`. (`MediatedRequestActionsServiceImpl.java`; C957383; C633458; MODREQMED-127)
+23. `Send item in transit` prints the `Transit (Mediated requests)` staff slip and sets `Open - In transit to be checked out`; the in-transit date is the current date/time. (UIREQMED-40, UIREQMED-104; C618998, C569599)
+24. Save and Confirm are both rejected for an Inactive requester (codes 100 / 102), and no fake patron or circulation request is created in any tenant. (MODREQMED-149; ErrorCode.java; C825435, C825436)
+25. `Save & close` needs only title/item + requester; `Confirm` also needs request type, fulfillment preference and pickup SP / delivery address. If circ rules allow no request type, the request can still be saved. (UIREQMED-22, UIREQMED-49, UIREQMED-97; C594452)
+26. Editing a request whose instance, item or requester was deleted keeps the stale value in the field with the matching `… does not exist` error. (UIREQMED-51; C594453, C594454, C594455)
+27. A title-level Page request in `New - Awaiting confirmation` has no item information until confirmed (`There is no item information for this request.`). Expected behaviour, not a bug. (MODREQMED-208; en.json `mediatedRequestDetail.item.noInformation`)
+28. Search: Title, Item barcode, Requester barcode and Effective call number string are "starts with", case- and accent-insensitive; mediated request UUID is exact match only, and invalid or partial UUIDs return "No results found" without an error. (UIREQMED-26, UIREQMED-112, MODREQMED-167/168; C503170–C503173, C648521, C663264, C844200)
+29. `Mediated request level` filter is shown only when title-level requests are enabled; status and level filters must work without 500 errors, including when two tenants share a location ID. (UIREQMED-25; MODREQMED-194/197/205; C494032, C958454)
+30. `Export results (CSV)` is disabled when there are no results; the CSV has the 23 `report.*` columns and must finish for the full data set. (UIREQMED-34; MODREQMED-176; en.json `report.*`; C553035)
+31. Fields with no data show "-" in the request list, Select item modal, Confirm item arrival and Send item in transit lists. (UIREQMED-91; C688778)
+32. Titles longer than 255 characters can be saved and confirmed. (MODREQMED-136/137; C584498)
+33. Items without a barcode can be requested via the TLR → item list path and confirmed on the first attempt. (UIREQMED-99/100, MODREQMED-109; C584500)
+34. Edit and Confirm update only `updatedDate`; Decline updates `updatedDate`. (MODREQMED-199; C594449, C648516)
+35. A multi-item (batch) request for a secure patron creates one mediated request per item. The max item count comes from mod-settings `multiItemBatchRequestItemsValidation.maxAllowedItemsCount`, with fallback `BATCH_REQUEST_MAX_ITEMS` = 50; exceeding it returns error 107, and duplicate item IDs return error 106. (MODREQMED-158/161/179; README.md; ErrorCode.java)
+36. Secure check-in through mod-requests-mediated replaces the real secure patron with the Central fake patron in the check-in response; transit slips printed in Central contain no secure-patron data. (MODREQMED-191; C957383; C627393, C627415)
+37. Secure patron data must not appear for unauthorized staff in the Circulation log or in the Claimed returned, Overdue loans, Financial transaction detail and Refunds to process manually CSV reports. (C627400, C627401, C627402, C663276, C663277)
+38. Mark-missing of a claimed-returned congressional item goes through the Secure tenant, like Declare lost and Claim returned. (MODREQMED-152; C895644)
 
 ---
 
@@ -192,6 +317,18 @@ Mediated Requests: strongly **`Func` ~94%**, median ~6 steps, `User Journey` ~0%
 - [x] The "congressional loan" terminology and cross-tenant Declare-lost mechanics — **generalization confirmed** (C895640, blind-generate/diff validation round, 2026-07-22): a 3rd oLOAN-subsection (57628) case, sampled independently, matched the predicted $0-auto-close behavior exactly and surfaced two new confirmed nuances (Central has zero oLOAN records, not just a masked view; Check-in row actions menu is also masking-suppressed). 7 more oLOAN-tagged cases remain unpulled in section 57628 (renewal-policy-change, claim-returned variants, CSV export) — pull them before writing cases for those specific sub-scenarios.
 - [ ] MODTLR-150 (Secure-tenant queue-reorder staleness) and MCBFF-158 (Secure-tenant closed-loan display lag) are both cited as accepted/known limitations in currently-live cases — re-verify they're still open before relying on them, since either could be fixed in a future release and turn the "expected" lag into an actual regression.
 
+Added 2026-11-24:
+- [ ] **Open defects to expect, not assert as fixed:** MODREQMED-216 (Open; a request two staff edit at the same time can end with the mediated request still in `New - Awaiting confirmation` and no `Confirmed request` link while the circulation request is `Open - Not yet filled`); MODREQMED-225 (Open; title-level **Hold** mediated requests: item info missing on the `Send item in transit` slip, because mod-dcb creates the circulation item with a random ID); MODREQMED-237 (Open; the details page does not load after the requester user is deleted — TLS Trillium BF; not reproducible on Sunflower); MODREQMED-221 (Open story; patron phone token for the Transit (Mediated requests) slip). Re-check their status before writing cases for these scenarios.
+- [ ] **Interim service point provisioning** is moving from mod-inventory-storage reference data to mod-requests-mediated tenant init (MODREQMED-245 In Code Review, MODINVSTOR-1613). Until it is merged, environments without reference data may lack the Interim SP, and the Secure workflow will not work there.
+- [ ] **Capability-string conflicts in cases:** C1434658 preconditions write `data - UI-Mediated-Requests - view` (word order differs from `data — UI-Requests-Mediated — view` in the table above). C825436 uses `data - UI-Requests-Mediated - view, create, manage` and `data - UI-Requests-Mediated Requests-Mediated - edit`, which match the hidden `Create`/`Edit` permission sets rather than the visible procedural sets. Verify the exact Eureka names in an environment before reusing them.
+- [ ] **UI texts not in ui-requests-mediated en.json** (from stripes-core/components or Jira ACs only): `Save & close`, `Are you sure?` / `There are unsaved changes` / `Close without saving` / `Keep editing`, `No results found. Please check your filters.`, `Choose a filter or enter a search query to show results.`, `Search could not be processed for "…". Please check your query and try again.`, `Transit (Mediated requests)` slip name. Confirm them in the environment before asserting them verbatim.
+- [ ] **Staff slip tokens:** `{{requester.patronGroup}}` was reported empty on the Transit (Mediated requests) slip (UIREQMED-40 last comment, unresolved in that ticket). Verify the current behaviour.
+- [ ] **Patron notices ownership:** MODREQMED-182 comment states notices are tied to the primary circulation request, not to the mediated request; the Confluence design page 815431766 describes notices sent on request update once the fake patron is resolved to the real one (CIRC-2269 / CIRC-2639). C692095 (Hold mediated TLR, expiration notice) is still marked DRAFT.
+- [ ] **Search by Mediated request tags / Type facet** are not implemented: UIREQMED-111/113/114 and MODREQMED-165 are Draft or In Refinement. Do not write cases for them yet.
+- [ ] **Batch requests UI:** batch (multi-item) requests are API-only (edge-patron/mod-patron, MODREQMED-158 AC). No ui-requests-mediated strings exist for them, and MODREQMED-161 QA comment reported a 500 instead of a 4xx for the limit via `/circulation-bff/batch-requests` before the fix. Verify the error status in the environment.
+- [ ] **Cypress coverage** is limited to the FSE API smoke test, and no UI fragments exist, so UI cases cannot reuse Cypress fragments.
+- [ ] MODTLR-150 / MCBFF-158 (listed above) were not re-checked in Jira during this refresh.
+
 > N≥10 audit round (2026-07-22): 14 cases read (C692073, C692119, C831971, C831973, C624245, C630441, C627409, C812848, C825435, C825272, C594453, C651539, C856508, C692201). Resolved the file's last open Known Gap by pulling both the Mediated request notices (61629) and Mediated request patron blocks (74667) subsections. Surfaced substantial new previously undocumented content: Secure-patron-data masking (exact placeholder format + Actions-menu suppression + two accepted cross-tenant staleness quirks), the "congressional loan" terminology and its cross-tenant Declare-lost/Claim-returned lifecycle, the one-way cancel cascade from real Request to Mediated Request, the two-independent-gates nature of Requests vs Borrowing patron blocks, hidden proxy/sponsor UI, and the inactive-user confirm-failure cleanup guarantee. Added 5 new Key Business Rules (12-16).
 > Blind-generate/diff validation round (2026-07-22): predicted (before reading) that a $0 Set-cost policy would auto-close a congressional loan the same way it does an ordinary loan per `loans.md` — confirmed exactly against C895640, which also surfaced 2 new masking nuances (Central has zero oLOAN records; check-in row actions menu suppression). Closed the file's last real open Known Gap (congressional-loan generalization); the two remaining items are external-ticket-status re-checks, not undocumented behavior.
 
@@ -201,6 +338,7 @@ Mediated Requests: strongly **`Func` ~94%**, median ~6 steps, `User Journey` ~0%
 ## Changes since 2026-07-21 (delta refresh 2026-11-07)
 
 > Delta, not a rebuild: sections above reflect the original build. Where this section contradicts them, **this section wins**.
+> 2026-11-24 refresh: the mediated-relevant items of this delta (CIRC-2639 notices, C1434658 Secure-only app, C1525841/C1528161 secure loan renewal API) are folded into the main sections above. The other bullets concern sibling circulation areas and are kept for reference only.
 > Sources: GitHub folio-org/ui-requests-mediated (translations/ui-requests-mediated/en.json, HEAD v4.0.0); Jira folio-org.atlassian.net Done issues resolved since 2026-07-21; TestRail suite 21 cases created since 2026-07-21.
 
 ### What changed
