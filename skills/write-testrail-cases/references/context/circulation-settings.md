@@ -1,205 +1,263 @@
 # FOLIO Circulation Settings — Business Logic Context
 
-> Built: 2026-07-21 · Delta-refreshed: 2026-11-07 · Release: not recorded · Builder: build-app-context/manual — header normalized 2026-11-07, see area-map.md → Freshness
+> Built: 2026-07-21 · Refreshed: 2026-11-24 (full merge of the 2026-11-07 delta) · Release: Umbrellaleaf (in progress; ui-circulation 13.0.0 IN_PROGRESS, mod-circulation 24.6.0-SNAPSHOT, mod-circulation-storage 17.6.0-SNAPSHOT — previous: Trillium R1 2026 = ui-circulation 12.0.x) · Builder: build-app-context (refresh mode)
+> Sources (2026-11-24): GitHub folio-org/ui-circulation (master 43dc24c: `translations/ui-circulation/en.json`, `package.json`, `src/index.js`, `src/settings/Validation/*`, `CHANGELOG.md`); folio-org/mod-circulation (`descriptors/ModuleDescriptor-template.json`, `NEWS.md`, `doc/circulationrules.md`); folio-org/mod-circulation-storage (`descriptors/ModuleDescriptor-template.json`); folio-org/folio-integration-tests (`mod-circulation`, `mod-circulation-storage` Karate); folio-org/stripes-testing (`cypress/e2e/settings/circulation/*`); Jira UICIRC (Done/Closed since 2024-06, ~195 issues scanned) + CIRC (settings-related, ~115 scanned); TestRail suite 21 sections 102/103/104/52794/72019/169/1535/1132/1144; Confluence "Circulation - For use at location - Trillium - Notes on functionality", "User-specific loan anonymization"; docs.folio.org source `folio-org/docs content/en/docs/Settings/Settings_circulation/settings_circulation.md`.
+> UI strings: `en.json` is the source of truth; `en_US.json` (Lokalise copy) lags by 37 keys (automatic renewals, text-message notice format, staff slip names, user-specific anonymization, notice-policy reorder) — do not assert those from `en_US.json`.
 
-> Built 2026-07-21 (browser-based). **Exact UI Texts confirmed against `folio-org/ui-circulation/translations/ui-circulation/en_US.json` (2026-07-21).** TestRail: suite 21 section 102 "Circulation" (+ Loan Policies 103, Rules 104, Floating collections 52794) and Permissions → Circulation 169. This file covers **Settings > Circulation**; the runtime circulation apps have their own files (check-in.md, check-out.md, loans.md, requests.md, fees-fines.md). Patron notice *templates and policies* are split into `patron-notices.md`.
+This file covers **Settings > Circulation**; the runtime circulation apps have their own files (check-in.md, check-out.md, loans.md, requests.md, fees-fines.md). Patron notice *templates and policies* are split into `patron-notices.md`.
 
 ---
 
 ## What is Circulation Settings
 
-`Settings > Circulation` configures how circulation behaves: **policies** (loan, request, overdue fine, lost item fee, patron notice), **circulation rules** that map patron-group × material-type × loan-type × location → those policies, plus fixed due date schedules, staff slips, request cancellation reasons, title-level-request config, loan anonymization, and check-in/out "other settings". Everything the Check out / Check in / Requests / Loans / Fees-fines apps do at runtime is driven by these settings.
+`Settings > Circulation` configures how circulation behaves: **policies** (loan, request, overdue fine, lost item fee, patron notice), **circulation rules** that map patron-group × material-type × loan-type × location → those policies, plus fixed due date schedules, staff slips, request cancellation reasons, title-level-request config, loan anonymization, print settings and check-in/out "Other settings". Everything the Check out / Check in / Requests / Loans / Fees-fines apps do at runtime is driven by these settings.
 
-Settings groups (left nav): `General`, `Loans`, `Fee/fine`, `Patron notices`, `Requests`.
+### Navigation (exact labels — en.json `settings.index.*`, routes from `src/index.js`)
+
+| Group (`settings.index.*`) | Pages (label → route → view permission) |
+|---|---|
+| `General` | `Circulation rules` → `rules` → `ui-circulation.settings.view-circulation-rules`; `Other settings` → `checkout` → `…view-other-settings`; `Staff slips` → `staffslips` → `…view-staff-slips`; *(ECS requests enabled only)* `Title level requests (TLR)` → `title-level-requests`, `Consortium title level requests (TLR)` → `consortium-title-level-requests` |
+| `Loans` | `Fixed due date schedules` → `fixed-due-date-schedules`; `Loan anonymization` → `loan-anonymization` (perm `…loan-history`); `Loan policies` → `loan-policies` |
+| `Fee/fine` | `Overdue fine policies` → `fine-policies`; `Lost item fee policies` → `lost-item-fee-policy` |
+| `Patron notices` | `Patron notice policies` → `notice-policies`; `Patron notice templates` → `patron-notices`; *(ECS requests enabled)* `TLR patron notice templates` → `tlr-patron-notice-templates` |
+| `Requests` | `Request cancellation reasons` → `cancellation-reasons`; `Request policies` → `request-policies`; `Title level requests` (non-ECS only) ; `Print hold requests` → `print-hold-requests` (perm `…view-staff-slips`); `View print details` → `view-print-details` (perm `…request-print-details`) |
+
+Pane title: `Circulation` (`settings.index.paneTitle`). **TLR placement differs by tenant type**: with ECS requests enabled, TLR lives under **General** as `Title level requests (TLR)` and its notice templates are a separate page `TLR patron notice templates`; otherwise a single `Title level requests` page sits under **Requests** (`src/index.js`).
 
 ---
 
 ## Circulation rules (the mapping engine)
 
-`Settings > Circulation > Circulation rules` — a text editor mapping **criteria** to **policies**. Criteria: `Patron groups`, `Material types`, `Loan types`, `Locations` (`Institution`/`Campus`/`Library`/`Location`), with `ANY`, `All`, `! (not)`. Policies assigned per rule: `Loan policies`, `Request policies`, `Patron notice policies`, `Overdue fine policies`, `Lost item fee policies`. A **fallback-policy** line matches everything; more specific rules win. Save toast: `Rules were successfully updated.`
+`Settings > Circulation > General > Circulation rules` — pane `Circulation rules editor` (`settings.circulationRules.paneTitle`), a text editor mapping **criteria** to **policies**. Criteria pickers: `Patron groups`, `Material types`, `Loan types`, `Institutions`/`Campuses`/`Libraries`/`Locations` (location tree pickers `Select institution`/`Select campus`/`Select library`/`Select location`, `Done`), keywords `ANY`, `All`, `! (not)`. Policy pickers: `Loan policies`, `Request policies`, `Patron notice policies`, `Overdue fine policies`, `Lost item fee policies`. Save toast: `Rules were successfully updated.` (`settings.circulationRules.rulesUpdated`). Filter field: `filter rules`.
 
-### Exact editor grammar [confirmed — C651, C654, C401724; resolves prior Known Gap]
+### Exact editor grammar [confirmed — C651, C654, C401724; mod-circulation `doc/circulationrules.md`]
 
-- **Attribute (criteria) prefix letters**, before the `:`: `g` Patron groups, `m` Material types, `t` Loan types, `a` Institutions, `b` Campuses, `c` Libraries, `s` Locations. Typing at a new line auto-suggests these letters; selecting one then shows a value-picker populated from that attribute's actual configured records.
-- **Policy prefix letters**, after the `:`, one per policy type in the SAME line: `l` Loan policy, `r` Request policy, `n` Patron notice policy, `o` Overdue fine policy, `i` Lost item fee policy — e.g. `m DVD : l one-hour r allow-all n send-no-notices o overdue-fine-policy i lost-item-fee-policy`. Typing `:` after a selected attribute value shows the policy-TYPE dropdown (Loan/Request/Patron notice/Overdue fine/Lost item fee policies); selecting a type then shows the actual configured policies of that type.
-- **A rule is incomplete unless ALL FIVE policy types are present on that line.** Attempting to Save an incomplete rule shows: `Must contain one of each policy type, missing type [next expected policy type from drop down list]` — the message names the specific missing type.
-- Other malformed syntax (missing comma between multiple criteria values, missing policies, incorrect line indentation, a criteria conjunction missing its `+` sign) all block Save with an error message.
-- **Comments**: lines starting with `#` are supported and are matched by the editor's own "filter rules" search field. The filter treats special characters LITERALLY, not as regex — `*`, `?`, `\`, and `[` were each confirmed to correctly filter to only the comment line containing that exact literal character.
-- On successful Save, a "Last updated" stamp (date + updating user's name) appears top-left of the rules editor pane, alongside the `Rules were successfully updated.` toast.
+- **Criteria letters** before `:`: `g` patron group, `m` material type, `t` loan type, `a` institution, `b` campus, `c` library, `s` location. Typing at a new line auto-suggests these; selecting one shows a value picker populated from that attribute's configured records.
+- **Policy letters** after `:`: `l` loan, `r` request, `n` patron notice, `o` overdue fine, `i` lost item fee — any order, **exactly one of each type** (circulationrules.md "Policies"), e.g. `m DVD : l one-hour r allow-all n send-no-notices o overdue-fine-policy i lost-item-fee-policy`.
+- Incomplete rule on Save: `Must contain one of each policy type, missing type [next expected policy type]` (C654 — not present in ui-circulation en.json; it is a backend parse error, assert only as observed in C654).
+- Other malformed syntax (missing comma between values, missing policies, wrong indentation, criteria conjunction without `+`) blocks Save with an error above the line (C654). Example backend 422 body: `{"message": "no viable alternative at input '…'", "line": 3, "column": 41}` (CIRC-2445).
+- **Criteria combination**: `+` concatenates criteria on one line; indentation nests a child rule under a parent (circulationrules.md "Criteria").
+- **Comments**: `#` **or** `/` starts a line comment (circulationrules.md "Line comment"; docs.folio.org "Circulation rule tips"). `#` lines also act as section titles matched by the `filter rules` box; the filter treats `* ? \ [` literally (C401724).
+- **Allowed name characters**: names referenced in rules may contain only `a-z A-Z 0-9 -` (circulationrules.md) — the editor inserts codes/ids for picked values.
+- **`fallback-policy:`** line defines the default for all five policy types (circulationrules.md; C650).
+- On Save, a "Last updated" stamp (date + user) appears top-left of the editor (C651/C654 observation).
+- **Shadow (DCB) locations** are selectable in the location pickers of the rules editor only (ui-circulation 11.0.4, `includeShadow`/`includeShadowLocations`; UICIRC-1271). They must not appear in other location dropdowns (Settings > Tenant locations, holdings/items, orders — UICIRC-1271 QA comment).
+
+### Rule priority when several rules match [source — mod-circulation `doc/circulationrules.md` "Multiple matching rules"]
+
+A `priority:` line (before the first rule) lists up to three regulations checked in order; the last must be `first-line` or `last-line`:
+1. `criterium (t, s, c, b, a, m, g)` — each rule is ranked by its **highest-priority criterium type**; rules with the highest wins (with the default order, any rule containing `t` beats a rule with only `m`/`g`).
+2. `number-of-criteria` — more criterium types wins; any number of location types (`a b c s`) count as one; `all` keyword lets a type count without restricting names.
+3. `first-line` / `last-line` — tie-break by position.
+Legacy form `priority: t, s, c, b, a, m, g` = `criterium(t, s, c, b, a, m, g), number-of-criteria, last-line`.
 
 ---
 
 ## Policies
 
-### Loan policy [confirmed]
-Accordions `General information`, `Loans`, `Renewals`. Key fields: `Loan policy name`, `Description`, `Loanable`, `Loan profile` (`Fixed` / `Rolling`), `Loan period`, `Fixed due date schedule`, `Closed library due date management` (short-term: `Keep the current due date/time` / `Move to the end of the current service point hours` / `Move to the beginning of the next open service point hours`; long-term: `Keep the current due date` / `Move to the end of the previous open day` / `Move to the end of the next open day`), `Grace period`, `Item limit`, `Hold shelf expiration period`, `For use at location`. Renewals: `Renewable`, `Unlimited renewals`, `Number of renewals allowed`, `Renew from` (`System date` / `Current due date`), `Renewal period different from original loan`, alternate periods for existing requests / renewals. Delete guard: `Cannot delete Loan policy` / `This policy cannot be deleted, as it is in use by one or more records.`
+### Loan policy [confirmed — en.json, C638–C648, C1554460–C1554463]
+Accordions `General information`, `Loans`, `Renewals`, `Request management`. Key fields: `Loan policy name`, `Description`, `Loanable`, `Loan profile` (`Fixed` / `Rolling`), `Loan period`, `Fixed due date schedule` / `Fixed due date schedule (due date limit)`, `Closed library due date management`, `Opening time offset`, `Grace period`, `Item limit`, `For use at location` + `Hold shelf expiration period`. Renewals: `Renewable`, `Unlimited renewals`, **`Automatic renewals`**, `Number of renewals allowed`, `Renew from` (`System date` / `Current due date`), `Renewal period different from original loan`. Request management: recalls (`Recall return interval`, `Minimum guaranteed loan period for recalled items`, `Alternate grace period for recalled items`, `Allow recalls to extend due dates for overdue loans`), holds (`Alternate loan period at checkout for items with an active, pending hold request`, `Allow renewal of items with an active, pending hold request`, alternate renewal period).
+- Delete: `Delete loan policy`; message `{name} will be {removed}.`; in-use guard `Cannot delete Loan policy` / `This policy cannot be deleted, as it is in use by one or more records.` (original build, github).
+- **Validation (ui-circulation `src/settings/Validation/loan-policy/loans.js`)**: when Loanable — `Loan profile` and `Closed library due date management` required; Rolling — `Loan period` duration required, integer > 0 (`The value must be integer and greater than 0`) and interval required (`Please make a selection`); Fixed — `Fixed due date schedule` required; `Opening time offset` required/integer > 0 only when the closed-library option uses it; `Item limit` → `Item limit must be > 0, =< 9999 or blank` (always validated). Generic required text: `Please fill this in to continue`.
+- **Automatic renewals** (UICIRC-1351/1387/1390/1399; ui-circulation 13.0.0; storage `loan-policy-storage` 2.5):
+  - Checkbox `Automatic renewals` shown directly under `Unlimited renewals`, only while `Renewable` is checked; unchecking `Renewable` hides all renewal fields incl. Automatic renewals (UICIRC-1351, UICIRC-1390 Sc.1).
+  - Info popover: `Automatic renewals are available for loans with intervals of one day or longer.` (`settings.loanPolicy.automaticRenewals.infoPopover`).
+  - When checked: required `Attempt first renewal` with radios `On due date` (default) / `day(s) before due date` (+ number), then optional `Attempt additional retries for` `day(s)` (UICIRC-1390 Sc.3).
+  - `day(s) before due date`: integer 1–100 → `The value must be integer and must be between 1 and 100`; empty → `Please fill this in to continue` (UICIRC-1390 Sc.4–5). Retries: integer 0–100 or blank → `The value must be integer and must be between 0 and 100 or blank`; blank is stored as 0 (UICIRC-1351 notes).
+  - BE fields: `renewalsPolicy.automaticRenewal`, `firstAutomaticRenewalAttemptDaysBeforeDueDate`, `automaticRenewalRetryPeriodInDays`; absent `automaticRenewal` = disabled; 0 and 100 are valid boundaries (CIRC-2687).
+  - Nightly job eligibility (CIRC-2584, status Blocked — not yet released): loan eligible only if policy has automatic renewal on, loan is inside the attempt window, normal renewal conditions pass and no active hold/recall blocks; blocked loans get Circulation log entries (mod-circulation NEWS 24.6.0).
 
-### Request policy [confirmed]
-`Request policy name`, `Description`, `Request types allowed` (Page/Hold/Recall), pickup: `Allow all pickup service points` / `Allow some pickup service points` (`Please select at least one service point`). Errors: `A request policy with this name already exists`. Delete guard: `Request policy cannot be deleted` / `This request policy is used by circulation rules and it cannot be deleted`.
+### Request policy [confirmed — en.json, C410745, C410746, C411717]
+`Request policy name`, `Description`, `Request types allowed` (Page/Hold/Recall); per type `Allow all pickup service points` / `Allow some pickup service points`. Hold info popover: `If the "Fail to create title level hold when request is blocked by circulation rule" setting is unchecked, title level holds will always be allowed. (Settings > Circulation > Title level requests)` (`settings.requestPolicy.policyTypes.hold.infoPopover.content`; C411717). Errors: `A request policy with this name already exists`, `Please select at least one service point`. Delete guard: `Request policy cannot be deleted` / `This request policy is used by circulation rules and it cannot be deleted`.
+- Allowed pickup service points must be pickup locations: POST/PUT with a non-pickup or non-existent SP → 422 `One or more Pickup locations are no longer available`, code `INVALID_ALLOWED_SERVICE_POINT`; UI shows the same text (Karate `mod-circulation-storage/.../request-policies.feature`; Cypress C410745).
+- Selected SPs persist after page reload (C410746).
+- `+ New` opens with defaults — it must not inherit settings of a previously edited policy (UICIRC-1293 fix).
 
-### Overdue fine policy [confirmed]
-`Overdue fine policy name`, `Overdue fine` (amount `per` interval), `Count closed days/hours/minutes`, `Maximum overdue fine`, `Forgive overdue fine if item renewed`, `Overdue recall fine`, `Ignore grace periods for recalls`, `Maximum recall overdue fine`. Plus **Reminder fees** (sequence, interval, frequency, fee, notice method/template, `Clear patron block when paid`, `Allow renewal of items with reminder fee(s)`). Validation e.g. `Maximum overdue fine must be greater than or equal to Overdue fine`.
+### Overdue fine policy [confirmed — en.json; C5557, C3613]
+`Overdue fine policy name`, `Overdue fine` (amount per interval), `Count closed days/hours/minutes`, `Maximum overdue fine`, `Forgive overdue fine if item renewed`, `Overdue recall fine`, `Ignore grace periods for recalls`, `Maximum recall overdue fine`, **Reminder fees** (sequence, interval, frequency, fee, notice method/template, `Ignore grace periods for recalls`/`…for holds`, `Clear patron block when paid`, `Allow renewal of items with reminder fee(s)`).
+Validations (en.json `settings.finePolicy.validate.*`): `Maximum overdue fine must be greater than or equal to Overdue fine`; `Maximum overdue recall fine must be greater than or equal to Overdue recall fine`; `Overdue fine must be greater than 0 if interval set`; `Overdue recall fine must be greater than 0 if interval set`; `Please enter an overdue fine amount or set maximum overdue fine to 0`; `Please enter an overdue recall fine amount or set maximum overdue recall fine to 0`. Delete: `Delete overdue fine policy`.
 
-### Lost item fee policy [confirmed]
-`Lost item fee policy name`, `Items aged to lost after overdue`, `Patron billed after aged to lost`, `Charge amount for item` (`Actual cost` / `Set cost`), `Lost item processing fee` (+ charge-if-declared-by-patron / aged-by-system), `Replacement allowed`, `Replacement processing fee`, `If lost item returned or renewed …`, `No fees/fines shall be refunded if a lost item is returned more than … late`, recall variants (`Recalled items aged to lost after overdue`). Many cross-field validations.
+### Lost item fee policy [confirmed — en.json; C5558, C196744]
+`Lost item fee policy name`, `Items aged to lost after overdue`, `Patron billed after aged to lost`, `Recalled items aged to lost after overdue`, `Patron billed for recall after aged to lost`, `Charge amount for item` (`Actual cost` / `Set cost`), `Lost item processing fee` + `Charge lost item processing fee if item declared lost by patron` / `…aged to lost by system`, `Replacement allowed`, `Replacement processing fee`, return/renew refund settings, `No fees/fines shall be refunded if a lost item is returned more than … late`. Delete: `Delete lost item fee policy`.
+Cross-field validations (en.json `settings.lostItemFee.validate.*`), verbatim:
+- `'Lost item processing fee' cannot be > 0 unless 'Charge lost item processing fee if item declared lost by patron ?' and/or 'Charge lost item processing fee if item aged to lost by system ?' is 'Yes'`
+- `'Lost item processing fee' must be > 0 and 'Items aged to lost after overdue' amount must be > 0 for this selection`
+- `'Replacement processing fee' cannot be > 0 unless 'Replacement allowed' is 'Yes` (sic — closing quote missing in en.json)
+- `Entry required if 'Patron billed after aged to lost' amount entered`; `Entry required if 'Patron billed for recall after aged to lost' amount entered`; `Please enter amount`; `Required if there is a possibility of no fee/fine being charged for a lost item`
+- Fractional processing fee (0 < x < 1, e.g. 0.25) is valid (UICIRC-1249).
 
-### Fixed due date schedules [confirmed]
-`Fixed due date schedule name`, `Description`, schedule rows `Date from`/`Date to`/`Due date`. Validations: `Date range {n1} cannot overlap with date range {n2}`, `To date must be after from date`, `Due date must be on or after to date`, `At least one schedule must be entered`. Delete guard: `Schedule cannot be deleted when used by one or more loan policies.`
+### Fixed due date schedules [confirmed — en.json; C641, C367970, C1594647–C1594650]
+`Fixed due date schedule name`, `Description`, rows `Date range {number}` with `Date from` / `Date to` / `Due date`. Create title `Create fixed due date schedule`. Validations: `Date range {num1} cannot overlap with date range {num2}`, `To date must be after from date`, `Due date must be on or after to date`, `At least one schedule must be entered`, `Please enter a unique name.` Delete guard `Schedule cannot be deleted when used by one or more loan policies.`; success `The fixed due date schedule {name} was successfully {deleted}.` Saving an edit without changing the name must succeed (C367970).
+- Time zone: in America/Vancouver, due dates after 2026-11-01 must not shift by one hour; schedules saved before the moment-timezone update keep the old offset until re-saved (C1594647–C1594650; UICIRC-1391, FOLIO-4580; see vancouver timezone incident).
 
----
-
-## Closed Library Due Date Management — Exact Resulting Due Date [confirmed — C829892, C844248; expands prior field-only listing]
-
-Verified directly via the resulting Loan-details "Due date" field (not just the setting's existence):
-- **Short-term** loan, option = `Move to the end of the current service point hours`, calculated due date falls during the service point's CLOSED hours ⇒ due date is truncated EARLIER to the END TIME of the current (checkout) day's open hours — the loan is effectively shortened to fit within that day, not pushed to a later day.
-- **Long-term** loan, option = `Move to the end of the previous open day`, calculated due date falls on a day the service point is closed ⇒ due date moves BACKWARD to 11:59 PM of the closest PRIOR day the service point was open.
-- **Short-term** loan, option = `Move to the beginning of the next open service point hours`, calculated due date falls during CLOSED hours ⇒ confirmed directly (previously only inferred by symmetry): due date pushes LATER to the start of the next open period. If the policy's `Opening time offset` field is also set (e.g. `1 minute`), that offset is ADDED on top of the next-open start time — a policy with offset = 1 minute and next-open-hours starting 11:00 AM produces due date 11:01 AM, not 11:00 AM exactly. Don't treat "beginning of next open hours" as offset-free; the offset field independently shifts the result and must be included in the expected-value calculation. (cases — C831956)
-- The "end of the next open day" (long-term) symmetric option is still not independently re-fetched — continue treating that one specifically as a high-confidence inference pending direct verification.
-
-## Floating Collections [previously undocumented — C605980, C605981]
-
-A Location can be flagged "Floating enabled" and tied to one or more specific service points.
-- Checking in an item at a service point whose CURRENT location has floating enabled: item status → `Available`, and BOTH the item's Temporary location AND Effective location update to that check-in service point's floating-enabled location — the item "floats" to wherever it was returned instead of needing to transit home.
-- Checking in the same kind of item at a service point that has NO location with floating enabled: item status → `In transit` instead, and Temporary/Effective location remain UNCHANGED (still the original floating location).
-- **An open request on the item overrides floating entirely** (confirmed live, C605982 — blind-generate/diff validation round, 2026-07-22): checking in a floating-enabled item at a floating-enabled-location service point, when an open item-/title-level request with a DIFFERENT pickup service point exists, produces item status `In transit to {pickup SP}` — NOT `Available` — and BOTH Temporary and Effective location stay UNCHANGED at the item's pre-check-in location (no floating relocation happens at all). Request fulfillment takes priority over floating outright; a case exercising floating must always state whether an open request exists, since its presence changes the outcome from "floats to check-in location" to "routes to pickup location, no relocation."
-
-## "For Use At Location" (Reading-Room Circulation) [previously undocumented beyond a bare field name — C870003, C869999, C1307935, C916267]
-
-A full feature for items that circulate only within the library (e.g. reading-room use), distinct from a normal checkout.
-
-**Setup** (three linked configs):
-1. A Loan policy with the `For use at location` checkbox ticked (Loans section) — requires a `Hold shelf expiration period` (days/weeks/months) to be filled in.
-2. A dedicated Loan type created in Inventory settings (e.g. named "For use at location").
-3. A Circulation rule mapping that Loan type (and/or a dedicated patron group) to the For-use-at-location Loan policy — same `l`/`r`/`n`/`o`/`i` syntax as any other rule.
-
-**Per-service-point default**: Settings > Tenant > Service points > Edit > `Default check-in action for use at location` dropdown. This default is NOT sticky at the app level — navigating away from Check-in and back always redisplays the service point's configured default, even if a different value was temporarily selected in the current Check-in session.
-
-**Check-in behavior** depends on the service point's configured default:
-- If default = a specific action (e.g. "Keep on hold shelf"), that action applies silently on check-in.
-- If default = **"Ask for action"**: scanning a checked-out For-use-at-location item pops a confirmation modal titled `For use at location` with body `Item {title} ({material type}) (Barcode: {barcode}) is for use at location at {service point}.` and exactly three buttons: `Cancel`, `Close loan and return item`, `Keep on hold shelf`.
-  - `Cancel`: aborts, nothing changes, item remains checked out/In use.
-  - `Keep on hold shelf`: the loan stays OPEN (not closed); circ action becomes `Held`; Check-in results show Status = "Checked out" and "For use at location" column = "Keep on hold shelf".
-  - `Close loan and return item`: the loan CLOSES; item status → `Available`; "For use at location" column = "Close loan and return item".
-
-**Circ-action lifecycle**: a For-use-at-location item's own two special circ actions are **`In use`** (checked out, actively in use) and **`Held`** (checked back in but kept on the hold shelf rather than fully returned) — cross-references circulation-log.md's already-confirmed translation-key mapping (`Picked up for use at location` → `In use`, `Held for use at location` → `Held`). The Users app's Loans accordion surfaces these as sub-counts alongside the overall open-loan count, e.g. `2 open loans` / `Use at location` / `Held: 1` / `In use: 1`, and the Open-loans table's own "Use at location" column shows `In use in {service point}` or `Held in {service point} until {date time}`.
+### Request cancellation reasons [confirmed — en.json]
+`Cancel reason`, `Description (internal)`, `Description (public)`. Delete: `Delete cancel reason` → `The cancel reason <b>{term}</b> will be <b>deleted.</b>` → `The cancel reason <b>{term}</b> was successfully <b>deleted</b>`; in use → `Cannot delete the cancel reason` / `This cancel reason cannot be deleted, as it is in use by one or more records.` Duplicate names are rejected (Cypress `cannot-duplicate-cancellation-reason.cy.js`).
 
 ---
 
-## Other Settings [confirmed]
+## Closed Library Due Date Management — exact resulting due date [confirmed — C829891, C829892, C831956, C844247–C844249, C844877, C844878, C1621466]
 
-- **Check out scanning**: `Patron id(s) for checkout scanning` (`Barcode`, `External system ID`, `FOLIO record number (ID)`, `Username`); `Users custom fields to display at Check out`.
-- `Enable audio alerts` (+ `Select audio-alerts theme`: Classico/Moderna/Futura).
-- `Automatically end check in and check out session after period of inactivity` (`Timeout duration` minutes).
-- `Perform wildcard lookup of items by barcode in circulation apps (Check in, Check out)` — enables the Select item wildcard modal in check-in/out.
-- **Request management**: recalls (`Recall return interval`, `Minimum guaranteed loan period for recalled items`, `Allow recalls to extend due dates for overdue loans`), holds (`Alternate loan period at checkout for items with an active, pending hold request`, `Allow renewal of items with an active, pending hold request`).
-- **Loan anonymization** (`Anonymize closed loans` never/interval; `Treat closed loans with associated fee/fines differently`; per-payment-method exceptions).
-- **Staff slips** (`Staff slip name`, `Template content`, tokens for Item/Borrower/Request/Requester/Staff slip/Effective location; `Hold`, `Transit`, etc.; `Maintained as raw HTML?`).
-- **Request cancellation reasons** (`Cancel reason`, `Description (internal)`, `Description (public)`).
-- **Title level requests (TLR)**: `Allow title level requests`, `"Create title level request" selected by default`, notice templates (Confirmation/Cancellation/Expiration), `Fail to create title level hold when request is blocked by circulation rule`; guard `Cannot change "Allow title level requests"` / `… in use by one or more requests`. **Consortium TLR**: `Enable consortium title level requests (TLR)`.
-- **Print hold requests** / **View print details** (Pick slips) toggles.
+Short-term = minutes/hours, long-term = days/weeks/months (docs.folio.org "Loan policies"). Verify via Loan details "Due date":
+- `Keep the current due date/time` (short) / `Keep the current due date` (long): due date unchanged even if the SP is closed (C829891, C844247).
+- Short, `Move to the end of the current service point hours`: due date truncated EARLIER to the end of the current day's open hours (C829892). **For short-term periods > 24 h** (e.g. 48 h ending on a closed Saturday, open Friday in between) it moves to the end of the last open day before the closed day (C1621466, CIRC-2578).
+- Short, `Move to the beginning of the next open service point hours`: pushed LATER to the next opening, **plus `Opening time offset`** (offset 1 minute + opening 11:00 → 11:01) (C831956). Also applies with a Fixed profile (C844877).
+- Long, `Move to the end of the previous open day`: moves BACKWARD to 11:59 PM of the closest prior open day (C844248); with a Fixed schedule as well (C844878).
+- Long, `Move to the end of the next open day`: moves FORWARD to 11:59 PM of the next open day (C844249 — resolves the former inference).
 
 ---
 
-## Capability Sets (Eureka) [confirmed permission display names]
+## Floating Collections [C605980, C605981, C605982]
 
-`Settings (Circulation): Can view all circulation settings`, and per-area create/edit/remove + view pairs, e.g.:
-`… Can create, edit and remove loan policies` / `… Can view loan policies`; likewise `notice policies`, `patron notice templates`, `request policies`, `overdue fine policies`, `lost item fee policies`, `fixed due date schedules`, `staff slips`, `cancellation reasons`, `other settings`, `circulation rules` (view: `View circulation rules`), `loan history` (view/edit), `Title level request view`/`edit`.
+A Location can be flagged "Floating enabled" and tied to service points.
+- Check-in at an SP whose location has floating enabled: item → `Available`; Temporary AND Effective location → that floating location (C605980).
+- Check-in at an SP without a floating location: item → `In transit`, locations unchanged (C605981).
+- **An open request overrides floating**: item → `In transit to {pickup SP}`, no relocation (C605982).
+
+## "For Use At Location" (reading-room circulation) [C870003, C869999, C1307935, C916267, C870000–C870002, C916248–C916251, C916268; Confluence Trillium notes]
+
+**Deployment switch**: mod-circulation env var `ENABLE_FOR_USE_AT_LOCATION` must be `true`; default `false` (CIRC-2457). On environments without it the loan-policy checkbox exists but the workflow is inactive — always state the env flag in Preconditions.
+
+**Setup**:
+1. Loan policy with `For use at location` checked → requires `Hold shelf expiration period` in day(s)/week(s)/month(s) only; expiry time defaults to 11:59 PM, so minutes/hours do not work (Confluence notes; UICIRC-1239).
+2. A loan type (e.g. "For use at location") and/or patron group, mapped by a circulation rule to that policy (C1307935).
+3. Settings > Tenant > Service points > `Default check-in action for use at location` (C869999).
+
+**Check-in**: options `Keep on hold shelf` / `Close loan and return item` / `Ask for action` (default from the SP; not sticky in the app). `Ask for action` opens modal `For use at location` with body `Item {title} ({material type}) (Barcode: {barcode}) is for use at location at {service point}.` and buttons `Cancel`, `Close loan and return item`, `Keep on hold shelf` (C916267).
+- `Keep on hold shelf`: loan stays open, status `Checked out`, circ action `Held`, hold shelf expiration reset.
+- `Close loan and return item`: loan closes; item → `Available` / `In transit` / `Awaiting pickup`; circ action `Check in` (Confluence notes).
+- Circ actions: `In use` (checked out), `Held` (on hold shelf) — Users app shows `Use at location` / `Held: n` / `In use: n` (C870003, C870000).
+- Requests: New request shows loan type and a `Use at location` indicator; `Delivery` fulfilment is not offered (C916249, C916251).
+- **Hold-shelf expiration is capped at the loan due date**; on renewal it extends again (CIRC-2681, NEWS 24.6.0 — In Review; recall case still open in a separate ticket).
+
+---
+
+## Other Settings [confirmed — en.json `settings.checkout.*`; C1385309, UICIRC-1316/1317/1331/1333]
+
+- `Patron id(s) for checkout scanning`: `Barcode`, `External system ID`, `FOLIO record number (ID)`, `Username`, `User custom fields` (+ custom-field multiselect). At least one required → `Please select to continue`; `User custom fields` checked with no field selected → `Please make a selection`, not saved (UICIRC-1316, UICIRC-1331).
+  - `Save` is disabled when the form returns to the saved state (check then uncheck) and when the required warning is shown (UICIRC-1316; C1385309).
+  - Re-checking `User custom fields` after saving it unchecked starts with an empty selection (UICIRC-1317).
+  - An already selected custom field is greyed in the dropdown and is removed when clicked; removing any chip removes exactly that one (UICIRC-1333).
+  - No custom fields defined → `No matching custom fields have been configured`.
+- `Users custom fields to display at Check out` (UICIRC-1091) — with default settings Check out must not show all custom fields (UICHKOUT-1012).
+- `Enable audio alerts` (`Yes`/`No`) + `Select audio-alerts theme`: `Classico` / `Moderna` / `Futura`.
+- `Automatically end check in and check out session after period of inactivity` + `Timeout duration` `minutes` → `Please enter a whole number greater than zero to continue`.
+- `Perform wildcard lookup of items by barcode in circulation apps (Check in, Check out)`.
+- Values persist through mod-circulation `/circulation/settings` (setting name `other_settings`) since UICIRC-1247 (Trillium).
+
+## Staff slips [en.json `settings.staffSlips.*`; section 1144 (63 cases)]
+
+- Fixed set of slips, names now localized via `settings.staffSlips.names.*`: `Hold`, `Transit`, `Transit (mediated requests)`, `Pick slip`, `Request delivery`, `Search slip (Hold requests)`, `Due date receipt` (UICIRC-1354). The stored `name` must not be changed via API — printing looks templates up by stored name and prints empty pages otherwise (UICIRC-1354).
+- Form: `Staff slip name`, `Description`, `Template content`, `Maintained as raw HTML?` (shown when `staff-slips-storage` ≥ 1.1; UICIRC-1226), `Preview` / `Print`; token groups `Item`, `Effective location`, `Staff slip`, `Borrower`, `Loan`, `Request`, `Request delivery address`, `Requester`.
+- Preview renders fixed sample values per token; `{{staffSlip.Name}}` always previews as `Transit` regardless of slip — expected behaviour, closed as Won't Do (CIRC-2496). Do not write a case expecting the real slip name in Preview.
+- Delete message: `The staff slip <strong>{name}</strong> will be <strong>deleted</strong>.`
+
+## Loan anonymization [en.json `settings.loanHistory.*`; C9217–C9235; docs.folio.org]
+
+- Library policy (`Library loan anonymization policy`) → `Anonymize closed loans`: `Never` / `Immediately after {name} closes` / `Retain for a set duration after {name} closes` (+ `Length`, `Select interval`); validation `Please enter a whole number greater than zero to continue`, `Please select to continue`.
+- `Treat closed loans with associated fee/fines differently` → `Anonymization policy for loans with fees/fines` → `Anonymize closed loans with associated fees/fines`: `Never` / `Immediately after {name} closes (or is suspended)` / `Retain for a set duration after {name} closes (or is suspended)`; `Exception for payment method` + `Add exception` (`Waive`/`Transfer`/`Replace`/`Pay`; duplicate → `This payment method is already selected`). Verbiage changed in UICIRC-1200.
+- **User-specific loan anonymization** (UICIRC-1361 — status In QA; CIRC-2698/2699 Closed; Confluence "User-specific loan anonymization"): section `User-specific loan anonymization` with `Do not allow user-specific loan anonymization` (default) / `If a user requests anonymization as early as possible, then anonymize closed loans` (immediately / retain for duration). Popover text per `settings.loanHistory.userSpecific.infoPopover`. Users get `According to library policy` (default) / `As early as possible` / `Never` in the user record (UIU-3595).
+  - Job policy per loan: feature off → library policy; no preference / user not found → library policy; `As early as possible` → "earliest" policy (library policy if earliest not configured); `Never` → never anonymized; job keeps running even when the library policy is `Never` (CIRC-2698; Confluence).
+  - Fee/fine loans: timed only by the shared fee/fine rule from the last fee/fine close; while a fee/fine is open the loan is not anonymized (Confluence).
+  - Disabling the feature reverts to library policy; a warning dialog is planned (Confluence — text not in en.json yet).
+- Scheduler: hourly, up to 50,000 loans per run (`SCHEDULED_ANONYMIZATION_NUMBER_OF_LOANS_TO_CHECK`) (CIRC-2459 comment). "X after loan closes" counts from system return date; loans closed without check-in are anonymized only under `Immediately` (Confluence).
+
+## Title level requests, print settings
+
+- `Allow title level requests`, `"Create title level request" selected by default`, `Fail to create title level hold when request is blocked by circulation rule`, `Notice templates` (`Confirmation notice` / `Cancellation notice` / `Expiration notice`, `Select notice`; "If no template is selected, no notice will be sent."). Disabling while TLRs are open → modal `Cannot change "Allow title level requests"` / `"Allow title level requests" cannot be changed because it is in use by one or more requests`. Unchecked `Fail to create…` ⇒ TLR holds always allowed (docs.folio.org; en.json popover).
+- A view-only user must not see an active `Save` on the TLR page (UICIRC-1130).
+- **Consortium TLR** (ECS): `Enable consortium title level requests (TLR)`; checking it shows `Exclude tenants` multiselect, unchecking hides it (UICIRC-1270). While base TLR is off: notification `Consortium title level requests (TLR) is disabled. The setting will become active after the "Allow title level requests" checkbox is checked and saved in the title level requests (TLR…` (en.json `settings.consortiumTlr.notification`, truncated here).
+- `Print hold requests`: `Allow print hold requests (Open - Not yet filled)` (enables Search slips). `View print details`: `Enable view print details (Pick slips)`; disabling opens `Disable view print details (Pick slips)` / `Selecting Confirm will stop the recording of print job details.` (`Confirm`/`Cancel`); success `Setting was successfully updated.`, error `Something went wrong.` Backend flag: circulation setting `printEventLogFeature` (`enablePrintLog`, boolean or string — CIRC-2448).
+
+---
+
+## API surface [source — ModuleDescriptor-template.json of mod-circulation / mod-circulation-storage]
+
+| Endpoint | Methods | permissionsRequired |
+|---|---|---|
+| `/circulation/rules` | GET / PUT | `circulation.rules.get` / `circulation.rules.put` |
+| `/circulation/rules/{loan,request,notice,overdue-fine,lost-item}-policy` (+ `-all`) | GET | `circulation.rules.<type>.get` (lost-item-all: `circulation.rules.lost-item-all.get`) |
+| `/circulation-rules-storage` | GET / PUT | `circulation-storage.circulation-rules.get/put` |
+| `/circulation/settings[/{id}]` (interface `circulation-settings` 1.0) | GET, POST, PUT, DELETE | `circulation.settings.collection.get`, `.item.get/post/put/delete` |
+| `/circulation-settings-storage/circulation-settings[/{id}]` | CRUD | `circulation-storage.circulation-settings.*` |
+| `/loan-policy-storage/loan-policies[/{id}]` (2.5) | CRUD + collection DELETE | `circulation-storage.loan-policies.*` |
+| `/request-policy-storage/request-policies[/{id}]` | CRUD | `circulation-storage.request-policies.*` |
+| `/patron-notice-policy-storage/patron-notice-policies[/{id}]` (0.13) | CRUD | `circulation-storage.patron-notice-policies.*` |
+| `/fixed-due-date-schedule-storage/fixed-due-date-schedules[/{id}]` | CRUD | `circulation-storage.fixed-due-date-schedules.*` |
+| `/staff-slips-storage/staff-slips[/{id}]` (1.1) | CRUD | `circulation-storage.staff-slips.*` |
+| `/cancellation-reason-storage/cancellation-reasons[/{id}]` | CRUD | `circulation-storage.cancellation-reasons.*` |
+| overdue / lost item fee policies (mod-feesfines) | CRUD | `overdue-fines-policies.*`, `lost-item-fees-policies.*` (ui `package.json`) |
+
+**Settings storage migration (Trillium, UICIRC-1247/1324)**: tenant settings moved from mod-configuration/mod-settings to `/circulation/settings` entries by `name`: `other_settings` (former CHECKOUT/other_settings), `loan_history` (LOAN_HISTORY), `TLR`, `PRINT_HOLD_REQUESTS`, `printEventLogFeature`; ECS TLR (`generalTlr`/`regularTlr`) still reads mod-settings scope `circulation` (TLR view perm includes `mod-settings.global.read.circulation`). Free-form JSON values — no schema change needed for new keys (CIRC-2698 comment).
+
+## Capability Sets (Eureka)
+
+UI permission sets (display names, `package.json`), each `view` + `create, edit and remove` pair: `Settings (Circulation): Can view all circulation settings`; `… Can view loan policies` / `… Can create, edit and remove loan policies`; `… Can view notice policies` / `… notice policies`; `… Can view patron notice templates` / `… patron notice templates`; `… Can view request policies` / `… request policies`; `… Can view overdue fine policies` / `… overdue fine policies`; `… Can view lost item fee policies` / `… lost item fee policies`; `… Can view fixed due date schedules` / `… fixed due date schedules`; `… Can view staff slips` / `… Can edit staff slips` / `… Can create, edit and remove staff slips`; `… Can view cancellation reasons` / `… cancellation reasons`; `… Can view other settings` / `… other settings`; `… View circulation rules` / `… Can create, edit and remove circulation rules`; `… Can view loan history` / `… Can edit loan history`; `… Title level request view` / `… Title level request edit`; `… Can enable request print details`.
+Eureka capability-set form confirmed in Jira: `Data - UI-Circulation Settings Staff-Slips - manage`, `data - UI-Circulation Settings Request-Print-Details - view` (UICIRC-1356). Other sets follow `UI-Circulation Settings <Resource>` (unverified per resource).
+Permission edge cases: staff-slips `manage` alone must open `Print hold requests` without "Access Denied" (UICIRC-1356 fix, 12.0.2); `View circulation rules` and staff-slips perms must not show a 403 error modal (UICIRC-1225/1223, 11.0.1).
+
+## ECS / Multi-Tenant Notes
+
+- TLR pages differ when ECS requests are enabled (see Navigation). Consortium TLR + `Exclude tenants` only in ECS (UICIRC-1270).
+- Policies and rules are per tenant; on member tenants a checkout must apply the member's rule — wrong/fallback policy after editing was a race condition, now fixed (CIRC-2522).
+- ECS renewals use the loan policy applied at check-out (CIRC-2344).
+- Shadow DCB locations selectable in the rules editor (UICIRC-1271).
+- Pick slips for ECS requests print at the retrieval SP shown on the request (CIRC-2538).
+
+## Existing automated coverage
+
+- **Karate** (folio-integration-tests): `mod-circulation-storage/.../features/request-policies.feature` (allowed pickup SP validation), `.../circulation-settings.feature` (`printEventLogFeature`), `mod-circulation/.../features/loans.feature` (rule matching/priority, new rule via editor endpoint, overdue/lost policies), `loans-extended.feature` (anonymization with fee/fine rules), `requests.feature` (request policy type gating, pickup SP), `print-events*.feature`, `tlr-requests.feature`. No Karate for loan policy validation, fixed due date schedules, cancellation reasons, automatic-renewal fields.
+- **Cypress** (stripes-testing `cypress/e2e/settings/circulation/`): loan/request/cancellation-reason/fixed due date CRUD, automatic renewals (4 specs = C1554460–C1554463), loan anonymization (C3616), other settings incl. Save state (C1385309), request policy pickup error (C410745), SP persistence (C410746), holds info icon (C411717), circulation rules edit, staff slips view permission/update, patron notices (6 specs). Fragments: `cypress/support/fragments/settings/circulation/*`, `fragments/circulation/{circulation-rules,loan-policy,fixedDueDateSchedules}.js`.
 
 ---
 
 ## Key Business Rules for Test Cases
 
-1. **Circulation rules resolve policies by most-specific match**; a fallback rule matches everything. The applied loan/overdue/lost-item/notice/request policy for a checkout is whatever the rules select for that patron-group × material-type × loan-type × location. (github + check-out.md)
-2. A policy **in use by a circulation rule cannot be deleted** — each policy type shows a distinct "cannot be deleted, in use" guard. (github)
-3. Loan `Loan profile` = Fixed uses a fixed due date schedule; = Rolling uses a period; `Closed library due date management` shifts due dates around closed hours/days. (github)
-4. `Item limit` on a loan policy caps checkouts for the matched combination — over-limit checkout is blocked (see check-out.md item-limit messages). (github + check-out.md)
-5. Overdue fine policy accrues `Overdue fine` per interval up to `Maximum overdue fine`; recalls can use separate recall-fine settings; reminder fees add a scheduled escalation. (github)
-6. Lost item fee policy drives automatic charges (aged-to-lost, lost item fee, processing fee) and their refund/adjustment on return/renew/replace — the source of fees-fines automatic charges. (github + fees-fines.md)
-7. Request policy `Request types allowed` gates which of Page/Hold/Recall a patron may place for the matched combination; pickup service points can be restricted. (github + requests.md)
-8. Enabling `Allow title level requests` cannot be turned off while TLRs exist; Consortium TLR requires base TLR enabled first. (github)
-9. `Perform wildcard lookup …` and session-timeout are tenant-wide check-in/out behaviours set here, not per policy. (github + check-in.md)
-10. Loan anonymization timing (immediately/interval after close, with fee/fine exceptions) is configured here and executed by a scheduled process. (github + loans.md)
-11. A circulation rule line is valid only when it contains exactly one criteria expression plus all five policy-type letters (`l r n o i`); missing any policy type blocks Save with a message naming the specific missing type. (cases — C651, C654)
-12. The rules editor's "filter rules" search treats special characters as literal text, not regex, including inside `#`-prefixed comment lines. (cases — C401724)
-13. Closed Library Due Date Management options that reference "current"/"previous" move the due date EARLIER (truncating the loan), while options referencing "next" move it LATER — verify the exact direction per option name rather than assuming a single universal behavior. (cases — C829892, C844248)
-14. Floating collections update an item's Temporary AND Effective location to the check-in service point only when that service point's current location has floating enabled; otherwise the item goes `In transit` with location unchanged. **An open request on the item overrides this outright** — the item routes `In transit to {pickup SP}` with location left unchanged, regardless of whether the check-in service point's location has floating enabled. (cases — C605980, C605981, C605982)
-15. "For use at location" items introduce a distinct two-state lifecycle (`In use` while checked out, `Held` when kept on the hold shelf after check-in) that is separate from ordinary Checked out/Available status, governed by a per-service-point default check-in action (including an interactive "Ask for action" mode with its own 3-button modal). (cases — C870003, C869999, C1307935, C916267)
+1. When several rules match, the `priority:` line decides: highest criterium type first (default `t, s, c, b, a, m, g`), then number-of-criteria (locations count once), then first/last line; `fallback-policy` applies when nothing else matches. (github — mod-circulation `doc/circulationrules.md`; Karate `loans.feature`)
+2. A policy in use by circulation rules (or a schedule used by loan policies) cannot be deleted — each type shows its own guard text. (github — en.json)
+3. Loan profile `Fixed` requires a fixed due date schedule; `Rolling` requires an integer period > 0 and an interval; `Loan profile` and `Closed library due date management` are required while Loanable. (github — `Validation/loan-policy/loans.js`)
+4. `Item limit` accepts 1–9999 or blank; over-limit checkout is blocked for the matched rule combination. (github — en.json `itemLimitInterval`; C9293)
+5. Overdue fine policy: Maximum must be ≥ fine (also for recall fines); a fine amount > 0 is required once an interval is set. (github — en.json `finePolicy.validate.*`)
+6. Lost item fee policy: processing fee > 0 only if declared-lost and/or aged-to-lost charging is `Yes`; replacement processing fee > 0 only if `Replacement allowed`; fractional fees such as 0.25 are valid. (github — en.json; UICIRC-1249)
+7. Request policy gates Page/Hold/Recall per matched rule; every allowed pickup SP must be an existing pickup location, otherwise 422 `One or more Pickup locations are no longer available` (`INVALID_ALLOWED_SERVICE_POINT`). (Karate `request-policies.feature`; C410745)
+8. A new request policy opens with defaults and must not inherit the previously edited policy's settings. (jira — UICIRC-1293)
+9. `Allow title level requests` cannot be turned off while TLRs are open; Consortium TLR stays inactive until base TLR is checked and saved. (github — en.json; docs.folio.org)
+10. If `Fail to create title level hold when request is blocked by circulation rule` is unchecked, TLR holds are always allowed. (github — en.json popover; docs.folio.org)
+11. Wildcard lookup, audio alerts and session timeout are tenant-wide check-in/out settings, not per policy. (github — en.json `settings.checkout.*`)
+12. Other settings: at least one patron identifier is required (`Please select to continue`); `User custom fields` needs ≥ 1 field (`Please make a selection`); Save is disabled when nothing changed or a warning shows. (jira — UICIRC-1316, UICIRC-1331; C1385309)
+13. Loan anonymization runs hourly (≤ 50,000 loans per run); "after loan closes" intervals count from system return date; fee/fine loans follow the fee/fine rule from the last fee/fine close. (jira — CIRC-2459; Confluence "User-specific loan anonymization")
+14. User-specific anonymization: `As early as possible` uses the earliest policy, `Never` is never anonymized, no preference or unknown user uses the library policy; with the feature off nothing changes. (jira — CIRC-2698, UICIRC-1361)
+15. A rule line is valid only with one criteria expression and all five policy letters `l r n o i`; a missing type blocks Save and names the missing type. (cases — C651, C654)
+16. Comments start with `#` or `/`; the `filter rules` box matches `#` section lines and treats special characters literally. (cases — C401724; github — circulationrules.md)
+17. Closed library due date: "current"/"previous" options move the due date EARLIER, "next"/"beginning of next" move it LATER, "Keep" leaves it unchanged; long-term moves land on 11:59 PM; `Opening time offset` is added to "beginning of next open hours". (cases — C829891, C829892, C831956, C844247–C844249)
+18. Short-term loans longer than 24 h with "Move to the end of the current service point hours" end at the close of the last open day before the closed day. (cases — C1621466; jira CIRC-2578)
+19. Floating: check-in at a floating-enabled SP location moves Temporary + Effective location there; otherwise `In transit`; an open request overrides floating. (cases — C605980, C605981, C605982)
+20. For use at location works only with `ENABLE_FOR_USE_AT_LOCATION=true`; needs a loan policy with `For use at location` + hold shelf expiration in days/weeks/months; circ actions `In use` / `Held`. (jira — CIRC-2457, UICIRC-1239; cases — C870003, C1307935)
+21. For-use-at-location hold shelf expiration never goes past the loan due date; renewal extends it again. (jira — CIRC-2681, In Review)
+22. Automatic renewals are available only while `Renewable` is checked; `Attempt first renewal` defaults to `On due date`; days-before = integer 1–100 (required when chosen); retries = integer 0–100 or blank (blank stored as 0). (jira — UICIRC-1351, UICIRC-1390; cases — C1554460–C1554463)
+23. A loan policy without `automaticRenewal` is treated as disabled; the nightly job renews only eligible loans (policy on, inside window, renewal conditions pass, no hold/recall). (jira — CIRC-2687; CIRC-2584 not yet released)
+24. Staff slip names are fixed and localized in the UI; the stored name must not be changed (printing matches by name); Preview always renders `{{staffSlip.Name}}` as `Transit`. (jira — UICIRC-1354, CIRC-2496)
+25. In America/Vancouver, fixed due dates after 2026-11-01 must not shift by one hour; schedules saved before the fix keep the old offset until re-saved. (cases — C1594647–C1594650)
+26. Unsaved form data in circulation settings must survive a token refresh (`/authn/refresh`). (cases — C916244; jira UICIRC-1287/1299)
+27. View-only permission must not expose an active `Save` (TLR page) and view perms must not raise 403 error modals (rules, staff slips, print hold requests). (jira — UICIRC-1130, UICIRC-1225, UICIRC-1223, UICIRC-1356)
+28. Shadow DCB locations are selectable only in the circulation rules editor, and a saved rule with them applies to DCB loans. (jira — UICIRC-1271)
 
 ---
 
 ## Authoring style (measured 2026-07-23)
 
-Circulation Settings: **`Other` ~69%** / Func ~31%, median **~3 steps** (short), `User Journey` ~10%. Most cases are compact settings-config checks (loan/request/overdue/lost-item policies, circulation rules, fixed due date schedules, staff slips, TLR, cancellation reasons). Use `Other` for pure config/display; `Functional` where the setting drives a computed runtime effect verified downstream (e.g. closed-library due-date recalculation). Heavy circulation-rule setup lives in Preconditions; steps stay short. Some cases carry `User Journey = Yes` when a setting is exercised through a Check-out/Check-in outcome.
+Circulation Settings: **`Other` ~69%** / Func ~31%, median **~3 steps** (short), `User Journey` ~10%. Most cases are compact settings-config checks. Use `Other` for pure config/display; `Functional` where the setting drives a runtime effect verified downstream (e.g. closed-library due date). Heavy circulation-rule setup lives in Preconditions (rule example `m DVD : l <policy> r allow-all n send-no-notices o overdue-fine-policy i lost-item-fee-policy` — C844249); steps stay short. Preconditions list Okapi permission and Eureka capability side by side (table "Permission name for Okapi env." / "Capabilities/Sets for Eureka env." — C844249).
 
 ---
 
 ## Known Gaps / Items to Verify
 
-- [x] TestRail Circulation cases (sec 102/103/104, plus Floating collections 52794 and For-use-at-location 72019) — **pulled this round** (14 cases): rules-editor grammar, Closed-library-due-date exact mechanics, Floating Collections, and the full For-use-at-location feature are now documented above.
-- [ ] Exact Eureka capability-set strings — permission display names confirmed; verify capability-set form in env.
-- [x] Circulation-rules **editor grammar** — **confirmed** (C651, C654, C401724): see "Exact editor grammar" above for the full `g/m/t/a/b/c/s` criteria and `l/r/n/o/i` policy letter mapping, incomplete-rule error text, and literal-character filter behavior.
-- [x] The "beginning of the next open service point hours" (short-term) Closed-Library-Due-Date option — **confirmed** (C831956, random spot-check 2026-07-23): pushes due date LATER as predicted, PLUS revealed the `Opening time offset` field adds on top of the next-open start time. The long-term "end of the next open day" counterpart remains an unverified symmetry-based inference.
-- [x] Whether Floating collections behavior changes when active requests exist on the item/instance — **resolved** (C605982, blind-generate/diff validation round, 2026-07-22): an open request overrides floating outright, see "Floating Collections" section above.
+- [ ] Release label: Jira names the next release "Umbrellaleaf 2027" in epics (FOLIO-4565, FOLIO-4577) while the module work is in progress (ui-circulation 13.0.0 IN_PROGRESS). Confirm the official label before tagging cases.
+- [ ] User-specific loan anonymization (UICIRC-1361) is **In QA**: the story says section "Opt-in loan anonymization policy", en.json says `User-specific loan anonymization` (implementation deviated on purpose — Simon Lämmer comment). Assert en.json text; the "disable" warning dialog text is not in en.json yet.
+- [ ] Automatic-renewal nightly job eligibility (CIRC-2584) is Blocked; FUAL recall cap of hold-shelf date (CIRC-2681 follow-up) not yet implemented.
+- [ ] Incomplete-rule message `Must contain one of each policy type, missing type …` comes only from C654 (backend/editor text, not in ui-circulation en.json) — verify in env.
+- [ ] Eureka capability-set names confirmed only for staff slips manage and request-print-details view (UICIRC-1356); others inferred from the pattern.
+- [ ] `Treat closed loans with associated fee/fines differently` vs new fee/fine section header: both strings exist in en.json (`settings.loanHistory.treat`, `settings.loanHistory.feeFinePolicy`); which one is visible after UICIRC-1361 must be checked in env.
+- [ ] docs.folio.org page (`Settings_circulation/settings_circulation.md`) has no Automatic renewals, For use at location or user-specific anonymization content yet — do not use it as source for those.
+- [ ] Recall/hold alternate-period fields in Request management are listed from the original build; no new source checked their exact labels this round.
 
-> N≥10 audit round (2026-07-22): 14 cases read (C651, C654, C196833, C196834, C401724, C605980, C605981, C829892, C844248, C870003, C869999, C1307935, C916267, C9293). Resolved both open Known Gaps (TestRail cases pulled; rules-editor grammar fully captured with exact letter codes and error text). Surfaced two entirely new, previously undocumented feature areas: Floating Collections and "For Use At Location" (reading-room circulation) with its full setup chain, per-service-point default check-in action, the 3-button "Ask for action" modal, and the In-use/Held lifecycle. Also expanded Closed Library Due Date Management from a bare field list to exact resulting-due-date mechanics for two of its four option combinations. Added 5 new Key Business Rules (11-15).
-> Blind-generate/diff validation round (2026-07-22): predicted (before reading) that an open request would override floating and route the item to the pickup SP without relocating it — confirmed exactly against C605982. Closed the file's last open Known Gap.
-
-> Random spot-check (2026-07-23): picked one fresh uncited case at random from section 102/103/104's 42-case tree (C831956) — confirmed the previously-inferred "beginning of next open hours" due-date direction AND found the undocumented `Opening time offset` field, which adds to that calculated due date.
-
-
----
-
-## Changes since 2026-07-21 (delta refresh 2026-11-07)
-
-> Delta, not a rebuild: sections above reflect the original build. Where this section contradicts them, **this section wins**.
-> Sources: GitHub folio-org/ui-circulation (translations/ui-circulation/en.json, HEAD v12.0.0); Jira folio-org.atlassian.net Done issues resolved since 2026-07-21; TestRail suite 21 cases created since 2026-07-21.
-
-### What changed
-- Loan policy: **Automatic renewals** section — "Attempt first renewal" (On due date / N day(s) before due date), "Attempt additional retries for N day(s)"; only for intervals ≥ 1 day; validation 1–100 / 0–100 or blank (UICIRC-1351/1387/1390). TestRail already has cases C1554460–C1554463.
-- America/Vancouver time zone fixes for due dates (CIRC-2705..2707) — see fixed due date schedule cases C1594647–C1594650.
-- Staff slip preview name bug fixed (CIRC-2496).
-
-### UI strings changed since 2026-07-21 [source — en.json, 2026-11-07]
-
-> `en.json` is the source of truth; `en_US.json` is a Lokalise copy that can lag behind. `<b>`/`<strong>` render as bold; `{x}` are placeholders.
-
-**New strings**
-
-| Key | Text |
-|---|---|
-| `settings.loanPolicy.automaticRenewals` | Automatic renewals |
-| `settings.loanPolicy.automaticRenewals.infoPopover` | Automatic renewals are available for loans with intervals of one day or longer. |
-| `settings.loanPolicy.attemptFirstRenewal` | Attempt first renewal |
-| `settings.loanPolicy.attemptFirstRenewal.onDueDate` | On due date |
-| `settings.loanPolicy.attemptFirstRenewal.daysBefore` | day(s) before due date |
-| `settings.loanPolicy.attemptAdditionalRetries` | Attempt additional retries for |
-| `settings.loanPolicy.days` | day(s) |
-| `settings.validate.intervalBetween1And100` | The value must be integer and must be between 1 and 100 |
-| `settings.validate.intervalBetween0And100` | The value must be integer and must be between 0 and 100 or blank |
-
-### Jira — Done since build (circulation: check-in / check-out / circulation-settings / patron-notices / requests / mediated / circulation-log (CIRC, UICIRC, UICHKIN, UICHKOUT, UIREQ, UIREQMED, MODREQMED, UICIRCLOG, MODAUD) since 2026-07-21)
-
-- UICIRC-1351 / 1387 / 1390 Story — "Automatic renewals" section on Loan policy form and page (settings + validation)
-- UICIRC-1355 / 1372 Story — Reordering of patron notice policies (drag & drop)
-- UICIRC-1353 Story — Shortened tokens in patron notices for text messages
-- UICHKIN-515 / CIRC-2685 Story — [PoC] In-house use option in Check in (inHouseUse persisted on check-in-by-barcode)
-- UICHKIN-510 Story — Check in modals: default focus on the action button, not "X"
-- CIRC-2130 Story — Both Set cost and Actual cost fees/fines closed when item returned
-- CIRC-2705/2706/2707 Bug — America/Vancouver time zone: due date cut-off by patron expiration; releases for Sunflower/Trillium (see Vancouver incident)
-- CIRC-2664 Bug — Hold shelf expiration notice sent twice; CIRC-2679 notice not sent after aged to lost; CIRC-2639 item/title missing in email notices for ECS and mediated requests
-- CIRC-2697 Bug — [LoC] batch requests duplicated queue positions; CIRC-2538 ECS pick slips printed from wrong SP; CIRC-2629 extra "Aged to lost" action (ECS); CIRC-2673 declare lost 500
-- CIRC-2496 Bug — staff slip preview name always "Transit"
-- MODAUD-324 Bug — fee/fine actions missing from Circulation log; MODAUD-323 circ logs not appearing; MODAUD-326 preferred contact changes missing in user version history
-- (2026-06-16..07-21) UIREQ-1365 Bug — Requests app crashes opening a request with erased data; CIRC-2497 Bug — staff slip name missing in due date receipt; UICHKOUT-1012 Bug — all custom fields shown at Check out with default Other settings; UICIRC-1354 staff slips localisation; UICIRC-1316 Save button state for "Patron id(s) for checkout scanning"
-- (no other Done issues found for UIREQ / UIREQMED / MODREQMED / UICHKOUT / UICIRCLOG in this window)
-
-### TestRail — cases created since 2026-07-21: 8 (8 manual, 0 automated/Karate)
-
-- C1594650 Fixed due date schedule created before moment-timezone update keeps old offset until re-saved in America/Vancouver time zone — refs UICIRC-1391,FOLIO-4580
-- C1594649 Fixed due date after 2026-11-01 still follows standard time in America/Los_Angeles time zone — refs UICIRC-1391,FOLIO-4580
-- C1594648 Change due date to a date after 2026-11-01 keeps entered time in America/Vancouver time zone — refs UICIRC-1391,FOLIO-4580
-- C1594647 Fixed due date after 2026-11-01 is applied without one-hour shift in America/Vancouver time zone — refs UICIRC-1391,FOLIO-4580
-- C1554463 Settings - "Automatic renewals" fields validation during loan policy editing — refs UICIRC-1387,UICIRC-1390
-- C1554462 Settings - "Automatic renewals" fields validation during loan policy creation — refs UICIRC-1387,UICIRC-1390
-- C1554461 Settings - Edit loan policy and enable "Automatic renewals" option — refs UICIRC-1387,UICIRC-1390,UICIRC-1399
-- C1554460 Settings - Create loan policy with "Automatic renewals" enabled — refs UICIRC-1387,UICIRC-1390,UICIRC-1399
+> History: build 2026-07-21 (browser); N≥10 audit 2026-07-22 (C651, C654, C196833, C196834, C401724, C605980–C605982, C829892, C844248, C870003, C869999, C1307935, C916267, C9293); spot-check 2026-07-23 (C831956); delta 2026-11-07 (automatic renewals, Vancouver TZ, CIRC-2496) — folded into the sections above on 2026-11-24. Resolved on 2026-11-24: long-term "end of the next open day" direction (C844249); circulation-rule priority (circulationrules.md; replaces "most specific wins").
