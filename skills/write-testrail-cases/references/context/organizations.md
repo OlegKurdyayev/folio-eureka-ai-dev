@@ -1,14 +1,19 @@
 # FOLIO Organizations — Business Logic Context
 
-> Built: 2026-07-21 · Delta-refreshed: 2026-11-07 · Release: not recorded · Builder: build-app-context/manual — header normalized 2026-11-07, see area-map.md → Freshness
+> Built: 2026-07-21 · Refreshed: 2026-11-24 · Release: Umbrellaleaf R2 2026 (ui-organizations master 7.1.0 in progress; Trillium R1 2026 = ui-organizations 7.0.0) · Builder: build-app-context (refresh)
 
-> Built 2026-07-21 (browser-based). **Exact UI Texts confirmed against `folio-org/ui-organizations/translations/ui-organizations/en_US.json` (2026-07-21).** TestRail: suite 21 section 107 "Organizations" (+ Settings 121, Interface details 201, Consortium 31406). UI repo `ui-organizations`; storage `mod-organizations-storage`.
+> Sources (refresh 2026-11-24):
+> - GitHub: `folio-org/ui-organizations` master 7.1.0 (`translations/ui-organizations/en.json`, `package.json`, `src/**`, `CHANGELOG.md`); `mod-organizations` (`descriptors/ModuleDescriptor-template.json`, `ErrorCodes.java`, `ProtectionServiceImpl.java`, `NEWS.md`); `mod-organizations-storage` (ModuleDescriptor, `db_scripts/schema.json`, `NEWS.md`); `acq-models` `mod-orgs/schemas/organization.json`.
+> - Jira (folio-org, anonymous REST): UIORGS, MODORG, MODORGSTOR Done/Closed stories+bugs resolved since 2024-06 (44 issues) + open UIORGS-485/487, MODORG-78..81.
+> - TestRail project 14, suite 21: section 107 "Organizations" (74 cases), 121 Settings (10), 201 Interface details (8), 31406 Consortium (1); C350552 from EDIFACT export section 17493. Release field: 21 = Umbrellaleaf, 20 = Trillium, 19 = Sunflower, 18 = Ramsons.
+> - folio-integration-tests (`acquisitions/.../thunderjet/mod-organizations`), stripes-testing (`cypress/e2e/organizations`), docs.folio.org source (`content/en/docs/Acquisitions/Organizations/_index.md`, `Settings/Settings_organizations`), Confluence "Sunflower UAT - Organization version history".
+> UI texts below are from `en.json` (key named) or a TestRail case (C-ID). `en_US.json` matches `en.json` except the missing key `integration.edi.accountNumbers.inUseWarning` (2026-11-24). `<b>` in a string renders bold.
 
 ---
 
 ## What is Organizations
 
-The Organizations app holds records for **vendors** and other external parties (donors, access providers, licensors, material/access suppliers) that the acquisitions apps reference. An organization record carries contact info, contact people, interfaces (platform admin logins), agreements, vendor-specific settings (payment/claiming/intervals/tax), EDI **integration** configs (for automated order/invoice export), accounts, and banking information. Orders, Invoices, Receiving, Agreements and eUsage all link to organizations.
+The Organizations app holds records for **vendors** and other external parties (donors, access providers, licensors) that the acquisitions apps reference. An organization record carries contact info, contact people, interfaces (platform admin logins), agreements, vendor-specific settings (payment/claiming/intervals/tax), EDI/CSV **integration** configs (automated order export and claims export), accounts, and banking information. Orders, Invoices, Receiving, Agreements and eUsage link to organizations. Orders can only be opened and invoices paid when the organization is a vendor with status Active (docs.folio.org Organizations › Summary).
 
 ---
 
@@ -16,230 +21,322 @@ The Organizations app holds records for **vendors** and other external parties (
 
 | Term | Definition |
 |---|---|
-| Organization | The record; may be flagged `Vendor` and/or `Donor`. |
-| Vendor | An organization the library buys from (orders/invoices reference it). |
-| Interface | A platform/admin endpoint with URI + credentials (for e-resource stats etc.). |
-| Integration (EDI) | Config for automated order/invoice export to the vendor (EDI over FTP/SFTP, scheduled). |
+| Organization | The record; may be flagged `Vendor` and/or `Donor`. Required: `name`, `code`, `status` (acq-models `organization.json`). |
+| Vendor | An organization the library buys from (orders/invoices reference it). Unlocks Vendor information, Vendor terms, Accounts, Banking information, Integration details. |
+| Interface | A platform/admin endpoint with URI + credentials (for e-resource stats etc.); separate record in `organizations-storage/interfaces`, linked by ID. |
+| Integration | Export config for the vendor, type **Ordering** (EDIFACT order export) or **Claiming** (claims export, CSV or EDI). Stored in mod-data-export-spring (`data-export-spring/configs`), not in mod-organizations (UI `useIntegrationConfigMutation.js`; MODORG-73/MODORGSTOR-171 closed Won't do). |
 | Account | A vendor account number the library uses; must be unique within the org. |
-| Accounting code | External accounting-system code (a.k.a. ERP code) used on invoice export. |
+| Accounting code | External accounting-system code (`erpCode`) used on invoice export. |
+| Privileged contact | Donor contact stored in `organizations-storage/privileged-contacts`, separate from regular contacts. |
 
 ---
 
 ## Record structure — accordions
 
-`Summary`, `Contact information`, `Contact people`, `Interface`, `Agreements`, `Vendor information`, `EDI information` / `Integration details`, `Accounts`, `Banking information`, `Privileged donor information`.
+`Summary`, `Contact information`, `Contact people`, `Privileged donor information` (only when `Donor` is checked and user can view it), `Interface`, then vendor-only: `Vendor information`, `Vendor terms`, `Integration details` (view only), `Accounts`, `Banking information` (tenant setting + permission), and `Agreements` (linked ERM agreements, view). Labels: en.json keys `summary`, `contactInformation`, `contactPeople`, `privilegedDonorInformation`, `interface`, `vendorInformation`, `vendorTerms`, `integrationDetails`, `accounts`, `bankingInformation`, `agreements`. Source: `OrganizationDetails.js`, `OrganizationForm.js`.
 
-**Summary fields:** `Name`, `Code`, `Description`, `Accounting code`, `Default language`, `Alternative names` (`Alias`), `Organization status` (`Active` / `Inactive` / `Pending`), `Vendor` (Yes/No), `Donor`, `Type`.
+**Summary fields:** `Name`, `Code`, `Description`, `Accounting code`, `Default language`, `Alternative names` (`Alias`, required once a row is added), `Organization status` (`Active` / `Inactive` / `Pending`), `Vendor`, `Donor`, `Type`.
 **Vendor information:** `Payment method`, `Vendor currencies`, `Claiming interval`, `Discount percent`, `Expected activation interval`, `Expected invoice interval`, `Expected receipt interval`, `Renewal activation interval`, `Subscription interval`, `Tax`, `Tax ID`, `Tax percentage`, `Liable for VAT`, `Export to accounting`.
-**Accounts:** `Name`, `Account number`, `Accounting code`, `Payment method`, `Account status`, `Library code`, `Library EDI code`.
+**Accounts:** `Name`, `Account number` (required), `Description`, `Accounting code`, `Payment method`, `Account status`, `Contact info`, `Library code`, `Library EDI code`, `Notes`, acquisition units.
+**Banking information:** `Bank name`, `Bank account number`, `Transit number`, `Address category`, `Account type`, `Notes`, `Use as primary banking information` (en.json `data.bankingInformation.*`); button `Add banking information`.
+**Results list columns:** Name, Code, Description, Status, Vendor (sortable) — `OrganizationsList.js`.
+
+### Search & filter
+- Search options (en.json `search.*`): `All`, `Name`, `Code`, `Language`, `Alias`, `Accounting code`, `Tax ID`. Placeholder for Language: `Search with language code`.
+- `All` = OR of name/code/language/aliases/erpCode/taxId with prefix match, **plus** `bankingInformation.bankAccountNumber` only if the user has banking view permission (`useBuildQuery.test.js`; C423426, C423427, C423432).
+- Filters (en.json `filterConfig.*`): `Organizations status`, `Types`, `Tags`, `Is donor`, `Is vendor`, `Country`, `Languages`, `Payment method`, `Acquisition unit`, `Address category`, `Contact people category`, `Stats available`, `Created by`, `Date created`, `Updated by`, `Date updated`.
 
 ---
 
-## Exact UI Texts [all confirmed — ui-organizations en_US.json]
+## Status Values
+
+- **Organization status:** `Active`, `Inactive`, `Pending` (acq-models enum; en.json `organizationStatus.*`). Required.
+- **Contact people status:** `Active`, `Inactive` (en.json `contactPeople.status.*`).
+- **Organization type status (Settings > Types):** `Active`, `Inactive` (en.json `settings.typeStatus.*`).
+- **Integration type:** `Ordering` (export type `EDIFACT_ORDERS_EXPORT`), `Claiming` (export type `CLAIMS`) — `OrganizationIntegration/constants.js`.
+- **Transmission method:** `File download`, `FTP`. **File format:** `CSV`, `EDI`. **EDI FTP:** `SFTP`, `FTP`. **FTP mode:** `ASCII`, `Binary`. **FTP connection mode:** `Active`, `Passive`.
+- **Vendor/Library EDI type:** `31B (US-SAN)`, `014 (EAN)`, `091 (Supplier-assigned ID)`, `092 (Library-assigned ID)` (`constants.js`).
+- **Schedule period:** `Hourly`, `Daily`, `Weekly`, `Monthly`; placeholder `Please select schedule period` (en.json `integration.scheduling.schedulePeriod.*`).
+- **Linked agreement status (Agreements accordion):** `Active`, `Closed`, `Draft`, `In negotiation`, `Requested`.
+
+---
+
+## Exact UI Texts
 
 ### Toasts
-| Event | Text |
-|---|---|
-| Organization saved | `The Organization - "{organizationName}" has been successfully saved` |
-| Organization deleted | `The organization {organizationName} was successfully deleted` |
-| Contact saved / unassigned / deleted | `The contact was saved` / `The contact was unassigned` / `The contact was deleted` |
-| Interface saved | `The interface was saved` |
-| Integration saved / deleted / duplicated | `Integration was saved` / `The integration was successfully deleted` / `Integration {term} was successfully duplicated` |
+| Event | Text | Source |
+|---|---|---|
+| Organization saved | `The <b>Organization - "{organizationName}"</b> has been successfully <b>saved</b>` | en.json `save.success` |
+| Organization deleted | `The organization <b>{organizationName}</b> was successfully <b>deleted</b>` | en.json `organization.delete.success` |
+| Contact saved / unassigned / deleted | `The contact was saved` / `The contact was unassigned` / `The contact was deleted` (fail: `The contact was not saved` / `… not unassigned` / `… not deleted`) | en.json `contacts.message.*` |
+| Interface saved | `The interface was saved` (fail: `The interface was not saved`, `The interface was not unassigned`, `The interface was not deleted`) | en.json `interface.message.*` |
+| Integration saved / save failed | `Integration was saved` / `Integration could not be saved` | en.json `integration.message.save.*` |
+| Integration deleted / delete failed | `The integration was successfully <b>deleted</b>` / `The integration was not <b>deleted</b>` | en.json `integration.message.delete.*` |
+| Integration duplicated / failed | `Integration <b>{term}</b> was successfully duplicated` / `Integration was not duplicated` ({term} = `<original name> (<date, time>)`, C688767) | en.json `integrationDetails.duplicate.*` |
+| Banking info save failed | `Failed to save banking information.` | en.json `bankingInformation.save.error` |
+| Settings saved | `Setting was successfully saved` (number generator) / `Setting was successfully updated.` (account types) | en.json `settings.numberGeneratorOptions.save.success`, `settings.accountTypes.save.success.message` |
+| Category / type / account type deleted | `The category <b>{term}</b> was successfully <b>deleted</b>` (same pattern for type, account type) | en.json `settings.*.termDeleted` |
 
 ### Create / delete / confirm modals
-| Modal | Text |
-|---|---|
-| Create | `Create organization` (edit: `Edit - {name}`) |
-| Delete organization | `Delete {organizationName}?` / `Delete organization?` → `Delete` |
-| Vendor-data deletion warning | `Confirm vendor data deletion` / `Warning. All vendor information, vendor terms, EDI information, and accounts will be deleted from this record.` |
-| Unassign contact/interface | `Unassign from organization` / `Are you sure you want to unassign the contact from this organization?` |
-| Delete contact / interface | `Delete contact` / `Are you sure you want to delete the contact?`; `Delete interface` / `Are you sure you want to delete the interface?` |
-| Delete integration | `Confirm integration deletion` / `Are you sure you want to delete the integration?` |
-| Duplicate integration | `Duplicate integration config` / `Are you sure you want to duplicate the {term} integration config?` |
+| Modal | Text | Source |
+|---|---|---|
+| Create / edit page title | `Create organization` / `Edit - {name}` | en.json `createOrg.title`, `editOrg.title` |
+| Delete organization | heading `Delete {organizationName}?`, message `Delete organization?`, buttons `Cancel` / `Delete` | en.json `organization.delete.*`, `view.delete.message`; C613152 |
+| Vendor-data deletion warning (uncheck Vendor in Edit) | `Confirm vendor data deletion` / `Warning. All vendor information, vendor terms, EDI information, and accounts will be deleted from this record.` → `Confirm` | en.json `vendor.confirmation.*`; C358965 |
+| Unassign contact / interface | `Unassign from organization` / `Are you sure you want to unassign the contact from this organization?` (interface: `…unassign the interface from…`) | en.json `contacts.confirmUnassign.*`, `interface.confirmUnassign.*` |
+| Delete contact / interface | `Delete contact` / `Are you sure you want to delete the contact?`; `Delete interface` / `Are you sure you want to delete the interface?` | en.json |
+| Delete integration | `Confirm integration deletion` / `Are you sure you want to delete the integration?` → `Confirm` | en.json `integration.confirmation.*` |
+| Duplicate integration | `Duplicate integration config` / `Are you sure you want to duplicate the <b>{term}</b> integration config?` → `Cancel` / `Confirm` | en.json; C688767 |
+| Contact / interface pane titles | `Create contact`, `Edit contact - {name}`, `Contact - {name}`; `Create interface`, `Edit interface - {name}` | en.json |
+| Integration page titles | `Create integration`, `Edit integration - {name}`; button `Add integration` | en.json `integration.create*` |
 
 ### Errors / validation
-| Condition | Message |
-|---|---|
-| Org save (generic) | `Organization could not be saved` |
-| Code duplicate | `Code is already in use` |
-| Duplicate account numbers | `An organization can not have duplicate account numbers` (view banner: `An organization can not have duplicate account numbers. Before editing this organization in any way you will need to change or remove any duplicate account numbers`) |
-| Credentials save | `Error while saving credentials` |
-| No primary record | `No primary record selected` |
+| Condition | Message | Source |
+|---|---|---|
+| Org save (generic / unknown backend code) | `Organization could not be saved` | en.json `save.error.genericError`; `handleSaveErrorResponse.js` |
+| Code duplicate | `Code is already in use` | en.json `save.error.codeInUse`; `validateOrgCode.js` |
+| Duplicate account numbers (form) | `An organization can not have duplicate account numbers` | en.json `save.error.accountNumberMustBeUnique` |
+| Duplicate account numbers (view banner) | `An organization can not have duplicate account numbers. Before editing this organization in any way you will need to change or remove any duplicate account numbers` | en.json `view.duplicateAccounts` |
+| Credentials save / interface assign | `Error while saving credentials` / `Error while assigning interface to the organization` | en.json |
+| No primary record | `No primary record selected` | en.json `contactPeople.errors.noPrimaryRecord` |
+| Required field | `Required!` | C688767 (stripes-acq-components text) |
+| Integration account number in use (form + view banner) | `The following account numbers are also assigned to another integration of the same type: {accounts}. An account number should be assigned to only one integration.` ({accounts} = `123 (Name A, Name B); 456 (Name C)`) | en.json `integration.edi.accountNumbers.inUseWarning`; `utils.js` |
+| Monthly `Day` field | `Required` / `Value must be less than or equal to 31` / `Value must be greater than or equal to 1` | C434063 |
+| Account type duplicate | `Account type must be unique.` | en.json |
+| Settings generic | `Something went wrong.` / `Error saving setting` | en.json |
 
-### Integration (EDI) config — key fields
-`Integration name`, `Description`, `Default integration`, `Integration type` (`Ordering` / `Claiming`), `Transmission method` (`File download` / `FTP`), EDI config (`Account numbers`, `Vendor EDI code`, `Vendor EDI type`, `Library EDI code`, `Library EDI type`, `EDI naming convention`, `Automate order export for acquisition methods`, expected messages `Orders`/`Invoices`), FTP details (`FTP mode`, `Server address`, `FTP connection mode` Active/Passive, `FTP port`, `Order directory`, `Invoice directory`), Scheduling (`Schedule EDI`, `Schedule period` Hourly/Daily/Weekly/Monthly, `Time`, `Day`).
+### Integration form — key fields
+`Integration information` accordion: `Integration name` (required), `Description`, `Default integration`, `Integration type`, `Transmission method`, `File format`, `Account numbers` (multi-select). `EDI configuration`: `Automate order export for acquisition methods`, `Vendor EDI code`, `Vendor EDI type`, `Library EDI code`, `Library EDI type`, `EDI naming convention` (always disabled; default `{organizationCode}-{integrationName}-{exportJobEndDate}`), `Send account number`, `What messages are expected for this vendor?` (`Orders` / `Invoices`), `Notes`. `FTP details`: `EDI FTP`, `FTP mode`, `Server address`, `FTP connection mode`, `Username`, `Password`, `FTP port`, `Order directory`, `Invoice directory`, `Notes`. `Scheduling` (Ordering only): `Schedule EDI`, `Schedule period`, `Schedule frequency`, `Date`, `Time`, weekday checkboxes, `Day`. Source: en.json `integration.*`, `EdiForm.js`, `utils.js` `getDefaultEdiNamingConvention`.
 
-### Settings [confirmed]
-`Categories`, `Types` (with delete guards `This category/type cannot be deleted, as it is in use by one or more records.`), `Banking information` → `Account types` (`Account type must be unique.`), `Number generator options` (`Vendor code generator`; `Off` / `On, field editable` / `On, field not editable`).
+### Settings
+`Categories`, `Types` (delete guard: `Cannot delete category` / `This category cannot be deleted, as it is in use by one or more records.`; `Cannot delete type` / `This type cannot be deleted, as it is in use by one or more records.`), `Banking information` (`Enable banking information`), `Account types` (`Account type must be unique.`; delete guard below), `Number generator options` — heading `Code` with a drop-down `Off` / `On, field editable` / `On, field not editable` (radio buttons replaced in 7.0.0, UIORGS-462). Settings pane title `Organizations settings`. Source: en.json `settings.*`.
 
 ---
 
-## Capability Sets (Eureka) [confirmed permission display names]
+## API Surface (Eureka/Okapi, permissionsRequired)
 
-| Action | Permission |
-|---|---|
-| View | `Organizations: View` |
-| View, edit | `Organizations: View, edit` |
-| View, edit, create | `Organizations: View, edit, create` |
-| Delete | `Organizations: View, edit, delete` |
-| View interface credentials | `Organizations: Interface usernames and passwords: view` |
-| Manage interface credentials | `Organizations: Interface usernames and passwords: view, edit, create, delete` |
-| Integration credentials | `Organizations: Integration usernames and passwords: view` / `…: view, edit` |
-| Banking info | `Organizations: View banking information` … `… create and delete banking information` |
-| Privileged donor info | `Organizations: can view privileged donor information` / `… create, edit, delete …` |
-| Assign acq units | `Organizations: Assign acquisition units to new organization` |
-| Manage acq units | `Organizations: Manage acquisition units` |
-| Settings | `Settings (Organizations): View settings` / `… Can view and edit settings` |
+**mod-organizations** (business logic, acq-unit protection, account-number uniqueness):
+| Endpoint | Methods | Permission |
+|---|---|---|
+| `/organizations/organizations` | GET, POST | `organizations.organizations.collection.get`, `…item.post` |
+| `/organizations/organizations/{id}` | GET, PUT, DELETE | `organizations.organizations.item.get` / `.put` / `.delete` |
+| `/organizations/banking-information[/{id}]` | GET, POST, GET, PUT, DELETE | `organizations.banking-information.collection.get`, `.item.post/get/put/delete` |
+
+**mod-organizations-storage**: `/organizations-storage/{organizations, contacts, privileged-contacts, interfaces, organization-types, categories, banking-account-types, banking-information, settings}` with CRUD (`organizations-storage.<resource>.collection.get`, `.item.post/get/put/delete`); `/organizations-storage/interfaces/{id}/credentials` GET/POST/PUT/DELETE (`organizations-storage.interfaces.credentials.item.*`); timer `POST /organizations-storage/audit-outbox/process`. Banking-information tenant switch = settings record `key=BANKING_INFORMATION_ENABLED`.
+
+**Integrations**: `data-export-spring/configs[/{id}]` (mod-data-export-spring). UI sends `exportTypeSpecificParameters.vendorEdiOrdersExportConfig.*` and `type` = `EDIFACT_ORDERS_EXPORT` or `CLAIMS`.
+
+**Backend error codes** (`mod-organizations` `ErrorCodes.java`): `accountNumberMustBeUnique` (422), `organizationCodeWhitespace` (422), `organizationAcqUnitsNotFound`, `userHasNoAcqUnitsPermission` (403), `userHasNoPermission` (403), `idMismatch`, `genericError`. Storage delete of an org still referenced by banking info used to return `genericError` "…still referenced from table banking_information" (MODORGSTOR-172, fixed 4.8.1).
+
+---
+
+## Capability Sets (Eureka)
+
+> Resource names from docs.folio.org (Organizations › Capabilities, Settings_organizations) and TestRail preconditions (C423547, C613152, C688767, C663330, C1621423). Use these in new cases; legacy display names (en.json `permission.*`) shown for mapping only.
+
+| Action | Capability set (type - resource - action) | Legacy display name |
+|---|---|---|
+| View | `data - UI-Organizations - view` | `Organizations: View` |
+| View, edit | `data - UI-Organizations - edit` | `Organizations: View, edit` |
+| View, edit, create | `data - UI-Organizations - create` | `Organizations: View, edit, create` |
+| View, edit, delete | `data - UI-Organizations - delete` | `Organizations: View, edit, delete` |
+| Interface credentials view / manage | `data - UI-Organizations Creds - view` / `- manage` | `Organizations: Interface usernames and passwords: view` / `…: view, edit, create, delete` |
+| Integration credentials view / edit | `data - UI-Organizations Integrations Creds - view` / `- edit` | `Organizations: Integration usernames and passwords: view` / `…: view, edit` |
+| Banking info view / edit / create / delete | `data - UI-Organizations Banking-Information - view` / `edit` / `create` / `delete` | `Organizations: View banking information` … `…View, edit, create and delete banking information` |
+| Privileged donor view / edit | `data - UI-Organizations Privileged-Contacts - view` / `- edit` | `Organizations: can view privileged donor information` / `…can view, create, edit, delete…` |
+| Assign acq units on create | since Trillium `procedural - UI-Organizations Organizations Acquisitions Units Assign - execute` (before: `procedural - UI-Organizations AcqUnits - execute`) | `Organizations: Assign acquisition units to new organization` |
+| Manage acq units on edit | since Trillium `procedural - UI-Organizations Organizations Acquisitions Units Manage - execute` (before: `data - UI-Organizations AcqUnits - manage`) | `Organizations: Manage acquisition units` |
+| Settings view | `settings - UI-Organizations Settings - view` | `Settings (Organizations): View settings` |
+| Settings view and edit | `data - Organizations Settings - manage` | `Settings (Organizations): Can view and edit settings` |
+| Number generator options | `settings - UI-Organizations Settings NumberGenerator - manage` | `Settings (Organizations): Manage number generator options` |
+
+Notes: the acq-unit renames come from UIORGS-478 (7.0.0, Trillium; C423547 preconditions). `Organizations: Integration usernames and passwords: view` alone does not give access to organization records (C423502). Interface credential and privileged-donor edit sets must be combined with `UI-Organizations` create or delete (docs.folio.org).
 
 ---
 
 ## Common Verification Patterns
 
 ### Create a vendor
-1. Actions → `New`/`Create organization`; fill `Name`, `Code`, set `Organization status`, check `Vendor` → `Save & close`.
-2. Expected: toast `The Organization - "{name}" has been successfully saved`; record shows in list with the code; `Code is already in use` if the code collides.
+1. Actions → `New`; fill `Name`, `Code`, set `Organization status`, check `Vendor` → `Save & close`.
+2. Expected: toast `The Organization - "{name}" has been successfully saved`; record shows in list with the code; `Code is already in use` under Code if the code collides.
 
 ### Add an interface with credentials
-Interface accordion → `Add interface` (or find-interface plugin) → `Name`, `URI`, `Username`, `Password` → Save. Credentials view/edit gated by the interface-credentials capability; toggle `Show credentials` / `Hide credentials`.
+Interface accordion → `Add interface` (find-interface lookup) or `New` (create) → `Name`, `URI`, `Username`, `Password` → Save (`The interface was saved`). Password masked by default; `Show credentials` / `Hide credentials` (C3455). Credentials gated by `UI-Organizations Creds`.
 
 ### EDI integration for automated order export
-Integration details → `Add integration` → `Integration type = Ordering`, EDI codes, FTP details, `Schedule EDI` period → Save (`Integration was saved`). This drives Export Manager order export.
+Integration details → `Add integration` → `Integration type = Ordering`, account numbers, EDI codes, FTP details, `Schedule EDI` period → `Save & close` (`Integration was saved`).
 
-### Verify a scheduled EDI export actually ran (confirmed pattern, C965832, 2025)
-Don't stop at saving the integration's schedule — verify the export itself fires and lands: open an eligible Order (Actions → Open), wait for the scheduled time, then go to the **Export Manager** app → check the `Organizations` toggle on Search & Filter → filter `Integration type = Orders` → confirm a job in `Successful` status with start/end time matching the integration's schedule. A case that only checks "Integration was saved" without this step doesn't prove the export actually happens.
+### Verify a scheduled EDI export actually ran (C965832, C1621423)
+Don't stop at saving the schedule: open an eligible Order (Actions → Open), wait for the scheduled time, then **Export Manager** → `Organizations` toggle → `Integration type` = `Orders` → job in `Successful` status for each integration. A case that only checks `Integration was saved` doesn't prove the export happens.
+
+### Verify an API-backed rule in two places
+For timezone (Rule 11) and account-number rules, check both the UI (form/view) and the stored config (`GET data-export-spring/configs/{id}` → `vendorEdiOrdersExportConfig.ediConfig.accountNoList`, `ediSchedule.scheduleParameters`).
 
 ---
 
-## "Save & Keep Editing" Button (Create/Edit Organization) [confirmed — C656329]
+## "Save & Keep Editing" Button (Create/Edit Organization) [C656329, C656335; UIORGS-449]
 
-Same three-button pattern used across other acquisitions apps (Invoices, etc.): `Cancel` (always active), `Save & keep editing` (disabled until ≥1 field filled), `Save & close` (same enable condition). Save & keep editing runs the same mandatory-field validation without closing the screen; on success it shows a toast and, notably, **focus remains in the last-clicked field** (post UIORGS-449) rather than resetting to the top of the form.
+Three buttons: `Cancel` (always active), `Save & keep editing` (disabled until ≥1 field filled), `Save & close`. Available on Create, Edit and Clone (UIORGS-449 title; C656335 covers Edit). Save & keep editing runs the same validation without closing; on success shows the save toast and focus stays in the last-clicked field.
 
-## Version History (Organizations) [confirmed — C663330]
+## Version History (Organizations) [C663330; UIORGS-355/356/359/482]
 
-Same clock-icon / 4th-pane mechanic as Invoices (see invoices.md): most-recent-first cards, oldest = "Original version", newest = "Current version" + a "Changed" list of field/accordion names. Organizations-specific nuances:
-- **"Privileged donor information" and "Agreements" accordions are NEVER shown in Version History, for any version card** — these stay hidden regardless of which historical version is selected (privacy/external-link exclusion, not a diff artifact).
-- Each version accurately reflects that point in time's accordion CONTENTS, not just a highlighted diff: if Contact people/Interface entries were deleted in the latest edit, the current version's accordions literally show "The list contains no items", while the changed field name (e.g. "Interface", "Contact people", "Vendor") still appears in that card's "Changed" list.
-- Checking the "Vendor" checkbox in an edit is tracked like any other field change — the checkbox itself is highlighted yellow on the details pane, and newly-revealed Vendor-only accordions (Vendor information, Vendor terms, Accounts) appear for that version.
+Clock icon → fourth `Version history` pane; Actions button disappears from the details pane; Version history and Tags icons become inactive; cards newest-first with `MM/DD/YYYY, HH:MM AM` link; oldest = "Original version", newest = "Current version" + "Changed" list; changed fields highlighted yellow. Organizations nuances:
+- **Privileged donor information and Agreements accordions are never shown in any version card** (C663330).
+- Each version shows the accordion contents at that time: deleted Contact people/Interface entries show "The list contains no items" while "Interface"/"Contact people" appear in "Changed" (C663330).
+- Checking `Vendor` is tracked like any field; Vendor-only accordions appear for that version.
+- Metadata fields (`Created by`, `Created date`, `Updated by`, `Updated date`) are not listed as changed fields (UIORGS-482, ui-organizations 7.1.0). A save that changes nothing but metadata appears as a card "Changed: System maintenance update" (UIORGS-482 QA comment, 2026-11; text not in ui-organizations en.json — verify).
+- Edit audit events now carry the pre-edit snapshot (`originalOrganizationSnapshot` + `organizationSnapshot`; create has only `organizationSnapshot`) — MODORGSTOR-201; Karate `cross-modules/features/audit-event-organization.feature`.
 
-## Number Generator for Organization Code [confirmed — C700855; previously undocumented]
+## Number Generator for Organization Code [C700855; UIORGS-336/337/462]
 
-Settings > Organizations > Number generator options has three modes (already listed as a settings item, behavior not previously detailed):
-- **Off**: no "Generate vendor code" button appears on either Create or Edit pages.
-- **On, field not editable**: a "Generate vendor code" button appears under the Code field on Create (and Edit); clicking opens a "Vendor code generator" window to search/select a configured sequence, then generates the next number into Code — which subsequently **cannot be manually edited** (no prefix/suffix appending allowed).
-- **On, field editable**: identical generation flow, but the generated value in Code CAN be manually edited afterward (e.g. to append a prefix/suffix).
-- Requires: user has the `NumberGenerators` authorization role, and a sequence is defined under Settings > Service interaction > Number generator sequences for Generator "Organizations: Vendor code".
-- Re-generating a new number on an already-saved organization (via Edit) works the same way and simply overwrites the previous Code value.
+Settings > Organizations > Number generator options, heading `Code`, drop-down:
+- **Off**: no `Generate vendor code` button on Create or Edit; code entered manually.
+- **On, field not editable**: `Generate vendor code` under Code opens `Vendor code generator` to pick a sequence; Code then cannot be edited manually.
+- **On, field editable**: same flow, Code stays editable (prefix/suffix allowed) or can be typed manually.
+- Requires a sequence under Settings > Service interaction > Number generator sequences for generator code `organizations_vendorCode` ("Organizations: Vendor code") and the NumberGenerators role (C700855). Settings page needs `UI-Organizations Settings NumberGenerator - manage` (docs).
+- Re-generating on Edit overwrites the previous Code.
 
-## Integration Create/Edit — Dynamic Field Requirements Matrix [confirmed — C688767, C825311, C434063; significantly expands prior "key fields" list]
+## Integration Create/Edit — Dynamic Field Requirements [C688767, C825311, C434063; UIORGS-442, UIORGS-468; `utils.js`, `IntegrationInfoForm.js`]
 
-The Create/Edit Integration form has interlocking conditional-required logic across three fields — **Integration type**, **Transmission method**, and **File format** — that is NOT simply "Ordering requires everything":
+- Default on Create: `Integration type = Claiming`, `Transmission method = File download`, `File format = CSV`; Account numbers optional; no EDI/FTP field required; **Scheduling hidden**.
+- `Integration type = Ordering` sets and disables `Transmission method = FTP` and `File format = EDI` (CSV and File download not available), sets export type `EDIFACT_ORDERS_EXPORT`, and shows **Scheduling** (`Schedule EDI` unchecked). Switching back to Claiming re-enables both dropdowns keeping their current values, sets export type `CLAIMS`, hides Scheduling and **clears the saved schedule** (`ediSchedule = null`).
+- **File format alone drives EDI requiredness**: EDI ⇒ `Account numbers`, `Vendor EDI code`, `Library EDI code` required; CSV ⇒ not required.
+- **Transmission method alone drives FTP requiredness**: FTP ⇒ `Server address` (must be a valid URL, `validateURLRequired`) and `FTP port` required; File download ⇒ not required.
+- Validation re-evaluates immediately after changing type/method/format (UIORGS-468, 6.0.1); before the fix it applied to the previous option.
+- Scheduling: `Schedule period` cannot stay `Please select schedule period`; `Schedule frequency` positive number; `Time` required; `Day` (Monthly) numeric 1–31 (`SchedulingForm.js`; C434063, C434064).
+- `Default integration` checkbox is disabled when another integration of the org is already default; a default integration has no `Account numbers` field (`IntegrationInfoForm.js`). Docs: use it when the vendor has no account numbers.
+- `EDI naming convention` is read-only (C350758).
+- Token refresh while the form is open must not change the type: UIORGS-472 (fixed 7.0.0) — UI sent `Claims` instead of EDIFACT after refresh and save failed with `Integration could not be saved`; regression case C825311.
+- On save the UI also stores `vendorName` = organization name in the config (UIORGS-485, In Review on 2026-11-24; already done on Duplicate in code).
 
-- Default state on Create: `Integration type = Claiming`, `Transmission method = File download`, `File format = CSV`; Account numbers optional; no EDI/FTP fields required; **Scheduling accordion is hidden entirely**.
-- Selecting `Integration type = Ordering` forces (and locks/disables) `Transmission method = FTP` and `File format = EDI`, makes Account numbers + Vendor EDI code + Library EDI code + Server address + FTP port all REQUIRED, and reveals the **Scheduling** accordion (Schedule EDI unchecked by default). Switching back to Claiming unlocks Transmission method/File format again but preserves whatever value they currently hold and hides Scheduling again.
-- Independent of Integration type, **File format alone drives EDI-code requiredness**: File format = EDI ⇒ Account numbers/Vendor EDI code/Library EDI code required; File format = CSV ⇒ all three become NOT required.
-- Independent of both, **Transmission method alone drives FTP-field requiredness**: Transmission method = FTP ⇒ Server address/FTP port required; Transmission method = File download ⇒ NOT required.
-- `Day` field (only shown when Schedule period = Monthly) validation: numeric, range 1–31 inclusive. Blank → `Required`; > 31 → `Value must be less than or equal to 31`; negative → `Value must be greater than or equal to 1`. Save & close is blocked while any such message is displayed. [C434063]
-- **Duplicate integration**: modal `Duplicate integration config` (`Are you sure you want to duplicate the {term} integration config?`) → Cancel/Confirm → toast `Integration ({date, time AM/PM}) was successfully duplicated` → new record named exactly `Copy of ({date, time AM/PM})`, carrying over every field (including FTP credentials and Schedule settings) EXCEPT **Account numbers**, which is cleared and must be re-selected on the duplicate. [C688767]
-- A background OAuth token-refresh call to `authn/refresh` can fire while the Create-integration form is still open (observed in DevTools Network tab); this does not interrupt or invalidate the in-progress form — Save & close still succeeds normally afterward. [C825311]
+## Integration Account Numbers [UIORGS-271, UIORGS-481; `utils.js` `buildAvailableAccounts`, `AccountNumbersInUseBanner.js`]
 
-## Privileged Donor Contacts — Search Isolation [confirmed — C423630; previously undocumented]
+- `Account numbers` lists the org's accounts minus those used by **another integration of the same type** (Ordering vs Claiming are separate since UIORGS-481; before, the exclusion was cross-type).
+- Account numbers stored on the integration being edited always stay listed and selected (and can be deselected), even if another integration also uses them or the account no longer exists on the org.
+- If another same-type integration uses a selected number, a warning banner (`integration.edi.accountNumbers.inUseWarning`) shows in the edit form and in the integration view; not shown for a default integration.
+- Rationale for one-account-one-integration: prevent an order from being exported twice (UIORGS-271 comment, Dennis Bridges).
 
-A contact added via the "Privileged donor information" accordion's own "Add donor" > "New" flow is entirely invisible to the regular "Contact people" accordion's "Add contact" picker — searching that picker for the donor contact's name (or any other privileged-donor-only contact) returns `0 records found` / `No results found for "{query}". Please check your spelling and filters.` This is a hard search-index exclusion, not merely a permission-based hide, and holds even for a user who has full edit rights on both privileged-donor and contact-people data.
+## Duplicate Integration [C688767; UIORGS-441; `OrganizationIntegrationView.js`]
 
-## Banking Information — Tenant-Level Kill Switch [confirmed — C423547; refines existing capability table]
+Integration view → Actions → `Duplicate` → modal `Duplicate integration config` → `Confirm` → toast `Integration <name> (<date, time>) was successfully duplicated`; the copy is named `Copy of <name> (<date, time>)` and returns to the org view with two integrations. The copy carries every field (FTP credentials, schedule, **and account numbers** — the whole config is cloned minus `id`). After UIORGS-481 the copy's edit form shows its stored account numbers with the in-use warning (the original also warns); before UIORGS-481 the field appeared empty in both (C688767 step 19 still expects "NOT displayed" — see Known Gaps).
 
-When Settings > Organizations > Banking information > "Enable banking information" is **unchecked** at the tenant level, the "Banking information" accordion is completely absent from BOTH the View and Edit pages for every user — including a user holding every individual Organizations banking permission (view, view+edit, create, delete, all of them). The tenant setting is a hard kill switch; per-user banking permissions are irrelevant while it's off.
+## Deprecated Acquisition Methods in EDI Configuration [UIORGS-487 (In QA 2026-11-24), C1621423, ui-organizations 7.1.0 CHANGELOG]
 
-## Bank Account Type — Delete Guard [confirmed — C590820]
+- `Automate order export for acquisition methods` does not offer methods marked Deprecated in Settings > Orders > Acquisition methods for a new selection (create and edit).
+- Methods already saved on the integration stay listed and selected with the suffix `(deprecated)` in view and edit; the integration saves unchanged and its scheduled export still runs (C1621423 steps 1–10).
+- A deselected deprecated method stays in the list until save/cancel; after saving without it, it is no longer offered (C1621423 steps 11–14).
+- System methods show translated names, same as in Orders (e.g. `Approval plan`, `Purchase at vendor system`).
 
-Deleting an Account type (Settings > Organizations > Account types) that's currently referenced by ANY organization's Banking information record is blocked by a second, non-dismissible-looking popup after the initial confirm: first `Delete account type` (`The account type will be deleted.` Cancel/Delete), then on Delete a SEPARATE `Cannot delete account type` popup appears — `Unable to delete. Account type is in use by one or more organizations.` with only an `Okay` button — the type is NOT deleted.
+## Privileged Donor Contacts [C423630, C423618, C423690, C423623–C423632]
 
-## Vendor / Donor Toggle — Side Effects [confirmed — C730, C421981; refines Key Business Rule 1]
+- Accordion shows only when `Donor` is checked and the user has `UI-Organizations Privileged-Contacts - view` (`OrganizationDetails.js`, `OrganizationForm.js`); available on vendor and non-vendor orgs.
+- Donor contacts added via `Add donor` > `New` never appear in the `Contact people` `Add contact` lookup — `0 records found` / `No results found for "{query}". Please check your spelling and filters.` even for a user with full rights (C423630).
 
-- Checking "Vendor" in Edit mode immediately (pre-save) reveals Vendor information / Vendor terms / Accounts accordions and activates Save & close; after the save completes, an **Integration details** accordion also appears — Integration details is Vendor-gated exactly like the other three, not shown separately.
-- The "Donor" checkbox is disabled (non-interactive) on the View pane for a non-donor organization — it can only be toggled from Edit mode.
-- Unchecking "Donor" and saving immediately drops that organization from any active "Is donor = Yes" search-filter result set — the facet re-evaluates live rather than showing stale membership.
+## Banking Information [C423547, C423503–C423519, C613152, C434070; UIORGS-388/389/436, MODORGSTOR-172]
 
-## "Add Contacts" / "Add Donors" Picker — Pagination & Bulk Selection [confirmed — C359169, C422163]
+- Shown only for vendors, only when Settings > Organizations > Banking information > `Enable banking information` is checked, and only with `UI-Organizations Banking-Information - view` (edit page: `- edit`). Tenant setting off ⇒ accordion absent for everyone (C423547). Banking changes are skipped on save when the org is not a vendor or the setting is off (`useBankingInformationManager.js`).
+- Settings > Banking information is hidden from users without banking view permission (UIORGS-436).
+- A user without banking permissions editing an org gets no banking error (C434070).
+- Deleting an organization that has banking information deletes the banking records too and succeeds (MODORGSTOR-172; C613152).
 
-Both pickers (Contact people's "Add contact" and Fund's Donor-information "Add donor", and by extension any similar plugin-search picker in this app) share one pagination/selection pattern:
-- 50 records per page; the header "Select all" checkbox selects only the CURRENT page's up-to-50 rows, not every matching record across all pages.
-- The running "Total selected" counter persists correctly across Next/Previous navigation — selections made on an earlier page remain selected (and their checkboxes show as checked again) when paging back to them.
-- Deselecting a single record while "Select all" was active flips the page-level "Select all" checkbox back to unchecked, without altering any other already-selected record.
-- The picker's `Save` button only activates once at least one record is selected, regardless of which page is currently displayed.
+## Bank Account Type — Delete Guard [C590820; UIORGS-435, MODORGSTOR-163]
+
+Settings > Organizations > Account types: delete opens `Delete account type` (`The account type <b>{term}</b> will be <b>deleted.</b>`, Cancel/Delete); if the type is used by any organization's banking information, a second popup `Cannot delete account type` / `Unable to delete. Account type is in use by one or more organizations.` with `Okay` appears and nothing is deleted. Account type names are unique (DB unique index on `banking_account_types.name`; `Account type must be unique.`).
+
+## Vendor / Donor Toggle — Side Effects [C730, C358965, C421981; `OrganizationSummaryForm.js`]
+
+- Checking `Vendor` in Edit reveals Vendor information / Vendor terms / Accounts (and Banking information, if enabled and permitted) at once; Integration details exists only on the view pane, so it appears after save.
+- Unchecking `Vendor` on an **existing** org opens `Confirm vendor data deletion`; `Confirm` clears all vendor fields and hides the three accordions; cancelling restores `Vendor` checked. No dialog on Create (new record).
+- `Donor` is read-only on the View pane; toggle it in Edit. Unchecking `Donor` drops the org from an active `Is donor = Yes` filter at once.
+
+## "Add Contacts" / "Add Donors" Picker [C359169, C422163]
+
+50 records per page; header "Select all" selects only the current page; "Total selected" persists across Next/Previous; deselecting one row unchecks "Select all"; `Save` active once ≥1 record selected.
+
+---
+
+## ECS / Multi-Tenant Notes
+
+- Only one ECS case: C423433 "ECS | Searching in "Organization look-up" by "Bank account number" without banking permissions" (section 31406).
+- Organizations are tenant-local. ECS reference data creates the same vendor and donor organizations in central and every member tenant (MODORGSTOR-197, 5.0.0 Trillium) — without integration details.
+- Shared/consortial organizations (share endpoint, central-only update, PATCH of shadow copies, `shared` flags) are **not implemented**: MODORG-78/79/80/81 and MODORGSTOR-174 are In Refinement (2026-11-24). Do not write cases for sharing.
+
+---
+
+## Existing Automation Coverage
+
+- **Karate** (folio-integration-tests, `acquisitions`): `thunderjet/mod-organizations/features/acquisitions-api-tests.feature` (acq-unit read protection: not protected / read-open / full-protected orgs before and after unit membership; POST/PUT with duplicate account numbers → 422), runner `OrganizationsApiTest.java`; `thunderjet/cross-modules/features/audit-event-organization.feature` (Create/Edit events, 50 updates); `thunderjet/mod-invoice/features/check-that-can-not-approve-invoice-if-organization-is-not-vendor.feature`; integration configs via `thunderjet/mod-data-export-spring/reusables/create-integration-details.feature` (EDIFACT and claims export features). Not covered by Karate: code whitespace (MODORG-99), banking-information API, privileged contacts, interface credentials.
+- **Cypress** (stripes-testing): `cypress/e2e/organizations/*.cy.js` (65 specs incl. `integration-claiming`, `integration-day-field-validation`, `verify-two-integrations-cannot-have-same-account-number` (C350552), `version-history-view`, banking/privileged-donor permission specs, `save-and-keep-editing-*`), `cypress/e2e/organizations/interface-details/` (7), `cypress/e2e/organizations/settings/` (3), `cypress/e2e/settings/organizations/` (2); fragments `cypress/support/fragments/organizations/` (`integrations/integrationEditForm.js`, `versionHistorySection.js`, `organizationDetails.js`).
 
 ---
 
 ## Key Business Rules for Test Cases
 
-1. An organization is only a **vendor** when the `Vendor` flag is set — only vendors are selectable in Orders/Invoices vendor fields. (github + orders/invoices)
-2. **Organization code must be unique** — duplicate code blocks save with `Code is already in use`. (github)
-3. **Account numbers must be unique within an organization**; a record with duplicate accounts is locked from editing until fixed. (github)
-4. Deleting a vendor's data (or the org) triggers the `Confirm vendor data deletion` warning — vendor info, terms, EDI info, and accounts are all removed. (github)
-5. Interface and integration **credentials are separately permissioned** from the org record; a user may view an org but not its usernames/passwords. (github)
+1. An organization is a **vendor** only when `Vendor` is set; only vendors are selectable in Orders/Invoices vendor fields, and orders open / invoices pay only for an Active vendor. (github + docs.folio.org; Karate `check-that-can-not-approve-invoice-if-organization-is-not-vendor.feature`)
+2. **Organization code must be unique** — async check `code=="<code>" and id<>"<id>"` shows `Code is already in use`; DB unique index backs it. (`validateOrgCode.js`; storage `make_organization_code_unique.sql`)
+3. **Account numbers must be unique within an organization** — form error `An organization can not have duplicate account numbers`; API POST/PUT returns 422 `accountNumberMustBeUnique`; a record already holding duplicates shows the `view.duplicateAccounts` banner. (`FieldAccountNumber.js`; Karate `acquisitions-api-tests.feature`; C350761)
+4. Unchecking `Vendor` on an existing organization in Edit triggers `Confirm vendor data deletion`; Confirm removes vendor info, vendor terms, EDI info and accounts; deleting the whole organization uses the separate `Delete {organizationName}?` modal. (`OrganizationSummaryForm.js`; C358965, C613152)
+5. Interface and integration **credentials are separately permissioned**; integration-creds view alone gives no access to organization records. (github; C423502)
 6. The vendor's `Claiming interval` seeds the Receiving title's claiming interval; expected receipt/invoice/activation intervals drive acquisitions expectations. (github + receiving.md/orders.md)
-7. EDI integration config (type Ordering/Claiming, FTP, schedule) enables automated order/invoice export via Export Manager. (github)
-8. Contacts and interfaces can be **assigned/unassigned** (shared) vs **deleted**; unassign removes the link, delete removes the record. (github)
-9. Acquisition units gate org access the same way as other acq records (assign on create vs manage on edit are distinct capabilities). (github)
-10. `Donor` organizations feed the donor-information fields used on order lines; privileged donor info is separately permissioned. (github + orders.md)
-11. **EDI integration `Schedule EDI` Time is a tenant-timezone display value, but is transmitted/stored as UTC.** Changing `Settings > Tenant > Language and localization > Time zone` changes how the same stored schedule reads in the Integration's `Time` field, while the backend response (`/data-export-spring/configs/`) always shows `scheduleParameters.timeZone: "UTC"` with `scheduleTime`/`schedulingDate` in UTC. A timezone-sensitive case must check both the UI display value (changes with tenant timezone) and the API/DB value (always UTC) — checking only one proves nothing about the other. (cases — C965832, 2025)
-12. A scheduled EDI export's real effect is a job row in **Export Manager** (`Organizations` toggle, `Integration type` filter), not just the saved Integration config — verify the job actually ran and succeeded, per this skill's "verify effects at their real destination" rule. (cases — C965832)
-13. Integration required-field logic is driven independently by File format (EDI vs CSV → EDI-code requiredness) and Transmission method (FTP vs File download → FTP-field requiredness); Integration type = Ordering merely locks both to their EDI/FTP combination and reveals Scheduling — it isn't itself the source of the requiredness rules. (cases — C688767)
-14. Duplicating an Integration carries over every field including FTP credentials and Schedule settings EXCEPT Account numbers, which is always cleared on the copy. (cases — C688767)
-15. Privileged donor contacts are fully excluded from the general Contact-people search index, not merely hidden by permission — they cannot be found by any user via the standard Add-contact picker. (cases — C423630)
-16. The tenant-level "Enable banking information" setting is a hard kill switch: when off, the Banking information accordion disappears for every user regardless of their individual banking permissions. (cases — C423547)
-17. Bank Account types in use by any organization's Banking information cannot be deleted — a second blocking popup (`Cannot delete account type`) appears even after the initial delete confirmation is accepted. (cases — C590820)
-18. Version History for an Organization never displays the Privileged donor information or Agreements accordions for any version, and otherwise reflects each version's true point-in-time accordion contents (e.g. showing "The list contains no items" where applicable) rather than a pure diff overlay. (cases — C663330)
-19. "Add contact"/"Add donor" pickers paginate at 50 records; bulk selection state (including the running "Total selected" count) persists correctly across Next/Previous navigation, and "Select all" only ever applies to the currently displayed page. (cases — C359169, C422163)
-20. The **"Date created"** search facet's `From`/`To` range is evaluated against the record's actual creation timestamp in the **tenant's configured timezone**, not UTC or the browser's local time — an org created just before local midnight falls in "yesterday", one created just after falls in "today", even though both timestamps may be close together in UTC. A timezone-boundary test for this facet must set a non-default tenant timezone and create records straddling that timezone's midnight, per the same UTC-vs-tenant-timezone caution already noted for EDI scheduling (Rule 11). (cases — C466130)
+7. Integration config (type Ordering/Claiming, FTP, schedule) drives automated EDIFACT order export and claims export via Export Manager. (github; UIORGS-442)
+8. Contacts and interfaces can be **unassigned** (link removed, record kept) or **deleted** (record removed). (en.json `contacts.confirmUnassign.*`, `contacts.confirmDelete.*`)
+9. Acquisition units gate org access like other acq records; assign-on-create and manage-on-edit are distinct capabilities; changing `acqUnitIds` on update without manage permission returns 403 `userHasNoAcqUnitsPermission`; GET of a read-protected org by a non-member returns 403. (`ProtectionServiceImpl.java`; Karate `acquisitions-api-tests.feature`)
+10. `Donor` organizations feed donor fields on funds and order lines; privileged donor info is separately permissioned. (github + docs.folio.org)
+11. **EDI `Schedule EDI` Time is shown in tenant timezone but stored as UTC** (`scheduleParameters.timeZone: "UTC"` in `/data-export-spring/configs/`); check both UI value and API value. (C965832; `utils.js` `getTenantTime`)
+12. A scheduled export's real effect is a `Successful` job row in **Export Manager** (`Organizations` toggle, `Integration type` filter), not the saved config. (C965832, C1621423)
+13. Integration requiredness is driven independently by File format (EDI vs CSV → EDI codes + account numbers) and Transmission method (FTP vs File download → Server address + FTP port); Ordering only locks both to EDI/FTP and shows Scheduling. (C688767; `utils.js`)
+14. Duplicating an integration copies every field including FTP credentials, schedule and account numbers into `Copy of <name> (<date, time>)`; since UIORGS-481 both copies show their account numbers in Edit with the in-use warning. (`OrganizationIntegrationView.js`; UIORGS-441, UIORGS-481)
+15. Privileged donor contacts are excluded from the Contact-people `Add contact` lookup for every user. (C423630)
+16. Tenant setting `Enable banking information` off ⇒ Banking information accordion absent for all users regardless of permissions. (C423547)
+17. Bank account types in use by any organization cannot be deleted — second popup `Cannot delete account type`. (C590820; UIORGS-435, MODORGSTOR-163)
+18. Version History never shows Privileged donor information or Agreements, and shows each version's point-in-time accordion contents. (C663330)
+19. `Add contact` / `Add donor` pickers page at 50; selection persists across pages; "Select all" = current page only. (C359169, C422163)
+20. `Date created` facet uses the tenant timezone for From/To boundaries. (C466130)
+21. Required organization fields: `Name`, `Code`, `Organization status` (`Active`/`Inactive`/`Pending`). (acq-models `organization.json`)
+22. A new or changed code that starts or ends with whitespace is rejected with 422 `organizationCodeWhitespace`; an unchanged legacy code with whitespace still saves. (MODORG-99; `ProtectionServiceImpl.java` `validateCode`)
+23. Banking information is saved only for vendors with the tenant setting on; it needs both `UI-Organizations` edit and the matching Banking-Information action. (`useBankingInformationManager.js`; C423518, C423513, C423514)
+24. Keyword search `All` matches bank account number only for users with banking view permission. (`useBuildQuery.test.js`; C423426, C423427, C423432)
+25. Deleting an organization with banking information deletes the banking records and the organization. (MODORGSTOR-172; C613152)
+26. Privileged donor information accordion requires `Donor` checked plus `Privileged-Contacts - view`; it works for vendor and non-vendor orgs. (`OrganizationDetails.js`; C423618, C423690)
+27. Only one default integration per organization: `Default integration` is disabled when another default exists; a default integration has no `Account numbers` field and never shows the in-use warning. (`IntegrationInfoForm.js`, `AccountNumbersInUseBanner.js`)
+28. An account number used by another integration **of the same type** is not offered for selection; numbers already stored on the edited integration always stay visible and removable; cross-type reuse (Ordering vs Claiming) is allowed. (UIORGS-481; `utils.js` `buildAvailableAccounts`; C350552 for same type)
+29. Changing Integration type to Claiming clears the saved EDI schedule; Ordering forces FTP + EDI and export type `EDIFACT_ORDERS_EXPORT`. (`IntegrationInfoForm.js`; UIORGS-442)
+30. Field validation follows the current Integration type / Transmission method / File format immediately after a change. (UIORGS-468)
+31. An Ordering integration must save as EDIFACT even if a token refresh happens while the form is open. (UIORGS-472; C825311)
+32. Deprecated acquisition methods are hidden for new selection in `Automate order export for acquisition methods`; saved ones stay selected with `(deprecated)` and the export keeps working. (UIORGS-487; C1621423)
+33. Scheduling validation: period must be chosen, frequency positive, Time required, Monthly `Day` 1–31. (`SchedulingForm.js`; C434063, C434064)
+34. `Server address` must be a valid URL when Transmission method = FTP. (`utils.js` `validateFTPServerAddress`)
+35. `EDI naming convention` cannot be set or edited (static token value). (C350758; `EdiForm.js`)
+36. Integrations created before Sunflower without a type are migrated to `Ordering`. (UIORGS-442 migration AC; MODORGSTOR-181)
+37. Version History does not list metadata fields as changes; metadata-only saves appear as "System maintenance update" cards. (UIORGS-482 + QA comment; C663330)
+38. Number generator `Off` hides `Generate vendor code`; `On, field not editable` locks Code after generation; `On, field editable` keeps it editable. (C700855; UIORGS-337, UIORGS-462)
+39. `Settings (Organizations): View settings` gives read-only settings; Banking information settings are hidden without banking view permission. (C407766; UIORGS-436)
+40. Categories and organization types in use cannot be deleted (`This category cannot be deleted, as it is in use by one or more records.`). (en.json; C367989, C367990)
+41. Alternative names, vendor terms and accounts rows, once added, must be completed (Alias / Name / required account fields) or removed before save. (docs.folio.org; `OrganizationSummaryForm.js` Alias `validateRequired`)
+42. Edit audit events for an organization carry both the original and the updated snapshot; create events only the new one. (MODORGSTOR-201; Karate `audit-event-organization.feature`)
+43. Organizations are tenant-local in ECS; there is no share/central update for organizations yet. (MODORG-78..81 In Refinement; MODORGSTOR-197)
 
 ---
 
 ## Authoring style (measured 2026-07-23)
 
-Organizations: **`Func` ~85%** / Other ~15%, median ~8 steps, `User Journey` ~15% (one of the higher journey-flag areas). Cases are record-CRUD and accordion management (summary, contacts, interfaces, integrations/EDI, accounts, banking, privileged donor) plus Settings. Use `Functional`. Journey-flagged cases walk a multi-accordion setup or an integration→Export-Manager effect. Verify effects at their real destination (a scheduled EDI export = a job row in Export Manager, not just the saved config). Preconditions carry the org record with the relevant accordion populated and any tenant-level kill-switch settings.
+Organizations: **`Func` ~85%** / Other ~15%, median ~8 steps, `User Journey` ~15%. Cases are record-CRUD and accordion management (summary, contacts, interfaces, integrations/EDI, accounts, banking, privileged donor) plus Settings. Use `Functional`. Journey-flagged cases walk a multi-accordion setup or an integration→Export-Manager effect. Verify effects at their real destination. Preconditions carry the org record with the relevant accordion populated, the tenant kill-switch settings, and Eureka capability sets in `type - resource - action` form (see table above).
 
 ---
 
 ## Known Gaps / Items to Verify
 
-- [x] TestRail section 107 cases pulled this round (14 cases) for realistic precondition depth/style — organization delete, Save & keep editing, Version history, Number generator, Integration dynamic-requirements matrix, privileged-donor search isolation, banking kill-switch, account-type delete guard, Vendor/Donor toggle side effects, and picker pagination are now all documented above with exact strings.
-- [ ] Exact Eureka capability-set strings (`UI-Organizations …`) — permission display names confirmed; verify the capability-set form in env.
-- [ ] Interface find-plugin vs inline-create exact flow labels (`find-interface plugin` vs `Add interface`) — verify which the target release uses.
-- [ ] Whether "Save & keep editing" is available on Edit (not just Create) was implied by C656335's title but not independently re-verified this round — cross-check against the Invoices/other-areas pattern where it IS available on both.
+- [ ] C688767 step 19 expects the duplicate's account number "NOT displayed" in Edit — outdated after UIORGS-481 (7.1.0): the stored number is now shown with the in-use warning. Case needs an update.
+- [ ] C350552 / Cypress `verify-two-integrations-cannot-have-same-account-number.cy.js` cover same-type (Ordering) exclusion only; the new cross-type allowance (Ordering vs Claiming may share a number, UIORGS-481) has no case.
+- [ ] UIORGS-487 (In QA) and UIORGS-485 (In Review) were not closed on 2026-11-24; behaviour is merged in master (CHANGELOG 7.1.0) — confirm in the Umbrellaleaf build.
+- [ ] "System maintenance update" card text comes only from a UIORGS-482 QA comment; not in ui-organizations `en.json` (likely a shared stripes-acq-components string) — verify before asserting.
+- [ ] `organizationCodeWhitespace` has no ui-organizations translation key: expected UI = `Organization could not be saved` plus a second callout with the backend message (`Organization code must not start or end with whitespace`) per `handleSaveErrorResponse.js` — verify; no TestRail or Karate case yet (MODORG-99).
+- [ ] `Required!` vs `Required`: C688767 uses `Required!`, C434063 uses `Required` for the Day field — the text comes from stripes-acq-components, check in env.
+- [ ] docs.folio.org says a vendor can be deleted even with linked orders/invoices; no TestRail case found for that path.
+- [ ] Number generator settings capability `settings - UI-Organizations Settings NumberGenerator - manage` is from docs.folio.org only; no TestRail precondition uses it yet.
+- [ ] Integration details are stored in mod-data-export-spring, so whether integration add/remove shows in organization Version History (UIORGS-362, closed without fix version) is unconfirmed.
+- [x] Eureka capability-set strings — now taken from TestRail preconditions and docs.folio.org (table above).
+- [x] Interface flow labels — `Add interface` opens the find-interface lookup, `New` creates (en.json `interface.addInterface`, `interface.newInterface`).
+- [x] "Save & keep editing" on Edit — covered by C656335 and UIORGS-449 (Create/Clone/Edit).
 
-> N≥10 audit round (2026-07-22): 14 cases read (C613152, C656329, C663330, C700855, C688767, C825311, C434063, C423630, C423547, C590820, C730, C421981, C359169, C422163). This was the file's first pull directly from TestRail section 107 (previously GitHub-translation-only) — resolved that Known Gap. Surfaced entirely new/previously undocumented features: Version History, Number Generator for Organization Code, the Integration form's dynamic required-field matrix (File format vs Transmission method vs Integration type, independently), Privileged-donor contact search isolation, the Banking-information tenant kill switch, the Account-type delete guard, and the Add-contact/Add-donor picker's cross-page bulk-selection mechanic. Added 8 new Key Business Rules (12-19).
-
-> Random spot-check (2026-07-23): picked one fresh uncited case at random from section 107 (C466130) — found the "Date created" facet's timezone-aware midnight-boundary behavior was undocumented. Added Key Business Rule 20.
-
-
----
-
-## Changes since 2026-07-21 (delta refresh 2026-11-07)
-
-> Delta, not a rebuild: sections above reflect the original build. Where this section contradicts them, **this section wins**.
-> Sources: GitHub folio-org/ui-organizations (translations/ui-organizations/en.json, HEAD v7.0.0); Jira folio-org.atlassian.net Done issues resolved since 2026-07-21; TestRail suite 21 cases created since 2026-07-21.
-
-### What changed
-- EDI integration: warning when the same account number is assigned to another integration of the same type; account numbers stay editable (UIORGS-481).
-- Version history hides metadata fields (UIORGS-482).
-
-### UI strings changed since 2026-07-21 [source — en.json, 2026-11-07]
-
-> `en.json` is the source of truth; `en_US.json` is a Lokalise copy that can lag behind. `<b>`/`<strong>` render as bold; `{x}` are placeholders.
-
-**New strings**
-
-| Key | Text |
-|---|---|
-| `integration.edi.accountNumbers.inUseWarning` | The following account numbers are also assigned to another integration of the same type: {accounts}. An account number should be assigned to only one integration. |
-
-### Jira — Done since build (organizations (UIORGS, MODORGS*) since 2026-07-21)
-
-- UIORGS-482 Story — Do not show metadata.updatedDate in "Version history" for Organization
-- UIORGS-481 Bug — Account numbers of a duplicated integration cannot be viewed/removed in edit form
-- MODORGSTOR-201 Story — Old object in EDIT audit events for Organization
-
-### TestRail — cases created since 2026-07-21: 0 (0 manual, 0 automated/Karate)
-
-- No new manual cases.
+> Refresh log: 2026-07-22 N≥10 audit (14 cases from section 107); 2026-07-23 spot-check (C466130); 2026-11-07 delta (UIORGS-481, UIORGS-482, MODORGSTOR-201 — folded into the sections above on 2026-11-24); 2026-11-24 full refresh against GitHub master, Jira, TestRail (93 cases listed, 8 read in full), Karate, Cypress, docs.folio.org.
