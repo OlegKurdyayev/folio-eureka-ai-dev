@@ -119,16 +119,6 @@ Create (quickMARC or Data Import)
 | Export request fails | `Unable to complete request, please try again.` (key `export.failure`) | [source en.json] |
 | Maximum number of local authority files exceeded (default 50) | Jira text only: `Error saving data. Maximum number of authority files has been exceeded.` — no matching key in en.json | [UIMARCAUTH-406 — do NOT assert verbatim, see Known Gaps] |
 
-### GitHub Extraction Counts (Before Merge)
-
-| Category | Count |
-|---|---:|
-| Translation values | 87 |
-| Permission display names | 9 |
-| Fragment selector/label strings | 119 |
-| Reconciled confirmed strings | 15 |
-| Source-only strings | 200 |
-
 ### GitHub Translation Values
 
 | Key | Text | Tag |
@@ -237,135 +227,11 @@ Create (quickMARC or Data Import)
 
 ### Cypress Fragment Selector/Label Strings
 
-| Fragment | Text | Tag |
-|---|---|---|
-| `MarcAuthorityBrowse.js:30` | `,` | [from source, verify in env] |
-| `MarcAuthorityBrowse.js:30` | `,` | [from source, verify in env] |
-| `MarcAuthorityBrowse.js:33` | `submit-authorities-search` | [from source, verify in env] |
-| `MarcAuthorityBrowse.js:34` | `submit-authorities-search` | [from source, verify in env] |
-| `MarcAuthorityBrowse.js:38` | `Reset all` | [from source, verify in env] |
-| `MarcAuthorityBrowse.js:68` | `clickable-reset-all` | [from source, verify in env] |
-| `MarcAuthorityBrowse.js:220` | `Authority source` | [confirmed] |
-| `authorityHotkeys.js:5` | `{ctrl}{alt}H` | [from source, verify in env] |
-| `authorityHotkeys.js:6` | `{ctrl}{alt}K` | [from source, verify in env] |
-| `authorityHotkeys.js:25` | `,` | [from source, verify in env] |
-| `authorityHotkeys.js:26` | `,` | [from source, verify in env] |
-| `authorityHotkeys.js:29` | `Close a modal or pop-up` | [from source, verify in env] |
-| `authorityHotkeys.js:29` | `Esc` | [from source, verify in env] |
-| `marcAuthorities.js:49` | `authority-result-list` | [from source, verify in env] |
-| `marcAuthorities.js:54` | `submit-authorities-search` | [from source, verify in env] |
-| `marcAuthorities.js:62` | `Select Authority record` | [from source, verify in env] |
-| `marcAuthorities.js:68` | `Export selected records (CSV/MARC)` | [from source, verify in env] |
-| `marcAuthorities.js:70` | `New` | [from source, verify in env] |
-| `marcAuthorities.js:73` | `Sort by` | [from source, verify in env] |
-| `marcAuthorities.js:79` | `Reports` | [from source, verify in env] |
-| `marcAuthorities.js:82` | `Save authorities CQL query` | [from source, verify in env] |
-| `marcAuthorities.js:83` | `Save authorities UUIDs` | [from source, verify in env] |
-| `marcAuthorities.js:87` | `Authority source` | [confirmed] |
-| `marcAuthorities.js:90` | `,` | [from source, verify in env] |
-| `marcAuthorities.js:90` | `,` | [from source, verify in env] |
-| `marcAuthorities.js:90` | `,` | [from source, verify in env] |
-| `marcAuthorities.js:93` | `authorities-report-modal` | [from source, verify in env] |
-| `marcAuthorities.js:94` | `Export` | [from source, verify in env] |
-| `marcAuthorities.js:96` | `Reset all` | [from source, verify in env] |
-| `marcAuthorities.js:112` | `Search` | [from source, verify in env] |
-| `marcAuthorities.js:113` | `Reset all` | [from source, verify in env] |
-| `marcAuthorities.js:114` | `times` | [from source, verify in env] |
-| `marcAuthorities.js:119` | `Dismiss modal` | [from source, verify in env] |
-| `marcAuthorities.js:120` | `Export selected records (CSV/MARC)` | [from source, verify in env] |
-| `marcAuthorities.js:122` | `sourceFileId` | [from source, verify in env] |
-| `marcAuthorities.js:124` | `LC Name Authority file (LCNAF)` | [from source, verify in env] |
-| `marcAuthorities.js:166` | `MARC authority` | [from source, verify in env] |
-| `marcAuthorities.js:171` | `Authority source` | [confirmed] |
-| `marcAuthorities.js:174` | `times-circle-solid` | [from source, verify in env] |
-| `marcAuthorities.js:206` | `fromDate` | [from source, verify in env] |
-| `marcAuthorities.js:207` | `toDate` | [from source, verify in env] |
-| `marcAuthorities.js:214` | `times-circle-solid` | [from source, verify in env] |
-| `marcAuthorities.js:238` | `#authorities-report-modal` | [from source, verify in env] |
-| `marcAuthorities.js:238` | `{esc}` | [from source, verify in env] |
-| `marcAuthorities.js:383` | `Number of titles` | [confirmed] |
-| `marcAuthorities.js:394` | `Number of titles` | [confirmed] |
-| `marcAuthorities.js:411` | `Number of titles` | [confirmed] |
-| `marcAuthorities.js:422` | `Number of titles` | [confirmed] |
-| `marcAuthorities.js:733` | `).its(` | [from source, verify in env] |
-| `marcAuthorities.js:733` | `).should(` | [from source, verify in env] |
-| `marcAuthorities.js:763` | `Authority source` | [confirmed] |
-| `marcAuthorities.js:774` | `Authority source` | [confirmed] |
-| `marcAuthorities.js:781` | `Authority source` | [confirmed] |
-| `marcAuthorities.js:902` | `QuickAuthorityExport` | [from source, verify in env] |
-| `marcAuthorities.js:1075` | `LC Name Authority file (LCNAF)` | [from source, verify in env] |
-| `marcAuthorities.js:1108` | `class=` | [from source, verify in env] |
-| `marcAuthorities.js:1116` | `LC Name Authority file (LCNAF)` | [from source, verify in env] |
-| `marcAuthorities.js:1129` | `class=` | [from source, verify in env] |
-| `marcAuthorities.js:1172` | `times` | [from source, verify in env] |
-| `marcAuthorities.js:1292` | `MARC authority` | [from source, verify in env] |
-| `marcAuthorities.js:1300` | `MARC authority` | [from source, verify in env] |
-| `marcAuthorities.js:1383` | `Authority source` | [confirmed] |
-| `marcAuthorities.js:1387` | `Authority source` | [confirmed] |
-| `marcAuthorities.js:1467` | `times` | [from source, verify in env] |
-| `marcAuthorities.js:1482` | `mclCell-` | [from source, verify in env] |
-| `marcAuthorities.js:1494` | `${recordTitle}` | [from source, verify in env] |
-| `marcAuthorities.js:1505` | `match` | [from source, verify in env] |
-| `marcAuthorities.js:1520` | `match` | [from source, verify in env] |
-| `marcAuthorities.js:1588` | `times` | [from source, verify in env] |
-| `marcAuthorities.js:1599` | `times-circle-solid` | [from source, verify in env] |
-| `marcAuthorities.js:1893` | `001` | [from source, verify in env] |
-| `marcAuthorities.js:1902` | `${authorityId}` | [from source, verify in env] |
-| `marcAuthorities.js:1928` | `Authorized` | [from source, verify in env] |
-| `marcAuthorities.js:1974` | `times` | [from source, verify in env] |
-| `marcAuthorities.js:1991` | `exists` | [from source, verify in env] |
-| `marcAuthorities.js:2021` | `authority` | [from source, verify in env] |
-| `marcAuthorities.js:2022` | `authority` | [from source, verify in env] |
-| `marcAuthorities.js:2126` | `[id=` | [from source, verify in env] |
-| `marcAuthorities.js:2126` | `width` | [from source, verify in env] |
-| `marcAuthorities.js:2130` | `[id=` | [from source, verify in env] |
-| `marcAuthorities.js:2130` | `width` | [from source, verify in env] |
-| `marcAuthorities.js:2134` | `[id=` | [from source, verify in env] |
-| `marcAuthorities.js:2138` | `[id=` | [from source, verify in env] |
-| `marcAuthorities.js:2174` | `[id=` | [from source, verify in env] |
-| `marcAuthorities.js:2178` | `[id=` | [from source, verify in env] |
-| `marcAuthorities.js:2214` | `[id=` | [from source, verify in env] |
-| `marcAuthorities.js:2220` | `[id=` | [from source, verify in env] |
-| `marcAuthorities.js:2220` | `width` | [from source, verify in env] |
-| `marcAuthorities.js:2220` | `be.closeTo` | [from source, verify in env] |
-| `marcAuthoritiesBrowseSearch.js:12` | `submit-authorities-search` | [from source, verify in env] |
-| `marcAuthoritiesDelete.js:17` | `Delete` | [from source, verify in env] |
-| `marcAuthoritiesDelete.js:21` | `Delete` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:23` | `authority-result-list` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:24` | `caret-left` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:25` | `caret-right` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:27` | `Show filters` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:29` | `submit-authorities-search` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:30` | `clickable-reset-all` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:34` | `Apply` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:36` | `Authority source` | [confirmed] |
-| `marcAuthoritiesSearch.js:50` | `submit-authorities-search` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:63` | `Exclude see from` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:72` | `Exclude see from also` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:88` | `Exclude see from` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:96` | `Exclude see from also` | [from source, verify in env] |
-| `marcAuthoritiesSearch.js:121` | `Browse` | [from source, verify in env] |
-| `marcAuthority.js:30` | `times` | [from source, verify in env] |
-| `marcAuthority.js:32` | `trash` | [from source, verify in env] |
-| `marcAuthority.js:34` | `quick-marc-record-save` | [from source, verify in env] |
-| `marcAuthority.js:44` | `times` | [from source, verify in env] |
-| `marcAuthority.js:48` | `clock` | [from source, verify in env] |
-| `marcAuthority.js:195` | `Edit` | [from source, verify in env] |
-| `marcAuthority.js:200` | `Delete` | [from source, verify in env] |
-| `marcAuthority.js:204` | `Export (MARC)` | [from source, verify in env] |
-| `marcAuthority.js:207` | `Export (MARC)` | [from source, verify in env] |
-| `marcAuthority.js:446` | `authority-source-files` | [from source, verify in env] |
-| `marcAuthority.js:511` | `authorityId` | [from source, verify in env] |
-| `marcAuthority.js:512` | `@authorityId` | [from source, verify in env] |
-| `marcAuthority.js:519` | `authority-storage/authorities` | [from source, verify in env] |
+Deduplicated from `cypress/support/fragments/marcAuthority/*.js` in stripes-testing (line numbers and non-semantic code fragments dropped; tag [from source, verify in env] unless noted):
 
-### Refinement Stats
-
-| Signal type | Kept (authority-only) | Removed as cross-app noise |
-|---|---:|---:|
-| Toast strings | 0 | 1 |
-| Modal strings | 2 | 1 |
-| Button strings | 3 | 256 |
+- `marcAuthorities.js`, `marcAuthoritiesSearch.js`, `MarcAuthorityBrowse.js`, `marcAuthoritiesBrowseSearch.js`: ids `authority-result-list`, `submit-authorities-search`, `clickable-reset-all`, `authorities-report-modal`, `sourceFileId`, `fromDate`, `toDate`, `QuickAuthorityExport`, `authority-source-files`; labels `Select Authority record`, `Export selected records (CSV/MARC)`, `New`, `Sort by`, `Reports`, `Save authorities CQL query`, `Save authorities UUIDs`, `Search`, `Browse`, `Reset all`, `Apply`, `Show filters`, `Export`, `Dismiss modal`, `Exclude see from`, `Exclude see from also`, `Authorized`, `MARC authority`, `LC Name Authority file (LCNAF)`; `Authority source` and `Number of titles` [confirmed]; icons `caret-left`, `caret-right`, `times`, `times-circle-solid`; API intercept `authority-storage/authorities`.
+- `marcAuthority.js`, `marcAuthoritiesDelete.js`: icons `times`, `trash`, `clock`; `quick-marc-record-save`; actions `Edit`, `Delete`, `Export (MARC)`.
+- `authorityHotkeys.js`: `{ctrl}{alt}H`, `{ctrl}{alt}K`, `Esc` (`Close a modal or pop-up`).
 
 ## Status Values
 
@@ -386,16 +252,19 @@ Reports are queued in Export manager (success toast keys `reports.HEADINGS_UPDAT
 
 ## Capability Sets (Eureka)
 
-| Action | Capability Set |
-|---|---|
-| View authority records | `Data - UI-Marc-Authorities Authority-Record - View` |
-| Edit authority records | `Data - UI-Marc-Authorities Authority-Record - Edit` |
-| Delete authority records | `Data - UI-Marc-Authorities Authority-Record - Delete` |
-| Create authority records | `Data - UI-Marc-Authorities Authority-Record - Create` |
-| View/edit in quickMARC | `Data - UI-Quick-Marc Quick-Marc-Authorities-Editor - Manage` |
-| Create record in quickMARC | `Data - UI-Quick-Marc Quick-Marc-Authorities-Editor - Create` |
-| Access settings pages | `Settings - Settings Marc-Authorities Enabled - View` |
-| Manage authority files | `Settings - UI-Marc-Authorities Settings Authority-Files - Manage` |
+| Action | Capability Set | Source |
+|---|---|---|
+| View authority records | `Data - UI-Marc-Authorities Authority-Record - View` | Cypress dictionary `capabilitySets.js` `uiMarcAuthoritiesAuthorityRecordView`; docs MARCAuthority.md |
+| Edit authority records | `Data - UI-Marc-Authorities Authority-Record - Edit` | `uiMarcAuthoritiesAuthorityRecordEdit`; docs |
+| Delete authority records | `Data - UI-Marc-Authorities Authority-Record - Delete` | `uiMarcAuthoritiesAuthorityRecordDelete`; docs |
+| Create authority records | `Data - UI-Marc-Authorities Authority-Record - Create` | `uiMarcAuthoritiesAuthorityRecordCreate`; docs |
+| View/edit in quickMARC | `Data - UI-Quick-Marc Quick-Marc-Authorities-Editor - Manage` | `uiQuickMarcQuickMarcAuthoritiesEditorManage`; docs QuickMARC.md |
+| Create record in quickMARC | `Data - UI-Quick-Marc Quick-Marc-Authorities-Editor - Create` | `uiQuickMarcQuickMarcAuthoritiesEditorCreate`; docs |
+| Link/unlink authority from bib (quickMARC) | `Procedural - UI-Quick-Marc Quick-Marc-Authority-Records Link-Unlink - Execute` | `uiQuickMarcQuickMarcAuthorityRecordsLinkUnlink`; docs QuickMARC.md |
+| Access settings pages | `Settings - Settings Marc-Authorities Enabled - View` | docs Settings_marc_authority.md (resource/type/action); not in the Cypress dictionary |
+| View authority files | `Settings - UI-Marc-Authorities Settings Authority-Files - View` | docs Settings_marc_authority.md; not in the Cypress dictionary |
+| Manage authority files | `Settings - UI-Marc-Authorities Settings Authority-Files - Manage` | docs Settings_marc_authority.md; not in the Cypress dictionary |
+| Version history settings | `Settings - UI-Marc-Authorities Settings Version-History - View` | docs Settings_marc_authority.md; not in the Cypress dictionary |
 
 ### Capability / permission additions (2026-11-24)
 
@@ -406,8 +275,8 @@ Reports are queued in Export manager (success toast keys `reports.HEADINGS_UPDAT
 | View authority files | `Settings (MARC authority): View authority files` -> `UI-Marc-Authorities Settings Authority-Files` (settings - view) | docs |
 | Create/edit/delete authority files | `Settings (MARC authority): View, create, edit, delete authority files` -> same resource, manage | docs |
 | Version history card count | `Settings (MARC authority): Configure version history` (en.json key `permission.settings.version-history.view`; package.json id `ui-marc-authorities.settings.version-history`) -> `UI-Marc-Authorities Settings Version-History` (settings - view) | en.json, docs, C655286 |
-| Authority config API (mapping.extended, archives.expiration.*) | `data - Authorities Config - Manage` (C430211); for `mapping.extended`: `data - Authorities Config Groups Collection - view`, `data - Authorities Config Groups Settings Collection - view`, `Settings - Authorities Config Groups Settings Authorities Collection - view`, `Settings - Authorities Config Groups Settings Item - Edit`, `Settings - Authorities Config Groups Settings Authorities Mapping Extended Item - Edit` (C1030069) | TestRail |
-| Delete authority via UI needs Inventory | `data - UI-Inventory - manage` appears in the delete/retention preconditions of linked records | C430211 |
+| Authority config API (mapping.extended, archives.expiration.*) | `Data - Authorities Config - Manage` (C430211); for `mapping.extended`: `Data - Authorities Config Groups Collection - View`, `Data - Authorities Config Groups Settings Collection - View`, `Settings - Authorities Config Groups Settings Authorities Collection - View`, `Settings - Authorities Config Groups Settings Item - Edit`, `Settings - Authorities Config Groups Settings Authorities Mapping Extended Item - Edit` (C1030069; casing normalised here, TestRail spells type/action in lowercase for some) | TestRail |
+| Delete authority via UI needs Inventory | `Data - UI-Inventory - Manage` appears in the delete/retention preconditions of linked records | C430211 |
 | Reports in Export manager | `Export manager: All` or `Export manager: Download and re-send files` required to see report options; without Export manager permissions the options are hidden | C375134, C375135, C375136 |
 | Duplicate-LCCN setting API | back-end permission `ui-quick-marc.settings.lccn-duplicate-check.edit` | C514872 |
 | `quickMARC: Create a new MARC authority record` / `MARC Authority: Create new MARC authority record` | hidden from the Users app permission picker (C413360); `ui-marc-authorities.authority-record.create` also pulls `marc-specifications.item.get`, `inventory-storage.authority-source-files.hrid.post` | package.json 8.1.0 |
@@ -587,18 +456,18 @@ Expected: .csv file downloads immediately and .mrc retrieval is available throug
 
 ## Key Business Rules for Test Cases
 
-1. 1XX is required and non-repeatable when creating or editing in quickMARC. (docs + cases)
-2. 001 and 999 ff are system-supplied and cannot be edited or deleted. (docs)
-3. 010 is non-repeatable and can contain only one `$a`. (docs)
-4. LDR position 06 must always be `z` for authority records. (docs)
-5. quickMARC validations apply in quickMARC only; Data Import can bypass those UI validations. (docs) [belongs in data-import.md]
-6. Deletion is soft-then-hard; record is retained in SRS for purge window before permanent removal. (docs)
-7. Deleting authority unlinks bib fields and removes `$0`/`$9`; bib record is not deleted. (docs)
-8. 1XX heading updates propagate to linked bib fields asynchronously. (docs + cases)
-9. 010 `$a` changes propagate to `$0` in linked bib fields. (docs)
-10. Manually adding `$9` to bib fields is invalid and causes broken linking behavior. (docs)
-11. Number of titles reflects linked-bib count and should drive deletion-impact checks. (docs)
-12. Reference entries (4XX/5XX) can appear in search results but export maps to underlying authority record. (docs)
+1. 1XX is required and non-repeatable when creating or editing in quickMARC. (docs MARCAuthority.md "Validations and restrictions"; rule 40, C496202)
+2. 001 and 999 ff are system-supplied and cannot be edited or deleted; 001 is non-repeatable. (docs MARCAuthority.md "Validations and restrictions"; C423500, C423480)
+3. 010 is non-repeatable and can contain only one `$a`. (docs MARCAuthority.md "Validations and restrictions"; rule 51, C374157-C374163)
+4. LDR position 06 must always be `z` for authority records; only LDR 05, 06, 17, 18 are editable (dropdowns). (docs MARCAuthority.md "Validations and restrictions")
+5. quickMARC validations apply in quickMARC only; Data Import can bypass those UI validations. (docs MARCAuthority.md: "validation rules are only applied when creating or editing an authority record in quickMARC, not when records are imported via the Data import app") [belongs in data-import.md]
+6. Deletion is soft-then-hard; record is retained in SRS for purge window before permanent removal. (MODELINKS-403, C399060, C430211; details in rules 18-20)
+7. Deleting authority leaves linked bib fields uncontrolled (links removed, bib record is not deleted); removal of `$0`/`$9` from the bib field is not verified. (C430211, C1292048, en.json `delete.linkedRecord.description`; `$0`/`$9` part (unverified), see Known Gaps)
+8. 1XX heading updates propagate to linked bib fields (cases C374136-C374156); the asynchronous mechanism is (unverified), see Known Gaps. (docs MARCAuthority.md Failed updates report: "1XX or 010$a field is updated but the linked bibliographic field(s) has not updated")
+9. 010 `$a` changes propagate to `$0` in linked bib fields. (docs MARCAuthority.md Failed updates report; C422066, C374157-C374163)
+10. Manually adding `$9` to a linkable bib field is rejected by quickMARC validation (`$9 is an invalid subfield for linkable bibliographic fields.`); `$9` holds the authority UUID in a linked field. (ui-quick-marc `src/hooks/useValidation/validators.js` `validate$9InLinkable`, translation key `record.error.$9`; mod-entities-links doc/documentation.md; "broken linking" consequence (unverified))
+11. Number of titles reflects linked-bib count and should drive deletion-impact checks. (docs MARCAuthority.md "Number of titles"; en.json `delete.linkedRecord.description`, rule 23, rule 54)
+12. Reference entries (4XX/5XX) appear in search results and Browse as `Reference` rows (docs MARCAuthority.md `Authorized/Reference` column); that export of a reference row maps to the underlying authority record is (unverified), see Known Gaps.
 13. Search and Browse maintain independent option/query/filter/sort/page/highlight state per mode, EXCEPT `Show columns` visibility (global/shared across both modes) and row-selection checkboxes (cleared on every toggle switch, never carried over). (cases: C386511, C386519, C386499, C386510)
 14. `Reset all` only clears the currently-active mode's state, not both modes at once. (cases: C386497)
 15. A query returning exactly one result auto-opens that record's detail view and highlights it; this auto-open recomputes (not just "remembers") when returning to that mode after a toggle switch. (cases: C386496)
@@ -678,22 +547,7 @@ Total merged unique cases across all targeted sections: **514**.
 
 ### Release Breakdown (Merged Unique Cases)
 
-| Release | Count |
-|---|---|
-| R1 2026 Trillium | 97 |
-| R2 2023 Poppy | 91 |
-| R1 2024 Quesnelia | 85 |
-| R1 2023 Orchid | 67 |
-| R1 2025 Sunflower | 42 |
-| R2 2024 Ramsons | 40 |
-| R2 2022 Morning Glory | 27 |
-| R1 2022 Lotus | 18 |
-| R3 2022 Nolana | 18 |
-| Q2 2020 | 9 |
-| Q3 2020 | 8 |
-| Unspecified | 8 |
-| R1 2021 | 3 |
-| R2 2021 | 1 |
+R1 2026 Trillium 97; R2 2023 Poppy 91; R1 2024 Quesnelia 85; R1 2023 Orchid 67; R1 2025 Sunflower 42; R2 2024 Ramsons 40; R2 2022 Morning Glory 27; R1 2022 Lotus 18; R3 2022 Nolana 18; Q2 2020 9; Q3 2020 8; Unspecified 8; R1 2021 3; R2 2021 1.
 
 ## Authoring style (measured 2026-07-23)
 
@@ -713,6 +567,7 @@ Refresh 2026-11-24 findings (newest first; earlier items below remain open unles
 - [ ] Exact error texts for create with a 010 prefix of a different file (C423531, C423533, C423540, C423546), for LDR/008 invalid values, and for the validation-rule messages were not read; take them from the cases or from `folio-org/ui-quick-marc` translations.
 - [ ] MARC validation rules API cases (sections 39581-39585) and linking-rule cases beyond C369078-C773210 were listed but not read.
 - [ ] `en.json` vs `en_US.json` of ui-marc-authorities were compared on 2026-11-24: identical except the two new keys `search-results-list.actionsMenu` and `authority-record.actionsMenu` (only in en.json).
+- [ ] Rules 7, 8, 10, 12 were previously tagged only "(docs)" and the docs do not state them: deletion removing `$0`/`$9` from bib fields (only the uncontrolled/`links: []` outcome is case-confirmed), asynchronous propagation, "broken linking" after manual `$9` (quickMARC only rejects `$9` on save), and export of a 4XX/5XX reference row mapping to the authority record. Verify in env or find TestRail cases.
 - [ ] Rule 8 (asynchronous propagation of 1XX changes) still rests on docs; Jira MODELINKS-358/367/383 (propagation removal, titles only read) suggest the mechanism changed. Confirm which module performs the update in the target release.
 - [ ] Jira projects UIMARCAUTH and MODELINKS returned Done issues anonymously; the Jira entry in the header of this file ("not reliably returned") is obsolete.
 - [ ] Confluence: pages 5673451 (as of Ramsons, last edited 2025-10-23) and 665387097 (draft, 2025-03-31) are older than the code; treat them as hints only.
