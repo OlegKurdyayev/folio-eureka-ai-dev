@@ -1,17 +1,11 @@
 # FOLIO Requests App — Business Logic Context
 
-> Built: 2026-06-17 (Cypress-fragment refresh 2026-08-06) · Refreshed: 2026-11-24 (full source refresh, delta of 2026-11-07 folded in) · Release: Umbrellaleaf R2 2026 (ui-requests master 13.1.0 IN_PROGRESS; mod-circulation 24.6.0-SNAPSHOT; last released: Trillium R1 2026 = ui-requests 13.0.x) · Builder: build-app-context (Refresh Mode)
+> Built: 2026-06-17 (Cypress-fragment refresh 2026-08-06) · Refreshed: 2026-11-24 (full source refresh, delta of 2026-11-07 folded in); remediated 2026-11-25 (source tags, capability markers, TestRail pass, size) · Release: Umbrellaleaf R2 2026 (ui-requests master 13.1.0 IN_PROGRESS; mod-circulation 24.6.0-SNAPSHOT; last released: Trillium R1 2026 = ui-requests 13.0.x) · Builder: build-app-context (Refresh Mode)
 
-> **Refresh 2026-11-24 sources:** GitHub folio-org/ui-requests master (`translations/ui-requests/en.json` — identical to `en_US.json`, 306 keys; `package.json` stripes.permissionSets; `CHANGELOG.md`; `src/constants.js`, `src/utils.js`, `src/routes/RequestsRoute.js`); folio-org/mod-circulation master (`descriptors/ModuleDescriptor-template.json`, `ramls/request.json`); Jira UIREQ (85 Done/Closed stories+bugs resolved ≥ 2024-06-01, 49 with resolution Done) + CIRC (45 request-related Done) + UAL/anonymization issues; folio-integration-tests (`mod-circulation`, `folio-ecs-circulation`, `edge-patron`); stripes-testing (`cypress/e2e/requests`, `cypress/e2e/title-level-request`, `cypress/e2e/consortia/requests`, `cypress/support/fragments/requests/`); docs.folio.org source `content/en/docs/Access/Requests/requests.md`; Confluence pages "Request anonymization" (1056210996) and "Circulation - For use at location - Trillium - Notes on functionality" (1779171329). **TestRail was not queried in this refresh** (bridge disconnected) — case IDs come from the earlier build or stripes-testing spec titles.
+> **Refresh 2026-11-24 sources:** GitHub folio-org/ui-requests master (`translations/ui-requests/en.json` — identical to `en_US.json`, 306 keys; `package.json` stripes.permissionSets; `CHANGELOG.md`; `src/constants.js`, `src/utils.js`, `src/routes/RequestsRoute.js`); folio-org/mod-circulation master (`descriptors/ModuleDescriptor-template.json`, `ramls/request.json`); Jira UIREQ (85 Done/Closed stories+bugs resolved ≥ 2024-06-01, 49 with resolution Done) + CIRC (45 request-related Done) + UAL/anonymization issues; folio-integration-tests (`mod-circulation`, `folio-ecs-circulation`, `edge-patron`); stripes-testing (`cypress/e2e/requests`, `cypress/e2e/title-level-request`, `cypress/e2e/consortia/requests`, `cypress/support/fragments/requests/`); docs.folio.org source `content/en/docs/Access/Requests/requests.md`; Confluence pages "Request anonymization" (1056210996) and "Circulation - For use at location - Trillium - Notes on functionality" (1779171329). **TestRail was not queried in the 2026-11-24 refresh** (bridge disconnected); the 2026-11-25 remediation read a part of project 14 / suite 21 section 96 subtree (see Known Gaps for exactly which case bodies) — other case IDs come from the earlier build or stripes-testing spec titles.
 > Release mapping (Jira UIREQ versions): Ramsons R2 2024 = ui-requests 11.x · Sunflower R1 2025 = 12.x · Trillium R1 2026 = 13.0.x · Umbrellaleaf R2 2026 = 13.1.0 (in progress).
 
-> Generated/refreshed by the build-app-context workflow on 2026-06-17.
-> **GitHub fragment refresh on 2026-08-06**: `stripes-testing/cypress/support/fragments/requests/requests.js` scanned. New items added: `# Copies` column, `Printed` column, `Export expired holds to CSV` action. All other strings confirmed current.
-> Sources:
-> - TestRail section subtree rooted at section_id=96 (suite_id=21): sections 96, 343, 870, 1134, 1527, 2013, 17479, 29720, 93820, 34771
-> - TestRail coverage: 162 cases total in subtree; 44 cases tagged to focus releases Umbrellaleaf, Trillium, Sunflower, Ramsons
-> - GitHub signal scan: folio-org/ui-requests plus public repo metadata for requests-related modules
-> - (2026-06-17) Jira/component signal was not refreshed in that run — superseded by the 2026-11-24 refresh above
+> Earlier builds: 2026-06-17 (TestRail subtree section_id=96, suite_id=21: sections 96, 343, 870, 1134, 1527, 2013, 17479, 29720, 93820, 34771; 162 cases, 44 tagged to Umbrellaleaf/Trillium/Sunflower/Ramsons) and a 2026-08-06 fragment refresh of `stripes-testing/cypress/support/fragments/requests/requests.js` (`# Copies`, `Printed`, `Export expired holds to CSV`).
 > Strings marked [from cases] are mined from TestRail corpus.
 > Strings marked [from source, verify in env] come from docs or limited source signal and should be validated in the target tenant UI before strict assertions.
 
@@ -188,8 +182,7 @@ Any field with no underlying data value renders as a literal `-` (dash), never a
 - `# Copies` and `Printed` exist only when Settings > Circulation > View print details > "Enable view print details (Pick slips)" is enabled (UIREQ-1121; docs)
 - `Retrieval service point` (`requests.retrievalServicePoint`) — sortable with pagination and included in CSV (UIREQ-1188, UIREQ-1189, UIREQ-1191; Cypress C627236, C627454)
 - In ECS with mod-tlr enabled the `Proxy` column is not offered (UIREQ-1185)
-- Anonymized requests list `Requester` = `Anonymized`, `Requester barcode` = `-`, `Proxy` = `-` (UIREQ-1314); a deleted (not anonymized) requester shows `Unknown user` (`errors.user.unknown`) without a link (UIREQ-1312)
-- `Title` with missing instance data (e.g., Inn-Reach transaction cancelled by the lender deletes instance/holdings/item) shows `-`, not clickable, and the app must not crash (UIREQ-1365, ui-requests 13.1.0)
+- Anonymized / deleted requester and erased-instance `Title` display: see the "Anonymized, deleted, and erased data display" table below (UIREQ-1312, UIREQ-1314, UIREQ-1365).
 - `Year` shows all years when the publication has several (UIREQ-1363, 13.0.2)
 
 When testing column visibility or sorting, enable the relevant toggle column via Actions first, then assert the column header and sort behavior.
@@ -273,8 +266,6 @@ Master (`src/components/RequestsFilters/RequestsFilters.js`, `src/constants.js`)
 `Move request` action opens the `Select item` modal, which must list **every requestable/available item on the Instance** — this was a past regression when an Instance has **more than 10 holdings**: pagination/limit bugs caused some requestable items to be silently missing from the list (`UIREQ-929`). When testing Move Request on a multi-holdings Instance, use 10+ holdings and assert the full item set appears, not just that the modal opens (C388490). `Select request type`; second-position message `Requests cannot be moved above page requests, even when fulfillment has not begun. This request will be moved to position 2 in the request queue.` Reorder confirm: `Move to position 2` / `Requests cannot be displaced from position 1 when fulfillment has begun.`
 
 Exact keys: Move-request second-position modal title `Request moved to position 2 of the queue` (`moveRequest.secondPositionTitle`) + `moveRequest.secondPositionMessage`; type picker `Select request type` / `Please select allowed type` / `Confirm`. Reorder-queue confirm modal: title `Request moved to position 2 of the queue`, buttons `Move to position 2` / `Leave in current position` (`requestQueue.confirmReorder.confirm` / `.cancel`), messages `requestQueue.confirmReorder.message1` and `message2` = `Requests cannot be moved above page requests, even when fulfillment hasn't begun.` Queue-page columns: `Order`, `Status`, `Item barcode`, `Enumeration`, `Chronology`, `Volume`, `Patron comments`, `Request status`, `Pickup/Delivery`, `Requester`, `Requester barcode`, `Patron group`, `Request date`, `Type`, `Request expiration`, `Hold shelf expiration` (`requestQueue.*`). UIREQ-301 (move above a page) and UIREQ-577 (Move for `Open - In transit`) were closed Won't Do — current behaviour stands. A moved request goes to the end of the target item's queue (Cypress C6652).
-
-> `No results found. Please check your filters.` (empty filter results) is a shared stripes component string, confirmed from cases C540/C541.
 
 ### For use at location (UAL / reading-room) on requests (Trillium R1 2026, ui-requests 13.0.0)
 
@@ -361,7 +352,7 @@ The UI also calls mod-circulation-bff: `circulation-bff/requests/search-instance
 
 ## Capability Sets (Eureka)
 
-Curated capability set list for Requests authoring:
+Curated capability set list for Requests authoring. Names confirmed by docs.folio.org `Access/Requests/requests.md` Permissions table (Resource / Type / Action) and, for `UI-Requests` View and `UI-Inventory Instance` View, by the Cypress dictionary `capabilitySets.js` (`uiRequestsView`, `uiInventoryInstanceView`); TestRail C2497 spells them `data - UI-Requests - manage` (lowercase there):
 
 | Action | Capability Set |
 |---|---|
@@ -371,9 +362,9 @@ Curated capability set list for Requests authoring:
 | All request functions | `Data - UI-Requests - Manage` |
 | Move request to another item | `Procedural - UI-Requests MoveRequest - Execute` |
 | Reorder queue | `Procedural - UI-Requests ReorderQueue - Execute` |
-| Title look-up while creating title-level requests | `Data - UI-Inventory Instance - View` |
+| Title look-up while creating title-level requests | `Data - UI-Inventory Instance - View` (older wording; on master `Data - UI-Requests - Create` already includes the instance search — see rule 17) |
 
-Observed older cases also reference circulation settings permissions around print-hold-requests and search-slip settings. Where those settings are part of the scenario, verify the current Eureka capability-set names in tenant before using them verbatim.
+Observed older cases also reference circulation settings permissions around print-hold-requests and search-slip settings (TestRail C422068/C422069/C422225/C422226/C466240 name them in Okapi form: "Settings (Circ): Can create, edit and remove staff slips", "Settings (Circulation): Can view all circulation settings"). The Eureka capability set names for these are `(capability set name not confirmed — verify)` — do not write them verbatim in Preconditions.
 
 Confirmed mapping (docs.folio.org Requests > Permissions table + ui-requests `package.json` permissionSets, master 13.1.0):
 
@@ -385,7 +376,7 @@ Confirmed mapping (docs.folio.org Requests > Permissions table + ui-requests `pa
 | `ui-requests.all` — Requests: All permissions | UI-Requests / Data / Manage | view + create + edit + move + reorder |
 | `ui-requests.moveRequest.execute` — Requests: Move to new item, reorder queue | UI-Requests MoveRequest / Procedural / Execute | includes `ui-requests.reorderQueue.execute` |
 | `ui-requests.reorderQueue.execute` — Requests: Reorder queue | UI-Requests ReorderQueue / Procedural / Execute | queue endpoints for item + instance |
-| `circulation.requests.anonymize.item.post` — Requests: anonymize single closed request | backend capability "UI-Requests Anonymize-Single-Request" / Procedural / Execute (CIRC-2434) | API only; UI set UIREQ-1359 still open — verify name in tenant |
+| `circulation.requests.anonymize.item.post` — Requests: anonymize single closed request | backend capability "UI-Requests Anonymize-Single-Request" / Procedural / Execute (CIRC-2434) `(capability set name not confirmed — verify)` | API only; UI set UIREQ-1359 still open |
 
 Cypress permission specs: `permissions-requests-view-create.cy.js` (C3485), C3483 (View), C3484 (View, edit, cancel).
 
@@ -393,33 +384,12 @@ Cypress permission specs: `permissions-requests-view-create.cy.js` (C3485), C348
 
 ## Common Verification Patterns
 
-### Request status transition verification
+### Common verification patterns
 
-```text
-Action:   Complete the request workflow step that moves the request forward.
-Expected: Request details show the exact updated Request status value and the item status reflects the same fulfillment stage.
-```
-
-### Retrieval service point list-column verification
-
-```text
-Action:   Add the Retrieval service point column or apply the Retrieval service point filter in the Requests result list.
-Expected: The result list displays the Retrieval service point value correctly for item- and title-level requests, and filtering/sorting/export use the same value consistently.
-```
-
-### Request export verification
-
-```text
-Action:   Run Actions > `Export search results (CSV)` from a filtered Requests result set.
-Expected: The generated CSV contains the visible request data plus additional request/item fields, including Retrieval service point when that column is part of the tested release scope.
-```
-
-### Delivery-route verification at check in
-
-```text
-Action:   Check in an item with Delivery fulfillment and choose one of the Route for delivery request dialog options.
-Expected: Close and check out changes the request to Closed - Filled; Close changes the request to Open - Awaiting delivery.
-```
+- **Status transition:** after the workflow step, Request details show the exact new Request status and the item status reflects the same fulfillment stage.
+- **Retrieval service point:** the column / filter / sort / CSV value is the same for item- and title-level requests (rule 58).
+- **Export:** Actions > `Export search results (CSV)` from a filtered result contains the visible columns plus request/item fields (incl. Retrieval service point when in scope).
+- **Delivery route at check in:** `Close and check out` gives `Closed - Filled`; `Close` gives `Open - Awaiting delivery`.
 
 ### Batch / multi-item requesting — API (confirmed C1292036, C1301731; refs MODPATRON-253, MODREQMED-161)
 
@@ -474,9 +444,8 @@ Focus-release coverage in section 96 is concentrated in these areas:
 2. Requests CSV export edge cases and deleted-requester behavior in Trillium.
 3. Batch requesting, patron settings, maximum item limits, and edge-patron API flows in Trillium.
 4. Same-patron requests for different items on the same instance, request-policy editing, and request search by normalized ISBN in Ramsons.
-
-5. Trillium R1 2026 (ui-requests 13.0.x, mod-circulation 24.5.x): For use at location label / loan type / no Delivery (UIREQ-1282, 1326, 1327, 1328, 1329; CIRC-2441, CIRC-2457); anonymized and deleted users display (UIREQ-1312, 1313, 1314; CIRC-2449); request anonymization API (CIRC-2292, 2364, 2434); ISBN search fix (UIREQ-1355); CSV with deleted printing user (UIREQ-1305); TLR with a Restricted item (CIRC-2439); pick slips sorted by location then shelving order (CIRC-1889).
-6. Umbrellaleaf R2 2026 (ui-requests 13.1.0 in progress): erased-data dash link (UIREQ-1365); batch queue positions (CIRC-2697); ECS pick-slip SP (CIRC-2538); duplicate hold-shelf-expiration notice (CIRC-2664). No new ui-requests features beyond these on master as of 2026-11-24.
+5. Trillium R1 2026 (ui-requests 13.0.x, mod-circulation 24.5.x): UAL (rule 49), anonymized/deleted-user display (rule 50), request anonymization API (rule 51), ISBN search fix (UIREQ-1355), CSV with deleted printing user (UIREQ-1305), TLR with a Restricted item (CIRC-2439), pick slips sorted by location then shelving order (CIRC-1889).
+6. Umbrellaleaf R2 2026 (ui-requests 13.1.0 in progress): erased-data dash link (UIREQ-1365), batch queue positions (CIRC-2697), ECS pick-slip SP (CIRC-2538), duplicate hold-shelf-expiration notice (CIRC-2664). No new ui-requests features beyond these on master as of 2026-11-24.
 
 This means new manual cases for Requests should give extra attention to retrieval service point behavior, batch requesting, patron-services API coverage, ECS-mediated variants, UAL, and anonymized/deleted-user display before adding more legacy core-flow coverage.
 
@@ -497,29 +466,29 @@ This means new manual cases for Requests should give extra attention to retrieva
 
 ## Key Business Rules for Test Cases
 
-1. Request type options depend on current item status and circulation rules; not every item can offer Hold, Page, and Recall at once. (docs + cases)
-2. Page requests are for available items, Hold requests are for unavailable items, and Recall requests are urgent requests that may shorten the current borrower's due date. (docs)
-3. Request expiration date is optional; if it is set and the request remains Open - Not yet filled past that date, the request becomes Closed - Unfilled. (docs)
-4. Open - Awaiting pickup ignores the request expiration date and closes only when the hold shelf expiration date passes. (docs)
-5. Only open requests can be edited or cancelled; closed requests do not allow those actions. (docs)
-6. Cancelling a Page request with no remaining queue returns the item to Available. (docs)
-7. Cancelling a request while it is In transit or Awaiting pickup closes the request, but the item status does not change until the item is checked in. (docs)
-8. A duplicate request cannot be saved for the same requester and the same item; at least one of those values must change. Recent Ramsons coverage confirms the allowed variant where the same patron requests different items on the same instance. (docs + cases)
-9. Moving a request to a loaned target item on the same instance can trigger recall behavior and due-date changes for the current borrower. (docs)
-10. Title-level requests require newly added items to be checked in before they can satisfy an existing open title-level request. (docs)
-11. Title-level requesting cannot be disabled while open title-level requests exist. (docs)
-12. Title-level requests are not supported for multi-volume sets; item-level requests must be used instead. (docs)
-13. Delivery fulfillment requires delivery to be enabled on the patron record and a valid delivery address to exist. (docs)
-14. Hold shelf clearance report must include cancelled-awaiting-pickup and pickup-expired items that need to be re-shelved. (docs + cases)
+1. Request type options depend on current item status and circulation rules; not every item can offer Hold, Page, and Recall at once. (docs `content/en/docs/Access/Requests/requests.md` > Item level requesting; TestRail C10931, C9193, C722)
+2. Page requests are for available items, Hold requests are for unavailable items, and Recall requests are urgent requests that may shorten the current borrower's due date. (docs `content/en/docs/Access/Requests/requests.md` > Request Types and Statuses)
+3. Request expiration date is optional; if it is set and the request remains Open - Not yet filled past that date, the request becomes Closed - Unfilled. (docs `content/en/docs/Access/Requests/requests.md` > Request Types and Statuses "Closed - Unfilled" + Creating a request, step 7; TestRail C2369 for the item-status side effect, see rule 65)
+4. Open - Awaiting pickup ignores the request expiration date and closes only when the hold shelf expiration date passes. (docs `content/en/docs/Access/Requests/requests.md` > Request Types and Statuses; TestRail C399085, refs CIRCSTORE-412 / MODSCHED-50: service point "Hold shelf expiration period" = 1 minute, Recall checked in, status becomes `Closed - Pickup expired` after the period)
+5. Only open requests can be edited or cancelled; closed requests do not allow those actions. (docs `content/en/docs/Access/Requests/requests.md` > Editing an item level request / Editing a title-level request)
+6. Cancelling a Page request with no remaining queue returns the item to Available. (docs `content/en/docs/Access/Requests/requests.md` > Canceling an item level request; TestRail C2369 — queue emptied: item reverts Paged to Available, see rule 65)
+7. Cancelling a request while it is In transit or Awaiting pickup closes the request, but the item status does not change until the item is checked in. (docs `content/en/docs/Access/Requests/requests.md` > Canceling an item level request; TestRail C2497: after cancel, request `Closed - Cancelled`, item stays `Awaiting pickup`)
+8. A duplicate request cannot be saved for the same requester and the same item; at least one of those values must change. Duplicate with a different requester succeeds when policy allows (TestRail C782). The allowed variant "same patron, different items on the same instance" comes from Ramsons-tagged cases of the earlier build whose C-id was not recorded (unverified — see Known Gaps). (docs `content/en/docs/Access/Requests/requests.md` > Duplicating an item level request)
+9. Moving a request to a loaned target item on the same instance can trigger recall behavior and due-date changes for the current borrower. (docs `content/en/docs/Access/Requests/requests.md` > Moving an item-level request, Note; TestRail C3492 scenario 4 — recall moved onto a checked-out, not-yet-recalled item recalls it, CIRC-316)
+10. Title-level requests require newly added items to be checked in before they can satisfy an existing open title-level request. (docs `content/en/docs/Access/Requests/requests.md` intro bullet list: items added via Receiving / Inventory / Data Import must be checked in)
+11. Title-level requesting cannot be disabled while open title-level requests exist. (docs `content/en/docs/Access/Requests/requests.md` intro bullet list: "You will not be able to turn off title level requesting while there are any open title level requests"; no Cypress/Karate/TestRail case found — see Known Gaps)
+12. Title-level requests are not supported for multi-volume sets; item-level requests must be used instead. (docs `content/en/docs/Access/Requests/requests.md` intro bullet list)
+13. Delivery fulfillment requires delivery to be enabled on the patron record and a valid delivery address to exist. (docs `content/en/docs/Access/Requests/requests.md` > Processing delivery requests; TestRail C6655 / C6656, UXPROD-113)
+14. Hold shelf clearance report must include cancelled-awaiting-pickup and pickup-expired items that need to be re-shelved. (docs `content/en/docs/Access/Requests/requests.md` > Exporting a hold shelf clearance report; TestRail C357534 (CIRCSTORE-342/630), C2497)
 15. No request can be moved above a Page request in the queue (even when fulfillment has not begun), and a request whose fulfillment has begun cannot be displaced from position 1 — the UI offers `Move to position 2` / `Leave in current position`. (en.json `requestQueue.confirmReorder.*`, `moveRequest.secondPositionMessage` — corrected from "Page requests cannot be moved above other Page requests")
-16. Reorder queue and Move request are separate capabilities and must be tested independently. (docs)
-17. Title look-up for title-level request creation requires inventory instance view capability. (docs)
-18. Pickup notices are sent at the end of the check-in session rather than immediately when the item reaches the hold shelf. (docs)
+16. Reorder queue and Move request are separate capabilities and must be tested independently. (docs `content/en/docs/Access/Requests/requests.md` > Permissions table lists `UI-Requests MoveRequest` and `UI-Requests ReorderQueue` as separate Procedural/Execute sets; ui-requests `package.json` permissionSets)
+17. Title look-up for title-level request creation: the older docs/case wording required inventory instance view capability; on master (13.1.0) `ui-requests.create` ("Requests: View, create") already carries `search.instances.collection.get` + inventory reference-data GETs, so title look-up works with View, create alone. (ui-requests `package.json` permissionSets; UIREQ-1296 — supersedes the earlier docs-only wording, see Known Gaps)
+18. Pickup notices are sent at the end of the check-in session rather than immediately when the item reaches the hold shelf. (docs `content/en/docs/Access/Check in/checkin.md` "End session" and `.../Check out/checkout.md`: "Once you end the session, any applicable notices are sent to patrons")
 19. Cancellation reason Other requires additional information; for other reasons it is optional. (docs; C3533; en.json `cancel.additionalInfoPlaceholderRequired`/`...Optional`)
-20. Retrieval service point is now a meaningful verification surface across list columns, filters, sorting, CSV export, printing, and ECS visibility. (cases)
-21. Requests export must still succeed when prior printed-request data or deleted-requester data creates edge conditions. (cases)
-22. Batch requesting obeys patron settings and multi-item request limits, including ECS and non-ECS edge-patron flows. (cases)
-23. Patron-services API flows exist for item-level hold creation, title-level hold creation, cancellation, allowed-service-points resolution, and related request workflows; use API-focused manual cases only when the story explicitly targets those endpoints. (cases)
+20. Retrieval service point is now a meaningful verification surface across list columns, filters, sorting, CSV export, printing, and ECS visibility. (TestRail C627236, C627454, C627534, C627535, C627239, C627540, C788731/C1030812/C788732/C1030813 for ECS)
+21. Requests export must still succeed when prior printed-request data or deleted-requester data creates edge conditions. (TestRail C784480 export with deleted last-printing user; C784481 no requester link when the patron record is deleted; UIREQ-1305)
+22. Batch requesting obeys patron settings and multi-item request limits, including ECS and non-ECS edge-patron flows. (TestRail C1292036, C1301731, C916243, C1322897, C1543956)
+23. Patron-services API flows exist for item-level hold creation, title-level hold creation, cancellation, allowed-service-points resolution, and related request workflows; use API-focused manual cases only when the story explicitly targets those endpoints. (TestRail section 93820 "Patron Services Testing": C1045399 item hold, C1045398 TLR hold, C1045430 cancel, C1045433 allowed-service-points, C934312 (MODPATRON-249); section 17479 C350540–C350542 (CIRC-1449); all FAT-23594)
 24. **A `Closed - Cancelled` (or any Closed-*) request has no Edit control anywhere in the UI, but the view still shows every field fully populated** — verify both: the absent edit affordance AND that the closed record's data is still intact/readable, not just one or the other. (cases — C3533)
 25. Cancelling a request while `Awaiting pickup` doesn't resolve the item's status immediately — the item stays as-is until the next **check-in**, at which point it resolves per normal queue logic (`Available` if no other requests and the check-in service point matches the item's effective location; `In transit` if it must route elsewhere for reshelving or the next request; `Awaiting pickup` if another request needs the hold shelf). A cancel-while-awaiting-pickup case should include this follow-up check-in step and assert the resulting status, not stop at the cancel toast. (cases — C3533)
 26. **An Inactive patron cannot have any new request placed for them** — Page, Hold, and Recall are all blocked identically (`Request not allowed` / `Inactive users cannot make requests.`), for both item- and title-level requests; verify no request record is created after the blocked attempt. (cases — C1385311, C1385312)
@@ -545,28 +514,27 @@ This means new manual cases for Requests should give extra attention to retrieva
 46. "Item recalled" notice is sent for every recalled item of a title, not only for the item first in the title queue. (CIRC-2168)
 47. An item without a barcode can be selected when creating a request (incl. TLR item selection). (UIREQ-1275, UIREQ-1298; Cypress C745/C10956)
 48. When a proxy creates a request, the sponsor's patron group and delivery address are shown, not the proxy's. (UIREQ-1135, UIREQ-1132, UIREQ-1133)
-49. For use at location needs mod-circulation `ENABLE_FOR_USE_AT_LOCATION=true` (default false). (CIRC-2457; ModuleDescriptor launchDescriptor)
-50. New request shows `Loan type` in Item information and `For use at location` in Request information when the loan policy for this requester + item is UAL — it depends on both, and works for Available items without a loan. (UIREQ-1282, UIREQ-1326, UIREQ-1327; en.json `loanType`, `forUseAtLocation`)
-51. Request details show `Loan type` for Page and Hold requests. (UIREQ-1328; CIRC-2441)
-52. A UAL request never offers Delivery, even if the requester's preference is Delivery. (UIREQ-1329; Confluence 1779171329)
-53. Anonymized request: requester `Anonymized`, no link, barcode `-`, proxy box hidden (details); list `Anonymized` / `-` / `-`; CSV fields empty. (UIREQ-1313, UIREQ-1314)
-54. Deleted requester (not anonymized): `Unknown user`, no link, barcode `-`, in any request status. (UIREQ-1312; en.json `errors.user.unknown`)
-55. Only Closed-* requests can be anonymized; anonymization removes requester id/name/barcode, proxy data, and delivery address (Delivery requests), sets `userBarcode` `-` on related circulation-log entries and adds a log entry with action `anonymizeRequest`; open requests are left unchanged. (CIRC-2292; API `POST /request-anonymization/{requestId}` CIRC-2364)
-56. CSV export still works when the user who last printed a pick slip was deleted; `Printed` then holds only the date. (UIREQ-1305; Karate `print-events-extended.feature`)
-57. `# Copies`, `Printed`, and the `Print status` filter exist only when "Enable view print details (Pick slips)" is on; `# Copies` = number of pick-slip prints. (UIREQ-1119, UIREQ-1121; docs)
-58. Print details are logged (request, user, date/time) on `Print pick slips {sp}`, `Print selected pick slips {sp}`, and `Single print`, and `# Copies` increments for every print action. (UIREQ-1122; UIREQ-1261/CIRC-2265)
-59. The `Print status` filter (`Printed` / `Not printed`) persists across apps, and CSV export works with it applied. (UIREQ-1119)
-60. Pick slips print grouped/sorted by effective location (ascending), then shelving order, with title as fallback when there is no shelving order. (CIRC-1889)
-61. Search slips cover only Hold requests in `Open - Not yet filled` for items whose effective location belongs to the signed-in SP; the option is greyed out when nothing matches. (docs)
-62. Hold shelf clearance report rows: item `Awaiting pickup` AND request `Closed - Cancelled` or `Closed - Pickup expired` AND item queue empty or top request not `Open - Awaiting pickup`; report is per signed-in SP. (docs)
-63. Search box matches request id, requester id, requester barcode (starts-with), title, instance id, item barcode (starts-with), item id, normalized ISBN (with or without hyphens), call number. (`src/utils.js`; UIREQ-1355 / C343043; UIREQ-1232)
-64. Retrieval service point: optional column, sortable with pagination, filter (ECS and non-ECS), and included in CSV. (UIREQ-1188–1191, UIREQ-1294; Cypress C627236, C627454)
-65. CSV export includes the Request UUID. (UIREQ-1264)
-66. ECS with mod-tlr: Duplicate, Move, and Proxy are hidden; Actions is hidden when empty; edits only from the originating tenant. (UIREQ-1127, UIREQ-1128, UIREQ-1185, UIREQ-1088)
-67. Intermediate requests in Central offer only `Reorder queue`. (UIREQ-1254)
-68. `Requests: View` alone can print pick/search slips; `Requests: View, create` alone can use title look-up. (UIREQ-1217; UIREQ-1296; package.json permissionSets)
-69. A request whose instance/item data was erased opens without crashing and shows `-` (not a link) for the title. (UIREQ-1365)
-70. `Year` shows all years when the instance has several. (UIREQ-1363)
+49. For use at location (UAL): needs mod-circulation `ENABLE_FOR_USE_AT_LOCATION=true` (default false). New request shows `Loan type` in Item information and `For use at location` in Request information when the loan policy for this requester + item is UAL (needs both; works for Available items without a loan); Request details show `Loan type` for Page and Hold requests; a UAL request never offers Delivery, even if the requester prefers it. (CIRC-2457; UIREQ-1282, UIREQ-1326, UIREQ-1327, UIREQ-1328, UIREQ-1329; CIRC-2441; Confluence 1779171329; en.json `loanType`, `forUseAtLocation`)
+50. Anonymized request: requester `Anonymized`, no link, barcode `-`, proxy box hidden (details); list `Anonymized` / `-` / `-`; CSV fields empty. Deleted (not anonymized) requester: `Unknown user`, no link, barcode `-`, in any request status. (UIREQ-1313, UIREQ-1314, UIREQ-1312; en.json `errors.user.unknown`)
+51. Only Closed-* requests can be anonymized; anonymization removes requester id/name/barcode, proxy data, and delivery address (Delivery requests), sets `userBarcode` `-` on related circulation-log entries and adds a log entry with action `anonymizeRequest`; open requests are left unchanged. (CIRC-2292; API `POST /request-anonymization/{requestId}` CIRC-2364)
+52. CSV export still works when the user who last printed a pick slip was deleted; `Printed` then holds only the date. (UIREQ-1305; Karate `print-events-extended.feature`)
+53. `# Copies`, `Printed`, and the `Print status` filter (`Printed` / `Not printed`) exist only when "Enable view print details (Pick slips)" is on; `# Copies` = number of pick-slip prints and increments for every print action (`Print pick slips {sp}`, `Print selected pick slips {sp}`, `Single print`); the filter persists across apps and CSV export works with it applied. (UIREQ-1119, UIREQ-1121, UIREQ-1122; UIREQ-1261/CIRC-2265; docs)
+54. Pick slips print grouped/sorted by effective location (ascending), then shelving order, with title as fallback when there is no shelving order. (CIRC-1889)
+55. Search slips cover only Hold requests in `Open - Not yet filled` for items whose effective location belongs to the signed-in SP; the option is greyed out when nothing matches. (docs)
+56. Hold shelf clearance report rows: item `Awaiting pickup` AND request `Closed - Cancelled` or `Closed - Pickup expired` AND item queue empty or top request not `Open - Awaiting pickup`; report is per signed-in SP. (docs)
+57. Search box matches request id, requester id, requester barcode (starts-with), title, instance id, item barcode (starts-with), item id, normalized ISBN (with or without hyphens), call number. (`src/utils.js`; UIREQ-1355 / C343043; UIREQ-1232)
+58. Retrieval service point: optional column, sortable with pagination, filter (ECS and non-ECS), and included in CSV. (UIREQ-1188–1191, UIREQ-1294; Cypress C627236, C627454)
+59. CSV export includes the Request UUID. (UIREQ-1264)
+60. ECS with mod-tlr: Duplicate, Move, and Proxy are hidden; Actions is hidden when empty; edits only from the originating tenant. Intermediate requests in Central offer only `Reorder queue`. (UIREQ-1127, UIREQ-1128, UIREQ-1185, UIREQ-1088, UIREQ-1254)
+61. `Requests: View` alone can print pick/search slips; `Requests: View, create` alone can use title look-up. (UIREQ-1217; UIREQ-1296; package.json permissionSets)
+62. A request whose instance/item data was erased opens without crashing and shows `-` (not a link) for the title. (UIREQ-1365)
+63. `Year` shows all years when the instance has several. (UIREQ-1363)
+64. Move request to another item: moving a Page request to an `Available` item converts it to a Page on that item and the item becomes `Paged` (TestRail C2366). If the current type is not allowed on the target item: exactly one allowed type — the user is only notified of the change; more than one — the `Select request type` prompt (`Please select an allowed type`); none — modal `Request not allowed` with `Close` / `X` returning to `Select item` (TestRail C2364, C3492; UIREQ-294). The `Select item` modal lists only items with status Available, Checked out, In process, Missing, Paged, Restricted (TestRail C356794, UIREQ-787).
+65. Request queue edge: when the queue of a `Paged` item becomes empty (all cancelled or moved) the item reverts to `Available`; but when the only request on a `Paged` item merely expires (Request expiration date passed) the item stays `Paged` until it is checked in — RA SIG accepted this edge case. (TestRail C2369; possibly outdated, see Known Gaps)
+66. Delivery requests: the user record's request preferences (Delivery, default address, default pickup SP, default fulfillment preference) pre-populate the New request form (TestRail C6655). Checking in a delivery request and closing the dialog without checkout leaves item `Awaiting delivery` and request `Open - Awaiting delivery`, still listed from the Requester record, the Item record and the request itself (TestRail C6656; UICHKIN-109). For `Open - Awaiting delivery` the Actions are Edit, Cancel, Duplicate, Reorder queue; `Move request` is not available and reordering a request whose fulfillment has begun is prevented (TestRail C6659; UIREQ-356).
+67. Patron API item-level hold in ECS (`POST /patron/account/{id}/item/{itemId}/hold` via edge-patron, apikey of Central): returns 201 with status `Open - Not yet filled`; an `Available` item yields Type `Page`, an `In transit` item yields `Recall`; the request is visible in both Central and Data tenants with Request level `Item`, and `Actions` is shown in Central but NOT in the Data tenant details pane. (TestRail C1045399; FAT-23594)
+68. Staff notes on a request: the `Staff notes` accordion appears in view mode only (not in create or edit), shows a count when closed, `New` / `Assign/Unassign` buttons, a table with Date / Title / Type (not sortable) and `No notes found` when empty. (TestRail C15179; sibling C15180–C15183, UIREQ-759 titles only — bodies not read)
+69. Inventory "Mark as missing / withdrawn / declared lost / claimed returned" confirmation modal for an item with open requests: with Requests permission the body states the number of open requests with a link to them in Requests; without Requests permission it says "There may be open requests" with no link; no request text when none. (TestRail C21749 Missing; siblings C21750–C21752, C21754 same pattern, titles only — verify each status in check cases)
 
 ---
 
@@ -580,9 +548,9 @@ Requests cases split ~53% `Functional` / 45% `Other` (pick per scenario; API/edg
 
 - Focus-release slice is present, but Umbrellaleaf-tagged cases were not found in this subtree during this run; recent signal comes primarily from Trillium, Sunflower, and Ramsons.
 - TestRail toast extraction for Requests is noisy because several cases assert translation tokens or backend field names instead of final rendered text. Verify toast wording in tenant before writing strict expected results.
-- (2026-06-17 build) GitHub and Jira enrichment was limited then; the 2026-11-24 refresh added Jira UIREQ/CIRC, ui-requests/mod-circulation source, Karate, Cypress and docs — rules without a Jira/source key (1–14, 16–18) still rest on docs + cases.
+- (2026-06-17 build) GitHub and Jira enrichment was limited then; the 2026-11-24 refresh added Jira UIREQ/CIRC, ui-requests/mod-circulation source, Karate, Cypress and docs — rules 1–14, 16–18, 20–23 now carry docs section / C-id tags (2026-11-25).
 - Circulation-settings capability names related to request-printing settings should be re-validated in Eureka before using them in new cases.
-- **TestRail not queried in the 2026-11-24 refresh (bridge disconnected).** Case IDs added in this refresh come from stripes-testing spec titles; Umbrellaleaf-tagged cases and cases created after 2026-11-07 are not reflected.
+- **TestRail only partially read.** Not queried in the 2026-11-24 refresh (bridge disconnected); in the 2026-11-25 remediation the bodies of C399085, C782, C357534, C6655, C6656, C6659, C2366, C2369, C2364, C3492, C356794, C21749, C2497, C15179, C1045399, C350540 were read (project 14, suite 21, sections 96, 343, 870, 2013, 1527, 17479, 93820). Titles/refs only (bodies NOT read): the other ~85 cases of section 96 (e.g. C540–C557, C722–C749, C9193, C10931, C422068–C423689, C627xxx retrieval-SP cases, C784480/C784481), sections 29720, 1134, 870 (C6657/C6658), 343 (C2362/C2363), 2013 siblings, 17479 C350541/C350542, 93820 other cases, 34771 other cases. Umbrellaleaf-tagged cases and cases created after 2026-11-07 are not reflected.
 - **Label conflicts:** docs.folio.org says "Export search results to CSV" and "Export hold shelf clearance report for [your service point]"; en.json has `Export search results (CSV)` and `Hold shelf clearance report {currentServicePoint} (CSV)`. Confluence 1779171329 says "Use at location"; en.json `forUseAtLocation` = `For use at location`. Use the translation and confirm in the tenant.
 - **Inactive-patron modal body** `Inactive users cannot make requests.` is not in ui-requests en.json (backend/other module) — keep the case-sourced text (C1385311) but verify.
 - **Open bugs/stories — do not assert as fixed:** UIREQ-1369 (duplicating a request copies printed details — they should be cleared; Trillium ECS BF); UIREQ-1370 / CIRCSTORE-693 ("View requests in queue" groups requests of different titles/items — proposal to show `-` position for virtual records); UIREQ-1307 (restore barcode link in Central); UIREQ-1319 (suppress search-slips call when disabled); UIREQ-1228 (print details for search slips — only pick slips are logged today); UIREQ-1359 (UI capability for manual request anonymization); CIRC-2365 (anonymize a list of requests API).
@@ -590,6 +558,11 @@ Requests cases split ~53% `Functional` / 45% `Other` (pick per scenario; API/edg
 - **Request anonymization automation:** settings storage (CIRCSTORE-629) and timer exist; the Settings UI form (UICIRC-1202) and the exact setting labels were not verified here — see circulation-settings.md.
 - **Won't Do — never write cases for:** "Open - Not on shelf" status and its filter/action (UIREQ-956/957/958); "Reset to Open - Not yet filled" (UIREQ-584); Move for `Open - In transit` (UIREQ-577); move above a page (UIREQ-301); due date in request list (UIREQ-428); custom item statuses in requests (UIREQ-475/480); required-additional-info flag per cancellation reason (UIREQ-777); staff note on cancel (UIREQ-470); pick-slip warning pop-up (UIREQ-1120).
 - **Not verified in source:** "Title-level requesting cannot be disabled while open title-level requests exist" (rule 11) and the multi-volume TLR limit (rule 12) come from docs only.
+- **Rule 17 conflict:** docs/older cases say title look-up needs inventory instance view; `package.json` (13.1.0) and UIREQ-1296 show `Requests: View, create` is sufficient. Verify in a tenant before putting `Data - UI-Inventory Instance - View` into Preconditions.
+- **Rule 65 (C2369) possibly outdated:** TestRail says an expired request leaves a `Paged` item `Paged` until check-in, while docs say cancelling the last page request returns the item to Available (rule 6); verify current behaviour in a tenant.
+- **Rule 8 variant without C-id:** the "same patron, different items on the same instance" Ramsons coverage could not be tied to a case in this pass.
+- **Rule 11/12 (docs only):** no Cypress, Karate or TestRail case found for "TLR cannot be disabled while open TLRs exist" or the multi-volume limit.
+- **Eureka names for circulation-settings print/search-slip permissions:** `(capability set name not confirmed — verify)`; the anonymization capability set name likewise.
 
 > Random spot-check (2026-07-22): picked one fresh uncited case at random (C680499) — no prior rule existed for empty-field display, so this was a genuine blind spot rather than a re-confirmation. Added the dedicated note and Key Business Rule 29.
 
@@ -600,7 +573,7 @@ Requests cases split ~53% `Functional` / 45% `Other` (pick per scenario; API/edg
 
 > The 2026-11-07 delta section was merged into the sections above; nothing below overrides them.
 
-- Requests-relevant Jira from that delta now live in the main sections: UIREQ-1365 (erased data, dash link), CIRC-2697 / CIRC-2700 (batch queue positions), CIRC-2538 (ECS pick-slip SP), CIRC-2664 (duplicate hold-shelf-expiration notice), CIRC-2639 (item/title missing in email notices for ECS and mediated requests — verify in patron-notices.md).
-- Non-Requests items from that delta (loan-policy automatic renewals, notice-policy reordering, in-house use at check-in, Vancouver time zone, circulation log, staff-slip names) belong to circulation-settings.md, patron-notices.md, check-in.md, loans.md, circulation-log.md and were dropped here.
-- TestRail cases created 2026-06-17..2026-11-07 (from the delta): C1574456 Patron account endpoint returns information about failed batches (MODPATRON-284, MODPATRON-291, EDGPATRON-211); C1543956 Create batch ECS and Mediated requests for more than 10 items and same patron (MODPATRON-283, MCBFF-216, MCBFF-224, MODPATRON-289); C1474739 Create Mediated batch request for Secure patron who has another request in "Open - Awaiting pickup" status (MCBFF-206); C1395025 Hyperlink is removed for cancelled Inn-Reach requests (UIREQ-1365).
-- 2026-11-24: full source refresh — API surface, settings, capability mapping, UAL, anonymization, ECS notes, automated coverage, rules 31–70; corrected `# Copies` meaning, Actions labels, rule 15.
+- Requests-relevant Jira from that delta now live in the main sections (UIREQ-1365, CIRC-2697 / CIRC-2700, CIRC-2538, CIRC-2664); CIRC-2639 (item/title missing in email notices for ECS and mediated requests) — verify in patron-notices.md. Non-Requests items of that delta belong to circulation-settings.md, patron-notices.md, check-in.md, loans.md, circulation-log.md.
+- TestRail cases created 2026-06-17..2026-11-07: C1574456 failed batches in the patron account endpoint (MODPATRON-284, MODPATRON-291, EDGPATRON-211); C1543956 batch ECS and Mediated requests for more than 10 items and same patron (MODPATRON-283, MCBFF-216, MCBFF-224, MODPATRON-289); C1474739 Mediated batch request for Secure patron with another request in "Open - Awaiting pickup" (MCBFF-206); C1395025 hyperlink removed for cancelled Inn-Reach requests (UIREQ-1365).
+- 2026-11-24: full source refresh — API surface, settings, capability mapping, UAL, anonymization, ECS notes, automated coverage, rules 31–70 (renumbered after the 2026-11-25 merge).
+- 2026-11-25: remediation — source tags on all rules, capability markers, TestRail pass (rules 64–69), merged duplicate rules (old 49–52, 53–54, 57–59, 66–67), rule 17 corrected against package.json.
