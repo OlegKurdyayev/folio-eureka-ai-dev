@@ -1,24 +1,23 @@
 # FOLIO Consortium Manager App - Business Logic Context
 
-> Built: 2026-06-18 · Delta-refreshed: 2026-11-07 · Release: not recorded · Builder: build-app-context/manual — header normalized 2026-11-07, see area-map.md → Freshness
+> Built: 2026-06-18 · Refreshed: 2026-11-24 · Release: Umbrellaleaf (R2 2026; Jira fixVersion "Umbrellaleaf (TBD)", ui-consortia-settings 3.2.0 in progress) · Builder: build-app-context/manual (full refresh, earlier 2026-11-07 delta folded in)
 
-> Generated/refreshed by the build-app-context workflow on 2026-06-18.
-> Sources:
-> - TestRail section subtree under group_id=23689 scoped to Consortium Manager roots (sections: 80, cases: 380 total).
-> - Focus releases requested: Umbrellaleaf, Trillium, Sunflower, Ramsons, 2023 Poppy (312 matching cases; no Umbrellaleaf-tagged cases found in this subtree).
-> - GitHub: folio-org/ui-consortia-settings, folio-org/mod-consortia (7 files read).
-> - Jira: UICONSET, MODCON, and FOLIO component "Consortium manager" (0 Done stories, 0 Done bugs returned in this run).
-> Strings marked [confirmed] appear in both GitHub and TestRail signals.
-> Strings marked [from source] come from GitHub source only.
-> Strings marked [from cases] come from TestRail case corpus.
+> Sources (2026-11-24 refresh):
+> - GitHub `folio-org/ui-consortia-settings` master (v3.2.0 in progress, HEAD 2026-11-19): `translations/ui-consortia-settings/en.json` (primary; `en_US.json` lags by the 7 newest keys), `package.json` (stripes.permissionSets, route `/consortia-settings`), `CHANGELOG.md`, `src/routes/ConsortiumManager/**`, `src/components/ConsortiaControlledVocabulary/**`, `src/constants.js`.
+> - GitHub `folio-org/mod-consortia-keycloak` master (Eureka backend): `descriptors/ModuleDescriptor-template.json`, `src/main/resources/swagger.api/**`, `service/BaseSharingService.java`, `domain/dto/SourceValues.java`. (`folio-org/mod-consortia` = legacy Okapi backend, not re-read.)
+> - Jira (anonymous REST): UICONSET, MODCON, MODCONSKC Done/Closed stories+bugs resolved >= 2024-06-01 (UICONSET+MODCON 58, MODCONSKC 57; fixVersions hold module versions, so scoped by resolution date) plus open UICONSET bugs; details read for ~45 rule-carrying issues and linked UISAUTHCOM-86.
+> - folio-integration-tests `mod-consortia/` (Karate, thunderjet); stripes-testing `cypress/e2e/consortia/consortium-manager/`, `cypress/e2e/eureka/consortia/consortium-manager/`, `cypress/support/fragments/consortium-manager/`, `cypress/support/fragments/settings/authorization-roles/authorizationRoles.js`.
+> - docs.folio.org source (`folio-org/docs`): `content/en/docs/Consortia/_index.md`, `content/en/docs/Settings/Settings_consortium-manager/settings_consortium-manager.md`.
+> - TestRail: NOT queried in this refresh (desktop bridge disconnected). Case IDs below come from the 2026-06-18/07-22 builds and from stripes-testing spec titles.
+> Tags: [en.json `key`] = exact string from translations; [C…] = TestRail case; [Cypress …] = stripes-testing fragment/spec; Jira keys and repo paths as given.
 
 ---
 
 ## What is Consortium Manager
 
-Consortium Manager is the ECS administration surface used to coordinate centrally-managed and member-scoped settings across a multi-tenant consortium. It lets users in the central tenant pick member libraries, view shared settings, and create local or shared terms for supported settings domains (Inventory, Users, Circulation, Authorization roles/policies, and log visibility areas).
+Consortium Manager (`ui-consortia-settings`, route `/consortia-settings`, app title `Consortium manager` [en.json `meta.title`]) is the ECS administration app used from the central tenant to view and manage settings across the member tenants the user is affiliated with: controlled vocabularies (Inventory, Users, Circulation), authorization roles/policies (Eureka), and Data import / Data export logs per member. The same UI module also contributes the **Settings > Consortium manager** area (Network settings: Membership, Network ordering) and the **Switch active affiliation** user-menu action.
 
-The app is ECS-specific and relies on tenant affiliation context. In practical test design, behavior is strongly permission-scoped per tenant and per setting domain.
+Backend: `mod-consortia-keycloak` (Eureka) provides `consortia` 1.1 interface — tenants, user-tenants (affiliations), publish coordinator (`/publications`) and sharing endpoints (`/sharing/settings|roles|policies|instances`). Every write to member tenants goes through the publish coordinator, executed by the `mod-consortia-keycloak` system user (BaseSharingService.java; MODCONSKC-19).
 
 ---
 
@@ -27,303 +26,389 @@ The app is ECS-specific and relies on tenant affiliation context. In practical t
 | Term | Definition |
 |---|---|
 | ECS | Enhanced Consortial Support multi-tenant architecture in FOLIO. |
-| Central tenant | Consortium administrative tenant where shared actions are initiated. |
+| Central tenant | Consortium administrative tenant where shared actions are initiated; shown with suffix `(Primary)` in affiliation lists [en.json `affiliation.primary.suffix`]. |
 | Member tenant | Affiliated library tenant receiving shared settings and/or local updates. |
-| Shared setting | Setting saved with Share enabled and confirmed for ALL selected members. |
-| Local setting | Setting created for selected members only (without Share-to-all). |
-| Select members | Modal workflow used to scope target member libraries for local operations. |
-| Affiliation | Tenant context tied to the acting user; impacts accessible settings and logs. |
+| Shared setting | Setting saved with **Share** checked; stored in every consortium tenant with `source = consortium`; Member libraries column shows `All` [en.json `consortiumManager.all`]. |
+| Local setting | Setting saved for the selected member(s) only (Share unchecked); one row per tenant. |
+| Select members | Header button/modal that scopes which members' data are listed and which members a new local setting is saved to. |
+| Affiliation | Tenant a user is associated with (user-tenant record); the active affiliation is the tenant the user currently works in. |
+| Publish coordinator (PC) | `POST /consortia/{id}/publications` — fans one request out to several tenants; status `IN_PROGRESS` → `COMPLETE` / `ERROR`. |
+| Centrally managed | Key-value on a role/policy detail view; `Yes` when the record was shared (role type `CONSORTIUM`). |
+| System user | `System, System user - mod-consortia-keycloak` — shown as "Last updated" by for shared records [Cypress `support/constants/consortia/index.js` CONSORTIA_SYSTEM_USER; UICONSET-231]. |
 
 ---
 
 ## Record Hierarchy / Architecture
 
-Consortium Manager
-- Management pane
-  - Users settings
-    - Departments
-    - Patron groups
-  - Circulation settings
-    - Request cancellation reasons
-  - Inventory settings
-    - Formats, call number types, material types, etc.
-  - Authorization
-    - Authorization roles
-    - Authorization policies
-  - Logs and reports
-    - Data import logs by member
-    - Data export logs by member
-- Select members modal
-  - Search and filter pane
-  - Members pane
-  - Total selected counter
+Consortium manager (`src/routes/ConsortiumManager/constants.js` CONSORTIUM_MANAGER_SECTIONS_MAP)
+- Header: `Select members` button; subtitle `{amount} members selected`; title `Settings for selected members can be modified at the same time` [en.json `consortiumManager.members.header.*`]
+- Management pane `Management` [en.json `consortiumManager.sections.title`] — collapsible
+  - Section `Settings` [en.json `consortiumManager.sections.section.settings`]
+    - Authorization policies (Eureka; needs BE interface `policies`)
+    - Authorization roles (Eureka; needs `roles`)
+    - Circulation → Request cancellation reasons
+    - Inventory
+      - Instances: Alternative title types, Classification identifier types, Contributor types, Custom links (new, UICONSET-248), Formats, Instance note types, Instance status types, Modes of issuance, Nature of content, Resource identifier types, Resource types, Subject sources, Subject types
+      - Holdings: Holdings note types, Holdings sources, Holdings types
+      - Items: Item note types, Loan types, Material types
+      - Instances, Holdings, Items: Statistical code types, Statistical codes, URL relationship
+      - Holdings, Items: Call number types
+    - Users → Departments, Patron groups (Permission sets hidden on Eureka — UICONSET-188, C566123)
+  - Section `Logs & Reports` [en.json `consortiumManager.sections.section.logsAndReports`]
+    - Data export (logs per member)
+    - Data import (logs per member)
+- Each section appears only when its BE interface is available (UICONSET-229; MODULES_REQUIRED_INTERFACES_MAP — Inventory needs any one of its interfaces, others need all).
+
+Settings > Consortium manager (`src/settings/`) — central tenant only (C386869)
+- `Network settings` [en.json `settings.heading`]
+  - General → `Membership` → list `Addresses` (Name, Code, Tenant address) [en.json `settings.membership.*`]
+  - `Network ordering` → `Central ordering` checkbox [en.json `settings.centralOrdering.*`]
 
 ---
 
 ## Lifecycle / Workflow
 
-Main create/update flow used across most managed setting types:
+### Controlled vocabulary (Inventory / Users / Circulation)
+1. Open Consortium manager (central tenant) → `Select members` → check members → Save & close.
+2. Pick a setting in Management → Settings. Columns: setting fields + `Source`/`Last updated` where applicable + `Member libraries` [en.json `consortiumManager.controlledVocab.column.memberLibraries`] + Actions.
+3. `+ New` (shown only when at least one member is selected AND user has `consortium-manager.edit`) → fill row → optionally check `Share` [en.json `share`] (enabled only with `consortium-manager.share`).
+4. Save → modal:
+   - Share checked: `Confirm share to all` / `Are you sure you want to share {term} with <b>ALL</b> members?`
+   - Share unchecked: `Confirm member libraries` / `<b>{term}</b> will be saved for the member libraries:` + list of selected members
+5. Confirm → PC request(s) → success toast (templated, below) or partial-failure toast per failed member.
+6. Shared row: single row, Member libraries `All`, Source `consortium`, Last updated by system user. Local rows: one per selected member.
+7. Share flag cannot be changed after first save (FieldSharedEntry.js disables it while editing; docs `Consortia/_index.md`). To change sharing, delete and recreate.
 
-1. Open Consortium Manager.
-2. Select target members in Select members.
-3. Choose settings area from Management pane.
-4. Click New or open existing record.
-5. Save with either shared or local intent.
-6. Confirm in modal:
-   - shared path: Confirm share to all
-   - local path: Confirm member libraries
-7. Verify list update and resulting toast.
+### Authorization roles (Eureka)
+Create in the tenant chosen in the `Member` dropdown [en.json `consortiumManager.members.selection.label`] → (Central only) Actions > `Share to all` → Confirm → role type `REGULAR` → `CONSORTIUM`, Centrally managed `No` → `Yes` → edits from central propagate; member copies are read-only except Duplicate.
 
-Status values are not consistently explicit in this section subtree (log tables expose a Status column but canonical status vocabularies are not fully enumerated in extracted cases).
+### Publish coordinator / sharing (backend, BaseSharingService.java)
+Share = for **every** consortium tenant (not only selected members): PUT if the tenant already has the record, otherwise POST; payload source set to `consortium` (settings) / `CONSORTIUM` (roles `type`, policies `source`). Delete share = DELETE in every tenant holding it; tenants where DELETE failed get PUT with source `user`/`REGULAR` (record becomes local there).
 
 ---
 
 ## Main Sections / UI Structure
 
 ### Panes
-- Management [confirmed]
-- Members [confirmed]
-- Inventory [from cases]
-- Search and filter [from cases]
-- Authorization roles [from cases]
-- Holdings sources [from cases]
-- Subject types [from cases]
-- Subject sources [from cases]
+- Management [en.json `consortiumManager.sections.title`]; placeholder before a setting is chosen: "Choose settings" [C552368]
+- Setting pane (title = setting label from the owning UI module, e.g. `ui-inventory.formats`)
+- Authorization roles list pane: columns Name, Description, Type, Updated, Updated by (`authorization-roles/constants.js`); Member dropdown; search
+- Authorization policies list pane `Authorization policies` [en.json `authorizationPolicy.meta.title`]: columns `Name`, `Description`, `Updated`, `Updated by` [en.json `authorizationPolicy.columns.*`]; `Search` [en.json `authorizationPolicy.search`]
+- Compare roles / Compare users full-screen views (two panes)
+- Data import / Data export log panes with `Member` dropdown
 
 ### Accordions
-- Capability sets [from cases]
-- Capabilities [from cases]
-- Assigned users [from cases]
-- User roles [from cases]
-- User permissions [from cases]
+- Role detail: General information, Capability sets, Capabilities, Assigned users (users are not links in CM — UICONSET-228)
+- Compare: `Capabilities`, `Capability sets` / `Capabilities sets` (both keys exist in en.json: `consortiumManager.members.authorizationsRoles.roles.capabilitiesSets` vs `.capabilitiesSets`)
+- Users app (cross-check): User roles, Affiliations
 
 ### Key Navigation Paths
-- Apps > Consortium manager > Management > Data import
-- Apps > Consortium manager > Management > Data export
-- Apps > Consortium manager > Management > Inventory > Subject types
-- Settings > Authorization roles
-- Settings > Authorization policies
+- Apps > Consortium manager > Select members
+- Consortium manager > Settings > Inventory > Instances > Subject types (any vocabulary)
+- Consortium manager > Settings > Authorization roles > Actions > New / Compare roles / Compare users
+- Consortium manager > Logs & Reports > Data import | Data export
+- Settings > Consortium manager > Membership | Network ordering (central tenant)
+- User menu > Switch active affiliation (shown only when the user has >1 affiliation — `utils/checkConsortiumAffiliations.js`)
+- Settings > Authorization roles (per-tenant verification of shared roles)
+
+---
+
+## API Surface (mod-consortia-keycloak `consortia` 1.1 — ModuleDescriptor-template.json)
+
+| Endpoint | permissionsRequired |
+|---|---|
+| GET /consortia; GET /consortia/{id}/tenants; GET /consortia-configuration | none |
+| GET /consortia/{id}/_self | `*` (MODCONSKC-118: requires access token) |
+| GET/POST/PUT /consortia(/{id}) | consortia.consortium.item.get/post/put |
+| POST /consortia/{id}/tenants (`?adminUserId=` required) | consortia.tenants.item.post |
+| PUT / DELETE / GET /consortia/{id}/tenants/{tenantId} | consortia.tenants.item.put / .delete / .get |
+| POST …/tenants/{tenantId}/sync-primary-affiliations, /create-primary-affiliations | consortia.sync-primary-affiliations.item.post, consortia.create-primary-affiliations.item.post |
+| POST/DELETE …/tenants/{tenantId}/identity-provider, /custom-login | consortia.identity-provider.item.post/delete, consortia.custom-login.item.post/delete |
+| POST /consortia/{id}/publications; GET …/publications/{pid}; GET …/{pid}/results; DELETE …/{pid} | consortia.publications.item.post/get, consortia.publications-results.item.get, consortia.publications.item.delete |
+| GET/POST/DELETE /consortia/{id}/user-tenants; GET …/user-tenants/{associationId} | consortia.user-tenants.collection.get, .item.post, .item.delete, .item.get |
+| POST/DELETE /consortia-configuration | consortia.consortia-configuration.item.post/delete |
+| POST/GET /consortia/{id}/sharing/instances(/{actionId}) | consortia.sharing-instances.item.post/get, .collection.get |
+| POST /consortia/{id}/sharing/settings; DELETE …/settings/{settingId} | consortia.sharing-settings.item.post / .delete |
+| POST /consortia/{id}/sharing/policies; DELETE …/policies/{policyId} | consortia.sharing-policies.item.post / .delete |
+| POST /consortia/{id}/sharing/roles; DELETE …/roles/{rolesId} | consortia.sharing-roles.item.post / .delete |
+| POST …/sharing/roles/capability-sets; DELETE …/roles/{roleId}/capability-sets | consortia.sharing-roles-capability-sets.item.post / .delete |
+| POST …/sharing/roles/capabilities; DELETE …/roles/{roleId}/capabilities | consortia.sharing-roles-capabilities.item.post / .delete |
+
+Vocabulary CRUD itself hits the owning module's endpoint in each tenant via PC (e.g. `instance-formats`, `departments`, `groups`, `cancellation-reason-storage/cancellation-reasons`, `instance-custom-links`; `src/constants.js`). Default page limit for consortia endpoints = 100 (MODCON-159).
+
+Backend validation/errors (Karate `mod-consortia/features/tenant.feature`, `sharing-setting.feature`; swagger `schemas/tenant.yaml`):
+- Tenant `code` 2–5 chars `^[a-zA-Z0-9]*$`; `name` 2–150 chars; 422 `'code' validation failed. size must be between 2 and 5`.
+- Duplicate tenant → 409 `Object with code [ABC] is already presented in the system` (same pattern for id/name/isCentral; code `DUPLICATE_ERROR`).
+- Unknown consortium → 404 `Object with consortiumId [<id>] was not found`.
+- PUT tenant with mismatched id → 400 `Request body tenantId and path param tenantId should be identical`; central tenant cannot be deleted (`Central tenant [%s] cannot be deleted.`).
+- Sharing request with mismatched ids → 400 `Mismatch id in path to settingId|roleId|policyId in request body`.
 
 ---
 
 ## Exact UI Texts
 
-> Use these verbatim in expected results. Never paraphrase.
-> ✅ Corrected/confirmed 2026-07-21 against `folio-org/ui-consortia-settings/translations/ui-consortia-settings/en_US.json`. The controlled-vocabulary CRUD toasts follow a single templated pattern (below) — earlier paraphrases like "was successfully created for All libraries." are replaced with the exact template. `<b>…</b>` = bold; `{term}`, `{members}`, `{count}` interpolate.
+> Use verbatim. Source of truth: `translations/ui-consortia-settings/en.json` (key given). `<b>…</b>` = bold; `{x}` interpolates. Role/policy CRUD texts come from `stripes-authorization-components` (not in this repo) — cited from TestRail cases or the Cypress fragment.
 
 ### Toast Messages
 
-**Controlled-vocabulary CRUD (shared settings) — one template for every vocab type** [confirmed]:
-- Created: `<b>{term}</b> was successfully <b>created</b> for <b>{members}</b> {count, select, 1 {library} other {libraries}}.`
-- Updated: `<b>{term}</b> was successfully <b>updated</b> for <b>{members}</b> {count} {library/libraries}.`
-- Deleted: `<b>{term}</b> was successfully <b>deleted</b> for <b>{members}</b> {count} {library/libraries}.`
-- Partial failure (create/update/delete): `<b>{term}</b> was <b>not created</b> for members: <b>{members}</b>.` (delete variant: `... could not be deleted from members: <b>{members}</b>, so the source has been changed to local.`)
+**Controlled-vocabulary CRUD — one template for every vocabulary type** (`{members}` = `All` when shared, else selected/owning member names; `{count}` = 1 for shared — `SHARED_MEMBERS_COUNT`):
+- Created: `<b>{term}</b> was successfully <b>created</b> for <b>{members}</b> {count, select, 1 {library} other {libraries}}.` [en.json `consortiumManager.controlledVocab.common.termCreated`]
+- Updated: `<b>{term}</b> was successfully <b>updated</b> for <b>{members}</b> {count, select, 1 {library} other {libraries}}.` [en.json `…common.termUpdated`]
+- Deleted: `<b>{term}</b> was successfully <b>deleted</b> for <b>{members}</b> {count, select, 1 {library} other {libraries}}.` [en.json `…common.termDeleted`]
+- Partial failure create: `<b>{term}</b> was <b>not created</b> for members: <b>{members}</b>.` [en.json `consortiumManager.error.publishCoordinator.partialFailure.create`]
+- Partial failure update: `<b>{term}</b> was <b>not updated</b> for members: <b>{members}</b>.` [en.json `…partialFailure.update`]
+- Partial failure delete: `<b>{term}</b> could <b>not</b> be <b>deleted</b> from members: <b>{members}</b>, so the source has been changed to <b>local</b>.` [en.json `…partialFailure.delete`]
+- Per-vocabulary keys also exist (`…controlledVocab.<type>.termDeleted` = `The <type> <b>{term}</b> was successfully <b>deleted</b>.`) but the generic templates above are what the controlled-vocabulary component shows unless the setting overrides `translations` — verify in env if asserting the per-type text.
 
 | Event | Toast text | Source |
 |---|---|---|
-| Permission boundary | `You do not have permissions at one or more members: <b>{members}</b>` | [confirmed] |
-| Role duplicated | `The role <b>{name}</b> has been successfully <b>duplicated</b>` | [confirmed] |
-| Role duplicate error | `There was an error while duplicating the role <b>{name}</b>` | [confirmed] |
-| Permission set saved | `The permission set <strong>{permissionName}</strong> was successfully <strong>saved</strong>.` | [confirmed] |
-| Permission set deleted | `The permission set <strong>{permissionName}</strong> was successfully <strong>deleted</strong>.` | [confirmed] |
-| Member (address) deleted | `The member <b>{term}</b> was successfully <b>deleted</b>` | [confirmed] |
-| Central ordering updated | `Central ordering setting was successfully updated` | [confirmed] |
-| Role created | `Role has been created successfully` | [from cases] |
-| Role create name collision (Central, unique-name check within same tenant) | `Role could not be created: Failed to create keycloack role` (sic — literal backend typo "keycloack") | [from cases (C523671)] |
-| Role updated | `Role has been updated successfully` | [from cases] |
-| Role deleted | `Role has been deleted successfully` | [from cases] |
-| Role duplicated (Eureka authorization role, exact case text) | `The role has been successfully duplicated` | [from cases (C986307, C663331)] — note this differs slightly in word order from the generic "Role duplicated" row above; both forms appear across cases, treat as equivalent |
-| Role shared successfully | `Role has been shared successfully` | [from cases] |
-| Role share blocked by name collision (one member) | `Role could not be shared: Name is already in use at one or more member libraries - <b>{member name}</b>.` | [from cases (C692096)] |
-| Role share blocked by name collision (multiple members) | `Role could not be shared: Name is already in use at one or more member libraries - <b>{member1}</b>, <b>{member2}</b>.` | [from cases (C1030054)] — lists every conflicting member, comma-separated |
-| Role rename (edit) blocked by name collision with member role | `Role could not be updated: Name is already in use at one or more member libraries - <b>{member name}</b>.` | [from cases (C1263896)] |
-| Authorization policy saved (create) | `Authorization policy has been saved` | [from cases (C543762)] — note: simpler wording than the templated role/vocab toasts; policies do not follow the `<b>{term}</b> was successfully created` pattern |
+| Permission boundary (loading members without perms) | `You do not have permissions at one or more members: <b>{members}</b>` | en.json `consortiumManager.error.forbiddenMembers` |
+| Role duplicated (CM) | `The role <b>{name}</b> has been successfully <b>duplicated</b>` | en.json `consortiumManager.members.authorizationsRoles.duplicate.success`; [Cypress authorizationRoles.js `The role ${roleName} has been successfully duplicated`] |
+| Role duplicate error | `There was an error while duplicating the role <b>{name}</b>` | en.json `…duplicate.error` |
+| Role created / updated / deleted | `Role has been created successfully` / `Role has been updated successfully` / `Role has been deleted successfully` | [Cypress authorizationRoles.js]; UICONSET-187 |
+| Role create denied | `Role could not be created: Access Denied` | [Cypress authorizationRoles.js]; cases |
+| Role create name collision (same tenant) | `Role could not be created: Failed to create keycloak role: name = {name}` | [Cypress authorizationRoles.js createNameErrorText]; older C523671 text had `keycloack` — see Known Gaps |
+| Role shared | `Role has been shared successfully` | [Cypress authorizationRoles.js]; cases |
+| Role share blocked by name collision | `Role could not be shared: Name is already in use at one or more member libraries - {member1}, {member2}.` (members bold, comma-separated) | [C692096, C1030054]; [Cypress authorizationRoles.js shareNameErrorText] |
+| Role rename blocked by name collision | `Role could not be updated: Name is already in use at one or more member libraries - {member}.` | [C1263896]; [Cypress saveNameErrorText] |
+| Role name with "/" | `Role name cannot contain the "/" character` | [Cypress authorizationRoles.js nameSlashErrorText] |
+| Permission set saved / deleted (Okapi only) | `The permission set <strong>{permissionName}</strong> was successfully <strong>saved</strong>.` / `…<strong>deleted</strong>.` | en.json `consortiumManager.members.permissionSets.save|remove…success` |
+| Member (address) deleted | `The member <b>{term}</b> was successfully <b>deleted</b>` | en.json `settings.membership.list.termDeleted` |
+| Central ordering updated / failed | `Central ordering setting was successfully updated` / `Central ordering setting update failed` | en.json `settings.centralOrdering.submit.success|error.generic` |
+| Authorization policy saved | `Authorization policy has been saved` | [C543762] — create is currently hidden in CM, see Known Gaps |
 
-### Modal / Dialog Messages (confirmed)
+### Modal / Dialog Messages
 
-| Modal | Heading / message |
-|---|---|
-| Select members | `Select members`; results `{amount} members found`; `Total selected: {amount}`; warning `Settings for the following selected members can be modified at the same time.` (header when selected: `{amount} members selected`) |
-| Confirm share to all | `Confirm share to all` / `Are you sure you want to share {term} with <b>ALL</b> members?` |
-| Confirm member libraries | `Confirm member libraries` / `<b>{term}</b> will be saved for the member libraries:` |
-| Switch active affiliation | user dropdown `Switch active affiliation`; modal `Select affiliation`; select label `Consortium members`; primary tenant suffix `(Primary)` |
-| Central ordering activate | `Are you sure you would like to activate this functionality?` (alert: `In this version of FOLIO, once activated this setting cannot be disabled.`) |
-
-### Modal / Dialog Titles
-
-| Modal | Trigger | Source |
+| Modal | Heading / message | Source |
 |---|---|---|
-| Select members | Click Select members on main page | [confirmed] |
-| Confirm member libraries | Save local setting | [confirmed] |
-| Confirm share to all | Save shared setting | [confirmed] |
-| Delete holdings source | Delete Holdings Source term | [from cases (15.50)] |
-| Delete holdings type | Delete Holdings Type term | [from cases (13.05)] |
-| Delete resource type | Delete Resource Type term | [from cases (11.70)] |
-| Delete role | Delete authorization role | [from cases (6.50)] |
-| Duplicate authorization role? | Click "Duplicate" in Actions menu on a role detail pane | [from cases (C552361, C986307: "Duplicate role?" short form also seen)] |
+| Select members | `Select members`; results `Members` / `{amount, plural, one {# member} other {# members}} found`; `Total selected: {amount}`; warning `Settings for the following selected members can be modified at the same time.` | en.json `consortiumManager.findMember.*` |
+| Confirm share to all (vocabularies) | `Confirm share to all` / `Are you sure you want to share {term} with <b>ALL</b> members?` | en.json `consortiumManager.modal.confirmShare.all.*` |
+| Confirm share to all (roles) | `Are you sure you want to share {roleName} with ALL members?  Please note: Sharing a role with many capabilities or capability sets can take several minutes to complete, especially in systems with a large number of members. Avoid refreshing or closing this page during the process.` | [Cypress authorizationRoles.js confirmShareModalText] |
+| Confirm member libraries | `Confirm member libraries` / `<b>{term}</b> will be saved for the member libraries:` | en.json `consortiumManager.modal.confirmCreate.*` |
+| Delete vocabulary term | `Delete <type>` / `The <type> <b>{term}</b> will be <b>deleted</b>.` | en.json `…controlledVocab.<type>.deleteEntry|termWillBeDeleted` |
+| Cannot delete (in use) | `Cannot delete the <type>` / `This <type> cannot be deleted, as it is in use by one or more records.` | en.json `…controlledVocab.<type>.cannotDeleteTerm*` |
+| Duplicate role | `Duplicate role?` | [Cypress authorizationRoles.js duplicateModal]; C986307 |
+| Select user (assign users) | `Select user ({tenant})` | en.json `consortiumManager.members.users.selectUser.modal.label`; UICONSET-205 |
+| Switch active affiliation | user-menu `Switch active affiliation`; modal `Select affiliation`; select `Consortium members` | en.json `switchActiveAffiliation.*` |
+| Central ordering activate | `Are you sure you would like to activate this functionality?`; alert `In this version of FOLIO, once activated this setting cannot be disabled.` | en.json `settings.centralOrdering.confirmModal.message`, `…alert.message` |
+| Delete member (Membership) | `Delete member` / `The member <b>{term}</b> will be <b>deleted.</b>`; `Cannot delete the member` | en.json `settings.membership.list.*` |
+
+Vocabulary `<type>` wording per key (en.json `consortiumManager.controlledVocab.<key>.deleteEntry`): alternative title type, call number type, classification identifier type, contributor type, department, format, holdings note type, holdings source, holdings type, custom link, instance note type, instance status type, item note type, loan type, material type, mode of issuance, nature of content term, patron group, resource identifier type, resource type, statistical code, statistical code type, subject source, subject type, URL relationship term.
 
 ### Button Labels (key actions)
-
-Select members, Save and close, Save, New, Edit, Delete, Confirm, Cancel, Keep editing, Actions.
+`Select members` [en.json `consortiumManager.findMember.trigger.label`], `Confirm` [en.json `button.confirm`], `Share` (column checkbox) [en.json `share`], `New` [en.json `authorizationPolicy.new`], `Compare roles` [en.json `…authorizationsRoles.compare`], `Compare users` [en.json `consortiumManager.members.action.compareUsers`], `Share to all`, `Duplicate`, `Edit`, `Delete`, `Save & close`, `Cancel`, `Actions` (stripes / authorization components).
+Tooltips: `Collapse management pane` / `Expand management pane` [en.json `collapse|expand.management.pane.button.tooltip`].
 
 ### Error / Warning Messages
 
 | Condition | Message text | Source |
 |---|---|---|
-| Missing cross-tenant permission | You do not have permissions at one or more members: <b>{members}</b> | [from source] |
-| Data loading failure | Could not load jobs data. | [from source] |
-| Permission failure in logs/policies | User does not have required permissions. | [from source] |
-| Role create denied | Role could not be created: Access Denied | [from cases] |
+| Missing perms at members | `You do not have permissions at one or more members: <b>{members}</b>` | en.json `consortiumManager.error.forbiddenMembers` |
+| Duplicate value in unique field (inline) | `{field} is already in use at one or more member libraries.` | en.json `validation.error.entry.duplicate` |
+| Logs load failure | `Could not load jobs data.` | en.json `errors.jobs.load.common` |
+| No permission (logs/policies/roles) | `User does not have required permissions.` | en.json `errors.permissionsRequired` |
+| Policies load failure | `Authorization policies couldn't be loaded.` (+ `User does not have required permissions.`) | en.json `authorizationPolicy.errors.loading.data`; UICONSET-208 |
+| Roles / users load failure | `Could not load authorization roles.` / `Could not load users.` | en.json `authorizationRoles.errors.loading.*`; [Cypress noAccessErrorText] |
+| Compare: empty | `No capabilities found` / `No capability sets found` | en.json `…authorizationsRoles.capabilities.empty`, `…capabilitiesSets.empty` |
+| Compare: placeholder | `Select authorization role`; permission-set compare `Select Member`, `Select User`, `No items to show` | en.json `…compare.placeholder`, `…permissionSets.compare.*` |
+| Membership name duplicate | `Name cannot be saved. This name is already in use in the consortium` | en.json `settings.membership.error.duplicate` |
+| Membership name/code length | `Tenant name must not be longer than {count} characters.` (150); `The code must not be longer than {count} characters alphanumeric.` (5); `The code must not be shorter than {count} characters alphanumeric.` (2); `The code must be unique.` | en.json `settings.membership.error.*`; `src/settings/Membership/constants.js` |
 
 ---
 
 ## Status Values
 
-### Log table status field (Data import / Data export)
-Not consistently enumerated in extracted focus-release case text; verify concrete status vocabulary in environment before asserting exact values.
+### Data import logs (CM shows only finished jobs — `useDataImportLogs.js`)
+Query `statusAny = COMMITTED, ERROR, CANCELLED`; excludes `subordinationType = COMPOSITE_PARENT` and job profile `Bulk operations data import job profile-*` (UICONSET-213). Column keys: fileName, status, totalRecords, jobProfileName, startedDate, completedDate, runBy, hrId — all sortable; default sort completedDate ("Ended running" in cases) descending; page size 100 (`data-import/constants.js`). Column headers and status labels come from stripes-data-transfer-components / ui-data-import translations (not in this repo).
+
+### Data export logs (`useDataExportLogs.js`, `data-export/constants.js`)
+Query `status = COMPLETED or COMPLETED_WITH_ERRORS or FAIL`. Column keys: fileName (not sortable), status, totalRecords, exported, errors, jobProfileName, startedDate, completedDate, runBy, hrId; headers for status/total/exported/failed/startedDate use ui-data-export keys `ui-data-export.status|total|exported|failed|startedDate`; default sort completedDate descending. Failed jobs are not links (UICONSET-202); deleted job profile shown with `(deleted)` notation and file name read-only (UICONSET-242).
+
+### Publication (PC) status — `IN_PROGRESS`, `COMPLETE`, `ERROR` (swagger `publication_schema.yaml`); per-tenant result carries `statusCode`; any 4xx/5xx tenant = failed tenant (BaseSharingService.java).
+
+### Member tenant setupStatus — `IN_PROGRESS`, `COMPLETED`, `COMPLETED_WITH_ERRORS`, `FAILED` (swagger `schemas/tenant.yaml`); must reach COMPLETED even when the tenant has no staff users (MODCONSKC-92, MODCONSKC-135; Karate `member-tenant-setup-status.feature`).
+
+### Record source / type of shared records (`SourceValues.java`, `src/constants.js` RECORD_SOURCE)
+- Settings `source`: `consortium` (shared) → `user` on tenants where a shared delete failed; new local vocab rows default `local` (`inventory/constants.js` DEFAULT_ITEM_TEMPLATE).
+- Roles `type`: `REGULAR` → `CONSORTIUM` when shared (UI `Regular` / `Consortium`; also `Default`) [Cypress constants AUTHORIZATION_ROLE_TYPES; C523612].
+- Policies `source`: `CONSORTIUM` / `USER`.
 
 ---
 
-## Capability Sets (Eureka)
+## Capability Sets (Eureka) / Permissions
 
-> Extracted from TestRail preconditions and normalized for repeated patterns.
+| UI permission (package.json) | Display name [en.json `permission.*`] | Eureka capability set [Cypress capability dictionaries] |
+|---|---|---|
+| ui-consortia-settings.consortium-manager.view | Consortium manager: Can view existing settings | Data - UI-Consortia-Settings Consortium-Manager - View |
+| ui-consortia-settings.consortium-manager.edit | Consortium manager: Can create, edit and remove settings | Data - UI-Consortia-Settings Consortium-Manager - Edit |
+| ui-consortia-settings.consortium-manager.share (incl. sharing-settings/roles/policies post+delete) | Consortium manager: Can share settings to all members | Procedural - UI-Consortia-Settings Consortium-Manager Share - Execute |
+| ui-consortia-settings.consortia.affiliations.view / .edit | Consortia: View affiliations / Assign and unassign affiliations | Data - UI-Consortia-Settings Consortia Affiliations - View / Edit |
+| ui-consortia-settings.settings.membership.view / .edit | Settings (Consortia): Can view consortia membership / Can view and edit consortia membership | Settings - UI-Consortia-Settings Settings Membership - View / Edit |
+| ui-consortia-settings.settings.networkOrdering.view / .edit | Settings (Consortia): Can view network ordering / Can view and edit network ordering | (name not seen in Cypress; derive in env) |
+| Role sharing (backend) | — | Data - Consortia Sharing-Roles-All Item - Create / Delete [Cypress capabilitySets.js; used in C523604, C1030054, C1263896] |
 
-| Action | Capability Set |
-|---|---|
-| View Consortium Manager | Data - UI-Consortia-Settings Consortium-Manager - View |
-| Edit Consortium Manager settings | Data - UI-Consortia-Settings Consortium-Manager - Edit |
-| Execute share to all | Procedural - UI-Consortia-Settings Consortium-Manager Share - Execute |
-| View data import logs | Data - UI-Data-Import - view |
-| View or edit data export context | Data - UI-Data-Export - view, Data - UI-Data-Export - edit |
-| Manage authorization roles | Settings - UI-Authorization-Roles Settings - View/Edit/Delete/Create |
-| Manage role assignments | Settings - UI-Authorization-Roles Users Settings - Manage |
-| View authorization policies | Settings - UI-Authorization-Policies Settings Admin - View |
-| Manage inventory shared settings | Settings - UI-Inventory Settings <Setting-Type> - View (per setting type and tenant) |
-| Manage users settings terms | Settings - UI-Users Settings Departments - manage, Settings - UI-Users Settings Usergroups - manage |
+Per-domain capability sets still required in each tenant (two-layer model, UICONSET-226): e.g. Settings - UI-Inventory Settings Instance-Formats - View; Settings - UI-Users Settings Departments - manage; Settings - UI-Authorization-Roles Settings - View/Create/Edit/Delete; Settings - UI-Authorization-Policies Settings Admin - View; Data - UI-Data-Export - view; Data - UI-Data-Import - view.
 
-Warning: Legacy permission-style strings are still present in several older cases and mixed-format preconditions. Validate final Eureka naming in environment where exact capability IDs are required.
+---
+
+## Settings (Settings > Consortium manager)
+
+- Membership: list `Addresses` with `Name`, `Code`, `Tenant address`; edit via pencil (needs `consortia.tenants.item.put`); members cannot be added/removed in the UI (docs `settings_consortium-manager.md`). Name ≤150, code 2–5 alphanumeric, both unique (en.json `settings.membership.error.*`; `schemas/tenant.yaml`).
+- Network ordering → Central ordering: checkbox `Allow user to select locations from other affiliations for central orders` [en.json `settings.centralOrdering.checkbox.label`]; confirmation modal on activation; once activated the checkbox is disabled (`CentralOrderingForm.js` — disabled when already true or no networkOrdering.edit). Section hidden when `orders-storage.settings` interface is absent (UICONSET-229).
 
 ---
 
 ## Common Verification Patterns
 
-> Copy these into expected results where applicable.
-
-### Data import logs by selected member
-
+### Shared vocabulary propagation
 ```
-Action:   Do not change selection in Member dropdown and verify table.
-Expected: Data import logs table displays jobs only for selected tenant; count text matches; default sort is by Ended running descending with v icon.
+Action:   Create <term> with Share checked → Confirm share to all → Confirm.
+Expected: Toast "<term> was successfully created for All library." (template termCreated, count=1); single row, Member libraries "All", Source "consortium", Last updated by "System, System user - mod-consortia-keycloak"; switch active affiliation to each member → Settings > <app> > <setting> shows the term as read-only (no edit/delete) [C400671, C401723, C401725, C400666, C400669].
 ```
 
-### Data import member switch behavior
-
+### Local vocabulary for selected members
 ```
-Action:   Select a different tenant in Member dropdown.
-Expected: Table refreshes to selected tenant data; logs count updates; active sort indicator remains on selected column.
-```
-
-### Data export logs by selected member
-
-```
-Action:   Keep default member selection in Data export pane.
-Expected: Data export jobs are scoped to selected tenant and sorted by Ended running descending by default.
+Action:   Select members A,B → New → Share unchecked → Save → Confirm member libraries.
+Expected: Modal lists A and B; toast "... created for A, B libraries."; one row per member; member not selected gets no row.
 ```
 
-### Data export member switch sorting
-
+### Data import / export logs by selected member
 ```
-Action:   Change member selection after applying sort on a data column.
-Expected: Selected tenant value persists; table updates for tenant; sort order/indicator remains applied.
+Action:   Logs & Reports > Data import → keep or change Member dropdown.
+Expected: Only finished jobs of that tenant (import: COMMITTED/ERROR/CANCELLED; export: COMPLETED/COMPLETED_WITH_ERRORS/FAIL); count matches the Data import/Data export app of that tenant; default sort Ended running desc; sort indicator persists when switching member.
+```
+
+### Shared role per-tenant check
+```
+Action:   Share role from Central → switch Member dropdown (and Settings > Authorization roles per tenant).
+Expected: Role present in every tenant, Type "Consortium", Centrally managed "Yes", same capability sets; Assigned users per tenant independent (empty after share).
 ```
 
 ---
 
 ## Authorization Roles / Policies — Eureka Deep-Dive (Consortium Manager)
 
-> The "Consortium manager (Eureka)" TestRail subtree (section 40125) covers Authorization roles/policies management, which is largely distinct from the vocabulary-sharing (Departments, Loan types, etc.) patterns documented above. Extracted from a 15-case sample (C523593, C523671, C552361, C552447, C986307, C692096, C1030054, C1263896, C543745, C543755, C663331, C552363, C566123, C552368, C1045994, C543762).
+> Cypress coverage: `cypress/e2e/eureka/consortia/consortium-manager/*.cy.js` (45 specs). Cases: C523593, C523671, C523596, C552361, C552362, C552454, C552447, C986307, C692096, C1030054, C1263896, C543745, C543755, C663331, C552363, C552443, C552448, C1009047, C566123, C552368, C1045994, C543762, C523603, C523604, C523606, C523609, C523612, C722382, C850011, C877077.
 
-### Create Role / Create Policy
-
-- Roles are created per-tenant: the "Member" dropdown on the Authorization roles pane must be set to the target tenant BEFORE the "New" action creates a role scoped to that tenant. A role created while "Member" = Central is invisible when the dropdown is switched to a Member tenant, and vice versa — verified both via Consortium Manager's own list and independently via Settings > Authorization roles in each tenant.
-- Creating a role in a tenant with a name that collides with an EXISTING role name in that SAME tenant fails with the literal (backend-passthrough, misspelled) toast `Role could not be created: Failed to create keycloack role` — the "Create role" form stays open. [C523671]
-- Policies follow the same tenant-scoping pattern, but the "New" button for Authorization policies is ONLY shown when "Member" dropdown = Central tenant — Member tenants get a read-only (no New button) policies list in Consortium Manager. [C543762]
-- Assigning users to a newly created role uses an "Assign/Unassign" button opening a "Select User" modal; checking its "Active" checkbox filters the user list to ONLY users of the currently selected tenant (cross-tenant users are excluded even if affiliated). [C523593]
-- Editing a role's Description and clicking "Save & close" produces toast `Role has been updated successfully`.
+### Create Role
+- Roles are created in the tenant selected in the `Member` dropdown; a role created under one tenant is invisible under the others (CM list and Settings > Authorization roles) [C523671, C523593, C523596].
+- Same role name may exist in different member tenants as independent local roles; editing one does not change the other [C523596].
+- `New` (Actions menu of the roles list) is shown only with `consortium-manager.edit`; the create/edit routes are blocked without it or without the role/capability BE interfaces (`AuthorizationRolesViewPage.js`, `AuthorizationRolesSettings.js`); creating also requires role capabilities in the target tenant [C523665, C523582].
+- `Select members` is disabled while the role (or policy) create/edit form is open (`AffiliationLookupSuppressor.js`; UICONSET-160; C523596).
+- Same-name role in the same tenant fails, form stays open (toast — see Exact UI Texts) [C523671].
+- Assign/Unassign opens `Select user ({tenant})`; only users of the selected tenant are listed [UICONSET-205, C523593].
 
 ### Duplicate Role
+- Actions > Duplicate → `Duplicate role?` → new role name `<name> (duplicate) - <date time>`, identical capabilities/capability sets, NO assigned users, always local (not shared), in the tenant it was duplicated in — also when the source is shared (UICONSET-169; C552361, C552362, C552454, C986307).
+- A duplicate of a shared role can itself be shared and deleted [C850011, C663331].
 
-- Reachable via Actions > Duplicate on any role detail pane (own or shared) → confirmation modal ("Duplicate authorization role?" / "Duplicate role?") with Duplicate/Cancel buttons.
-- The duplicate ALWAYS: (a) keeps the same capabilities/capability sets as the source role, (b) has a BLANK "Assigned users" accordion (users are never carried over), (c) is created as a **local, non-shared** role in the tenant it was duplicated from — even when duplicating a role that itself was shared/centrally-managed. [C552361, C552447, C986307]
-- For a role that IS currently shared: viewed from a Member tenant, its Actions menu offers ONLY "Duplicate" — "Edit" and "Delete" are absent (members cannot modify a centrally-shared role directly, only duplicate it into their own local copy). Viewed from Central, the same shared role's Actions menu offers Edit + Delete but not "Share to all" again (already shared). [C552447, C543755]
-- The duplicate itself, once created, has full Edit/Duplicate/Delete available (it's a plain local role), and can be deleted with the standard `Role has been deleted successfully` toast. [C552447, C663331, C986307]
-- Duplicating and then deleting is a common test pattern for cleanup verification across Central + every Member tenant in one case.
+### Share to all
+- `Share to all` appears only for a role selected under the Central tenant and only for users with the share capability set + Consortia Sharing-Roles-All Item (UICONSET-173, UICONSET-203; C523603). Once shared, `Share to all` is no longer offered.
+- Roles created in a member tenant cannot be shared (no Share to all) (MODCONSKC-19; C523604).
+- Share goes to ALL consortium tenants regardless of the `Select members` selection — even with only Central selected [C523612; BaseSharingService.java].
+- Blocked case-insensitively when any member tenant already has a role with the same name; error names every conflicting member; same check on renaming a shared role (UISAUTHCOM-86; C692096, C1030054, C1263896). Fix: rename to a unique name, then share.
+- Names with `&` or `#` cannot be shared after UISAUTHCOM-86 validation (UISAUTHCOM-86 / MODCONSKC-97 comments); names with `/` rejected at save [Cypress nameSlashErrorText]; CQL-like names (`and Test`, `Name==test`) share fine [C1045994].
+- Capability sets missing in a member tenant: share still completes and the member role gets the sets that exist there [C722382 — verify exact expected counts in spec].
+- Sharing a large role can take minutes (modal warning); share-then-edit immediately must succeed (MODCONSKC-89 fixed "Object with publicationId [...] was not found"; C877077); CM in another tab must still load during the share (MODCONSKC-111).
+- Edit of a shared role from Central propagates name/capabilities to all tenants; user assignment stays per tenant (UICONSET-173; C523609). Users can be assigned to the shared role from a member tenant [C523606].
+- Shared role in a member tenant: CM Actions offer only Duplicate [C552447]; Settings > Authorization roles in a member tenant shows no Actions button [C523612] — see Known Gaps.
 
 ### Delete Role
+- Actions > Delete → confirm → toast `Role has been deleted successfully`; role disappears from CM and Settings in that tenant; assigned users lose it in Users > User roles [C543745].
+- Deleting a shared role from Central removes it from every tenant even with users assigned [C543755].
 
-- Actions > Delete → "Delete role" confirmation modal (Cancel/Delete). Cancel aborts with no changes.
-- Confirmed delete: toast `Role has been deleted successfully`; role disappears from the Consortium Manager list AND from Settings > Authorization roles in that tenant.
-- If the deleted role had users assigned, those users' own "User roles" accordion (in the Users app, User details pane) becomes empty as a direct side effect — this cross-app check is a standard verification step in delete cases. [C543745]
-- Deleting a SHARED role from Central removes it consortium-wide; Member-tenant views of the (now-deleted) shared role no longer show it as a Duplicate-only Actions option since it no longer exists at all.
+### Compare roles / Compare users
+- Actions > `Compare roles` / `Compare users` → two panes, each with Member + Role (or User) selectors; Role selector disabled until Member chosen; changing Member clears the pane; shared capabilities/sets highlighted (UICONSET-166/167; C552363, C552448, C552443).
+- Compare users lists users of the pane's tenant (request goes to that tenant — UICONSET-206), excludes patron users, loads up to 4000 users (UICONSET-243; C1009047; `USERS_LIMIT = 4000`).
 
-### Share to All — Name-Collision Blocking (critical, case-insensitive)
+### Authorization policies
+- List per Member tenant with Name/Description/Updated/Updated by; filter by search (C514962, C514964, C514966).
+- Create/edit/share of policies is hidden in CM: `IS_POLICIES_FEATURE_ENABLED = false` hides `New` and the create/edit routes (`AuthorizationPoliciesSettings.js`, `AuthorizationPoliciesView.js`; UICONSET-201; UICONSET-177 closed as "verify when unhidden"). Detail view still gets `displayShareAction` — see Known Gaps.
+- Without policy capabilities in a tenant the list does not load and an error toast appears (UICONSET-208; C552519, C552480, C514961).
 
-- A role CANNOT be shared to all members if a role with the exact same name — compared **case-insensitively** — already exists in ANY member tenant. The share is blocked per-conflicting-member, not globally: if only one member conflicts, only that member is named in the error; if two conflict, both are named.
-  - One conflict: `Role could not be shared: Name is already in use at one or more member libraries - <b>{member}</b>.`
-  - Two conflicts: `Role could not be shared: Name is already in use at one or more member libraries - <b>{member1}</b>, <b>{member2}</b>.`
-  - [C692096, C1030054]
-- The fix pattern tested: rename the Central role to something unique across all tenants (toast `Role has been updated successfully`), THEN retry Share to all → succeeds with `Role has been shared successfully` and "Centrally managed" flips from "No" to "Yes".
-- The SAME case-insensitive collision check applies when EDITING (renaming) an already-shared role to match a name that exists in a member tenant: `Role could not be updated: Name is already in use at one or more member libraries - <b>{member}</b>.` — the edit is rejected and the role keeps its old name. [C1263896]
-- Role names containing CQL reserved words/operators/quotes/backslashes (e.g. `and Test`, `Test AND staff`, `"test and staff"`, `Test-and_staff`, `Name==test`) are valid and share successfully without any escaping problems — a dedicated regression case exists purely to confirm CQL-lookalike names don't break the share/search flow. [C1045994]
-
-### Compare Roles (capability diff tool) — undocumented feature, first citation
-
-- Reached via Actions > "Compare roles" from any Authorization role detail pane. Opens a full-page "Compare roles" view with two independent side-by-side panes (left/right).
-- Each pane has its own: Member dropdown, Authorization roles dropdown (disabled until a Member is chosen), Capabilities accordion, Capability sets accordion (both collapsed by default).
-- Selecting a Member then a Role in a pane populates that pane's accordions; switching a pane's Member dropdown clears that pane's Role selection and both accordions.
-- Capabilities/capability sets held by BOTH selected roles are visually highlighted (yellow) in each pane, letting a tester diff two roles' capability grants across tenants at a glance — including comparing the same role name across three different tenants (Central, Member 1, Member 2) one pair at a time. [C552363]
-- Empty states use distinct placeholder text: "No capabilities found" (accordion has no data at all) vs "No capability sets found" (role has capabilities but zero capability-set groupings).
-
-### Users Settings — "Permission sets" heading intentionally absent
-
-- Consortium Manager > Settings > Users shows exactly two settings: "Patron groups" and "Departments". "Permission sets" is deliberately NOT present in the Eureka-based Consortium Manager Users pane (legacy permission sets have no Eureka/role-based equivalent surfaced here). [C566123]
-
-### Management Pane Collapse
-
-- The left "Management" pane can be collapsed via a "<" control (collapses to an icon-only rail with a ">" reopen button); before any setting is chosen, the pane shows placeholder text "Choose settings". Collapsing/expanding does not reset the "Select members" selection state. [C552368]
+### Management Pane
+- Header `Management`; collapse `<` → icon rail with `>`; focus stays on the toggle after keyboard/mouse toggle, also after duplicating a role (UICONSET-168, UICONSET-246; C1574445, C1574446, C1464337). Collapsing does not reset Select members [C552368].
 
 ---
 
 ## ECS / Multi-Tenant Notes
 
-- Cases are heavily ECS-specific (custom_ecs_enabled=true is common in this subtree).
-- Central tenant context is required for most share-to-all flows and cross-tenant log visibility checks.
-- Select members controls target scope for local setting management and is repeatedly asserted in expected results.
-- Negative cases repeatedly verify tenant-scoped permission boundaries where a user can see one member but not another.
+- Consortium manager app and Settings > Consortium manager are available in the central tenant (C386869, C397333); docs: user must be affiliated with the primary tenant to view membership.
+- Two permission layers: CM-level (view/edit/share in central) + per-setting permissions in each tenant; the member list loads only data of tenants where the user has the setting permission, others produce the `forbiddenMembers` toast (UICONSET-226, UICONSET-49).
+- Shared writes run as the `mod-consortia-keycloak` system user, so sharing needs only central-tenant permissions and reaches tenants the user is not affiliated with (MODCONSKC-19; C407740).
+- Shared records display central-tenant metadata (Last updated = system user) because system users have different UUIDs per tenant (UICONSET-231).
+- Member tenant settings: a shared value is read-only in the member's own Settings; local values created from CM are editable there (UICONSET-177 AC note; C400671 family).
+- Data export logs visibility depends only on Data export permissions in the viewed tenant, not on central permissions (UICONSET-216, UICONSET-183): visible with "Data export: Can view only"/"…view logs"; hidden with only Settings (Data export) perms.
+- Custom links: max 10 per tenant; `New` hidden when the limit is reached for the selection; a shared link is created only in tenants under the limit, others report failure (UICONSET-248 comments; `InstanceCustomLinks.js` LINK_LIMIT).
 
 ---
 
 ## Key Business Rules for Test Cases
 
-1. Consortium Manager behavior is tenant-scoped and requires ECS-enabled affiliation context. (cases + github)
-2. Shared vs local persistence is chosen at save time and confirmed by different modals (Confirm share to all vs Confirm member libraries). (cases + github)
-3. A user can access logs/settings only for members where required capability sets are present; missing capabilities produce explicit permission errors. (cases + github)
-4. Select members determines operation scope and displayed member count; Save and close must persist selection state. (cases)
-5. Data import log view validates tenant-specific rows, row counts, and sortable table columns under selected member. (cases)
-6. Data export log view follows the same tenant-scoped pattern as import logs. (cases)
-7. Shared setting create/edit/delete flows for many Inventory vocabularies follow one reusable pattern with setting-type substitution. (cases)
-8. Local setting management requires both central access and member-level setting capabilities; this is enforced in negative tests per setting type. (cases)
-9. Authorization roles/policies flows are represented as Consortium Manager scenarios in Eureka context, including role duplication and role capability boundaries. (cases)
-10. Deletion flows use explicit Delete <type> modal variants and must verify successful deletion toast or usage-blocking message. (cases + github)
-11. Error-state UI for insufficient permissions is part of expected behavior and should be asserted explicitly, not treated as setup failure. (cases + github)
-12. Release signal in this subtree is concentrated in Poppy, Trillium, Sunflower, and Ramsons; Umbrellaleaf-specific updates are not yet represented. (cases)
-13. Roles/policies are strictly per-tenant scoped for both creation and same-tenant name-uniqueness checks; a role created under one "Member" dropdown selection is invisible under any other, confirmed independently via Settings > Authorization roles. (cases)
-14. Duplicating a role NEVER carries over assigned users and ALWAYS produces a local (non-shared) copy, even when the source role was centrally shared. (cases)
-15. A shared role can only be Edited/Deleted from the Central tenant; Member-tenant views of a shared role expose only "Duplicate" in Actions. (cases)
-16. Share-to-all is blocked, case-insensitively, by ANY member-tenant role name collision; the error names every conflicting member explicitly, and the same case-insensitive check blocks renaming an already-shared role into collision. (cases)
-17. Role names containing CQL reserved words/operators are valid and shareable — name validation does not reject CQL-lookalike strings. (cases)
-18. "Compare roles" is a dedicated capability-diff tool (Actions menu on a role) with two independent Member+Role selector panes and yellow-highlighted shared capabilities/capability sets. (cases)
-19. Authorization policies are Central-tenant-create-only in Consortium Manager (no "New" for Members) and use their own simpler save toast, distinct from the templated vocab/role toasts, with no visible Share-to-all mechanism in the sampled cases. (cases)
+1. Consortium manager requires ECS and is used from the central tenant; Settings > Consortium manager option is shown only in the central tenant. (C386869; docs `Consortia/_index.md`)
+2. Shared vs local is chosen at save time via the `Share` checkbox and confirmed by different modals (`Confirm share to all` vs `Confirm member libraries`). (en.json `consortiumManager.modal.*`; UICONSET-215)
+3. The `Share` checkbox is enabled only with `consortium-manager.share` and cannot be changed after the first save. (FieldSharedEntry.js; docs `Consortia/_index.md`; UICONSET-248)
+4. `New` in vocabularies appears only when at least one member is selected AND the user has `consortium-manager.edit`. (ConsortiaControlledVocabulary.js canCreate; UICONSET-226)
+5. Edit/Delete icons require `consortium-manager.edit`; for shared rows additionally `consortium-manager.share`, for local rows the setting's permission in that row's tenant. (ConsortiaControlledVocabulary.js actionSuppression/hasRequiredPerms; UICONSET-214)
+6. Rows with a system source are never editable/deletable: FOLIO (classification identifier types, nature of content, resource identifier types, subject sources, subject types), rdacarrier (formats), rdacontent (resource types), rdamodeissue (modes of issuance), marcrelator (contributor types, instance status types). (getSourceSuppressor usages in `src/routes/ConsortiumManager/settings/inventory/instances/*`)
+7. Departments are delete-blocked when in use (usageNumber); request cancellation reasons that require additional information cannot be deleted. (Departments.js, RequestCancellationReasons.js)
+8. A shared row is a single row with Member libraries `All`; a local value appears once per selected member and not for unselected members. (UICONSET-215; en.json `consortiumManager.all`)
+9. Shared value: Source `consortium`, Last updated `System, System user - mod-consortia-keycloak`. (UICONSET-231; docs `Consortia/_index.md`; Cypress CONSORTIA_SYSTEM_USER)
+10. Unique fields are validated case-insensitively against the listed rows: a new or shared value must be unique across all listed members, an existing local value only within its tenant; message `{field} is already in use at one or more member libraries.` (validateUniqueness.js; en.json `validation.error.entry.duplicate`)
+11. Unique fields per setting: name for most; name+code for formats, contributor types, instance status types, resource types, statistical codes, departments; group for patron groups; name+link text+link for custom links. (UNIQUE_FIELDS in each setting file)
+12. Success toasts use one template per action with `{members}` = `All` for shared (count 1) or the member names; update/delete of a local row names only its tenant. (ConsortiaControlledVocabulary.js showSuccessCallout; en.json `…common.term*`)
+13. When the PC fails for some tenants, a partial-failure toast names those members; a failed shared delete turns the record local (source `user`) in those tenants. (en.json `…partialFailure.*`; BaseSharingService.java updateFailedConfigsToLocalSource; Karate `sharing-patron-groups-setting.feature` "Verify source changes to user")
+14. Sharing (settings, roles, policies) targets every consortium tenant regardless of the Select members selection and of the user's affiliations; existing records are PUT, missing ones POSTed. (BaseSharingService.java; C407740; C523612)
+15. Loading a setting for selected members where the user lacks permission shows `You do not have permissions at one or more members: <b>{members}</b>`; other members still load. (en.json `consortiumManager.error.forbiddenMembers`; UICONSET-49; UICONSET-225/EUREKA-536)
+16. Select members is disabled while a vocabulary row is being edited and while a role/policy form is open. (ConsortiaControlledVocabulary.js, AffiliationLookupSuppressor.js; C523596)
+17. Each Management section appears only if its backend interface is present (Inventory: any one of its interfaces). (UICONSET-229; MODULES_REQUIRED_INTERFACES_MAP)
+18. Users settings in CM show only Patron groups and Departments on Eureka; Permission sets heading is hidden. (UICONSET-188; C566123)
+19. Data import logs show only COMMITTED/ERROR/CANCELLED jobs, exclude composite-parent split jobs and Bulk-edit import jobs, so counts equal the Data import app of that tenant. (useDataImportLogs.js; UICONSET-213)
+20. Data export logs show only COMPLETED/COMPLETED_WITH_ERRORS/FAIL jobs; failed jobs are not links; deleted job profiles show `(deleted)`. (useDataExportLogs.js; UICONSET-202; UICONSET-242)
+21. Log visibility per member depends on Data import/Data export view capability in that member only; central-tenant permissions do not grant or block it. (UICONSET-216, UICONSET-183; C397994, C397999, C397988, C397382)
+22. Default sort of both log tables is Ended running descending, 100 rows per page; sort persists when the Member is changed. (data-import/constants.js, data-export/constants.js; cases)
+23. Roles and policies are listed and created per tenant chosen in the Member dropdown; a role is not visible under other tenants. (C523671, C523593, C523596)
+24. Role `New` requires `consortium-manager.edit` plus role capabilities in the target tenant. (AuthorizationRolesViewPage.js; C523665, C523582)
+25. Duplicating a role copies capabilities and capability sets, never users, names it `(duplicate) - <date time>`, and creates a local role in the current tenant even from a shared role. (UICONSET-169; C552361, C552362, C552454, C986307)
+26. Only roles created in the Central tenant can be shared; Share to all needs the share capability set and Consortia Sharing-Roles-All Item capabilities; after sharing it is no longer offered. (MODCONSKC-19; UICONSET-173, UICONSET-203; C523603, C523604)
+27. Sharing a role sets Type `Consortium` and Centrally managed `Yes` in every tenant; member copies keep their own user assignments. (C523612, C523609, C523606; UICONSET-173)
+28. A shared role can be edited/deleted only from Central; edits propagate to all tenants; delete removes it everywhere even with users assigned. (UICONSET-173; C523609, C543755)
+29. Share and rename of a shared role are blocked case-insensitively by a same-name role in any member tenant, naming every conflicting member. (UISAUTHCOM-86; C692096, C1030054, C1263896)
+30. Role names with `/` are rejected; names with `&` or `#` cannot be shared; CQL-like names share fine. (Cypress authorizationRoles.js nameSlashErrorText; UISAUTHCOM-86 comment; C1045994)
+31. Share-then-edit immediately after creation must succeed, and CM must stay usable in another tab while a large role is shared. (MODCONSKC-89/96, MODCONSKC-111; C877077)
+32. Compare roles/users: two independent panes, Role/User selector disabled until Member chosen, common capabilities highlighted; Compare users excludes patrons, loads up to 4000 users, queries the selected tenant. (UICONSET-166/167/206/243; C552363, C552448, C1009047)
+33. Assigned users on a role in CM are not clickable links. (UICONSET-228)
+34. Authorization policies in CM are view-only in the current code: no `New`, no create/edit route. (AuthorizationPoliciesSettings.js IS_POLICIES_FEATURE_ENABLED=false; UICONSET-201)
+35. Missing policy/role capabilities in a tenant produce an error toast instead of an empty list. (UICONSET-185, UICONSET-208; C552519, C552480, C503093, C503095)
+36. Custom links (Inventory > Instances): max 10 per tenant; `New` hidden at the limit; fields Name, Link text, Link, Show, Source; shared link is created only in tenants below the limit, others get the partial-failure toast. (UICONSET-248; InstanceCustomLinks.js)
+37. Membership: name ≤150 chars and unique in the consortium; code 2–5 alphanumeric and unique; members cannot be added/removed in the UI. (en.json `settings.membership.error.*`; schemas/tenant.yaml; docs)
+38. Central ordering, once activated after the confirmation modal, cannot be disabled. (en.json `settings.centralOrdering.alert.message`; CentralOrderingForm.js)
+39. Switch active affiliation appears only for users with more than one affiliation; primary tenant shown with `(Primary)`. (checkConsortiumAffiliations.js; en.json `affiliation.primary.suffix`)
+40. Management pane collapse/expand keeps keyboard focus on the toggle and does not reset member selection. (UICONSET-246; C1574445, C1574446, C552368)
+41. Adding a member tenant must finish with setupStatus COMPLETED even with no staff users. (MODCONSKC-92, MODCONSKC-135; Karate `member-tenant-setup-status.feature`)
+42. Insufficient-permission UI states (toasts, hidden actions) are expected results, not setup failures. (UICONSET-185, UICONSET-208, UICONSET-226)
+
+---
+
+## Existing Automated Coverage
+
+**Karate** — `folio-integration-tests/mod-consortia/src/main/resources/thunderjet/mod-consortia/` (runner `consortia-junit.feature`, `src/test/java/org/folio/ConsortiaApiTest.java`; second runner `consortia-setup-status-junit.feature`). Features: `consortium.feature`, `tenant.feature` (CRUD, validation, soft delete/re-add), `user-tenant-associations.feature`, `consortia-self.feature`, `consortia-user-update.feature`, `consortia-user-type-update.feature`, `consortia-skip-not-required-user-types.feature`, `consortia-admin-verification-and-setup.feature`, `publish-coordinator.feature`, `sharing-instance.feature`, `sharing-setting.feature`, `sharing-patron-groups-setting.feature`, `keycloak-login-setup.feature`, `member-tenant-setup-status.feature`. No Karate coverage for sharing roles/policies or role capabilities. Shared reusables: `common-consortia/`.
+
+**Cypress** — `stripes-testing/cypress/e2e/consortia/consortium-manager/`: access/permission specs (C397333, C397335, C397336, C386869), logs (C397382, C397988, C397994, C397999, C552358), member-side read-only checks (C400666, C400669, C400671, C401723, C401725), pane toggle (C1464337); subfolders `manage-shared-settings/` (25 settings), `manage-local-settings/` (24), `view-settings/` (27) — 192 distinct case IDs. Eureka roles/policies: `cypress/e2e/eureka/consortia/consortium-manager/` (45 specs). Fragments: `cypress/support/fragments/consortium-manager/` (consortiumManagerApp.js, per-setting fragments, data-import/data-export logs). No Cypress coverage found for Custom links in CM, Central ordering, or Membership edit.
+
+---
+
+## Edge Cases from Bugs
+
+- Members list/settings sometimes did not load until reload (UICONSET-238, UICONSET-236 — Cannot Reproduce); keep a reload step out of expected results.
+- Duplicating a shared role created a corrupted role without capabilities in Ramsons (UICONSET-221, known issue Ramsons; fixed via UISAUTHCOM-49) — regression candidate for duplicate-of-shared flows.
+- Shared role could not be deleted (500 / `Role could not be deleted: Object with roleId [...] was not found`) due to corrupted sharing_role data after upgrade (MODCONSKC-99, not reproducible).
+- Statistical code type dropdown empty when editing a local statistical code (UICONSET-200, fixed) — check edit of local codes whose type is shared.
+- Shared-item result toast for members not in the current selection showed blanks/tenant IDs (UICONSET-249, open/blocked) — partial-failure toasts may show tenant IDs instead of names for unaffiliated members.
+- Compare highlighting wrong if right pane is filled first (UICONSET-247, open P4).
+- Session timeout while editing a role resets the Member dropdown (UICONSET-252, in refinement).
+- Loan types have no Source column yet (UICONSET-240, open).
+- Custom link: `New` disappears when 10 local links exist at central and a member is selected (UICONSET-248 comment, unresolved).
 
 ---
 
@@ -335,60 +420,14 @@ Consortium Manager: **`Func` 100%**, median **~18 steps** (the largest cases in 
 
 ## Known Gaps / Items to Verify
 
-- [ ] Umbrellaleaf-tagged cases are not present in this Consortium Manager subtree; verify new-release deltas in environment.
-- [ ] Jira extraction for UICONSET/MODCON/FOLIO component returned zero Done issues in this run; rule dating is therefore TestRail/GitHub-led.
-- [ ] Exact Status value vocabularies in Data import/export tables are not consistently enumerated in current case text.
-- [ ] Some TestRail capability lines are mixed-format (legacy + Eureka + free text); validate exact capability-set names before posting new cases.
-- [ ] Authorization policies: whether a "Share to all" mechanism exists at all for policies (vs. roles) was not confirmed positively or negatively beyond the single sampled create case (C543762); the sampled case's precondition capability list did not include a policy-share capability set, but this is not conclusive — re-verify in environment.
-- [ ] The exact confirmation-modal title for role Delete ("Delete role" vs "Delete authorization role") appears in two slightly different forms across cases (C543745 says "Delete role" window; UI Texts table above cites "Delete authorization role" from a different, older case at position 6.50) — reconcile which is current.
-
-> N≥10 audit round (2026-07-22): 15 cases read (C523593, C523671, C552361, C552447, C986307, C692096, C1030054, C1263896, C543745, C543755, C663331, C552363, C566123, C552368, C1045994, C543762) — first deep pass into the "Consortium manager (Eureka)" TestRail subtree (section 40125), which the file's original build had left almost entirely uncited. Added a full new "Authorization Roles / Policies — Eureka Deep-Dive" section covering Create/Duplicate/Delete/Share-to-all name-collision rules (case-insensitive, per-member error text), the previously undocumented "Compare roles" capability-diff tool, CQL-safe role-name handling, the missing "Permission sets" heading in Consortium Manager's Users settings, and Management-pane collapse behavior. Added 9 new Key Business Rules (13-19, some cases covered by more than one) and several new exact toast strings including the literal "Failed to create keycloack role" backend-passthrough typo.
-
-
----
-
-## Changes since 2026-06-18 (delta refresh 2026-11-07)
-
-> Delta, not a rebuild: sections above reflect the original build. Where this section contradicts them, **this section wins**.
-> Sources: GitHub folio-org/ui-consortia-settings (translations/ui-consortia-settings/en.json, HEAD v3.1.0); Jira folio-org.atlassian.net Done issues resolved since 2026-06-18; TestRail suite 21 cases created since 2026-06-18.
-
-### What changed
-- Consortium manager: **Custom links** controlled vocabulary for instances (create/delete, in-use protection) (UICONSET-248).
-- Collapse/expand management pane tooltips.
-
-### UI strings changed since 2026-06-18 [source — en.json, 2026-11-07]
-
-> `en.json` is the source of truth; `en_US.json` is a Lokalise copy that can lag behind. `<b>`/`<strong>` render as bold; `{x}` are placeholders.
-
-**New strings**
-
-| Key | Text |
-|---|---|
-| `consortiumManager.controlledVocab.instanceCustomLinks.cannotDeleteTermHeader` | Cannot delete the custom link |
-| `consortiumManager.controlledVocab.instanceCustomLinks.cannotDeleteTermMessage` | This custom link cannot be deleted, as it is in use by one or more records. |
-| `consortiumManager.controlledVocab.instanceCustomLinks.deleteEntry` | Delete custom link |
-| `consortiumManager.controlledVocab.instanceCustomLinks.termDeleted` | The custom link <b>{term}</b> was successfully <b>deleted</b>. |
-| `consortiumManager.controlledVocab.instanceCustomLinks.termWillBeDeleted` | The custom link <b>{term}</b> will be <b>deleted</b>. |
-| `collapse.management.pane.button.tooltip` | Collapse management pane |
-| `expand.management.pane.button.tooltip` | Expand management pane |
-
-### Jira — Done since build (consortium-manager / marc-authority / marc-bib (UICONSET, MODCON, UIMARCAUTH, MODELINKS, UIQM, MODQM) since 2026-06-17)
-
-- UICONSET-248 Story — ECS: custom link configuration options in Consortium manager
-- UIQM-836/837/838, MODQM-528/530/531 Story — LoC MARC bib specification update for field 008 (Continuing resources)
-- UIQM-835 Story — Default values for new Authority records
-- MODQM-519 Bug — 008 text boxes replaced with dropdown lists (bib/holdings)
-- UIQM-829 Bug — indicators reset after linking; UIQM-834 ECS 852 $b not changed after ownership update; UIQM-825 generic toast when editing authority deleted by another user
-- MODELINKS-433 Story — Lists > Authority shows number of linked bib records; MODELINKS-413 ECS member views shared authorities; MODELINKS-425 "See from reference – Relationship type" removed from Lists
-- UIMARCAUTH-541 Bug — deletion callout shows 400 heading instead of 100; UIMARCAUTH-544 Authority source facet; UIMARCAUTH-538 wrong header field
-
-### TestRail — cases created since 2026-06-18: 14 (8 manual, 6 automated/Karate)
-
-- C1574452 [ECS] Pick and Search slips for item level ECS request are printable at Central tenant — refs MCBFF-215,MODTLR-327
-- C1574446 Focus remains on the Management pane Collapse/Expand button in "Consortium manager" after duplicating an authorization role — refs HELIOS-42,UICONSET-246
-- C1574445 Focus remains on the Management pane Collapse/Expand button in "Consortium manager" when toggled with the keyboard — refs HELIOS-42,UICONSET-246
-- C1563887 [ECS] Allowed SPs endpoints shouldn't return empty arrays — refs MODTLR-247
-- C1528160 [LoC, API] Check error handling for ECS loan renewal override scenarios that cannot be reproduced on UI — refs UIU-3537,CIRC-2632
-- C1525840 [LoC, API] Check error handling for ECS loan renewal scenarios that cannot be reproduced on UI — refs UIU-3537,CIRC-2632
-- C1504468 [LOC] Loan sorting by call number is case-insensitive — refs UIU-3369
-- C1504464 ECS LoC \| Open loan total quantity is displayed correctly for different users — refs UIU-3612
+- [ ] TestRail not queried (bridge disconnected) in the 2026-11-24 refresh: no new cases since 2026-11-07 checked; case IDs from stripes-testing titles and earlier builds.
+- [ ] Authorization policies: C543762 (New only for Central, toast `Authorization policy has been saved`) conflicts with current code where create/edit are hidden for all tenants (IS_POLICIES_FEATURE_ENABLED=false, UICONSET-201). UICONSET-201 said re-enable in Sunflower; still disabled on master. Whether the policy detail view shows Edit/Share to all (`displayShareAction` passed to `PolicyDetails`) is unverified.
+- [ ] Role create name collision toast: C523671 text `Failed to create keycloack role` vs Cypress fragment `Failed to create keycloak role: name = {name}`; the backend message comes from mod-roles-keycloak — confirm current text in env.
+- [ ] Shared role viewed from a member tenant: CM shows Duplicate only (C552447) while Settings > Authorization roles shows no Actions button (C523612). Confirm both views.
+- [ ] Per-vocabulary `termDeleted` keys (`The <type> <b>{term}</b> was successfully <b>deleted</b>.`) vs generic `…common.termDeleted`: which one the CM shows per setting is not confirmed (generic is used unless the setting passes its own translation).
+- [ ] Data import/export status display labels come from ui-data-import / ui-data-export translations (not in this repo) — take them from those modules' en.json.
+- [ ] Network ordering capability-set name not found in Cypress; derive from permission name in env.
+- [ ] Custom links (UICONSET-248, Umbrellaleaf): exact over-limit failure toast still under discussion (UICONSET-249); `Member libraries` checkbox column and 10-link behaviour for mixed tenant counts should be checked in env.
+- [ ] C722382 (share when capability sets missing in members): spec only checks sets present; expected behaviour for missing sets not stated in a story.
+- [ ] Some older TestRail preconditions still mix legacy permission names and Eureka capability sets; use the capability table above.
+- [ ] Removed from this file on 2026-11-24 (out of area): Jira items UIQM/MODQM/MODELINKS/UIMARCAUTH and TestRail cases C1574452, C1563887, C1528160, C1525840, C1504468, C1504464 listed in the 2026-11-07 delta belong to marc-bib/marc-authority/requests/users areas (areas.json maps consortium-manager to UICONSET, MODCON only).
