@@ -1,11 +1,11 @@
 # FOLIO Invoices App - Business Logic Context
 
-> Built: 2026-06-18 (Cypress-fragment refresh 2026-08-06; delta 2026-11-07) · Refreshed: 2026-11-24 · Release: Umbrellaleaf R2 2026 · Builder: build-app-context (Refresh Mode) — see area-map.md → Freshness
+> Built: 2026-06-18 (Cypress-fragment refresh 2026-08-06; delta 2026-11-07) · Refreshed: 2026-11-25 · Release: Umbrellaleaf R2 2026 (ui-invoice 8.1.0 in progress; mod-invoice 6.1.x; Trillium R1 2026 = ui-invoice 8.0.0) · Builder: build-app-context (Refresh Mode) — see area-map.md → Freshness
 
-> Generated/refreshed by the build-app-context workflow on 2026-06-18; **full refresh 2026-11-24** (Refresh Mode).
+> Generated/refreshed by the build-app-context workflow on 2026-06-18; **full refresh 2026-11-24**, audit remediation 2026-11-25 (source tags, capability names, TestRail case bodies read; Refresh Mode).
 > Release basis: **Umbrellaleaf R2 2026** (ui-invoice master = 8.1.0 in progress; Trillium R1 2026 = ui-invoice 8.0.0 / mod-invoice 6.1.x, released 2026-04-17 per Jira UINV-632 / MODINVOICE-641). The Jira epics link the same releases under other labels (Trillium "R2 2025", Umbrellaleaf "R1 2026") — see Known Gaps.
 > Sources:
-> - TestRail suite 21: Invoices (329, 231 cases), Settings (Invoices) (1289, 26), Consortium (Invoices) (37957, 4), Permissions --> Invoices (1704, 12). Read-only; case ids cited as C…
+> - TestRail suite 21: Invoices (329, 231 cases), Settings (Invoices) (1289, 26), Consortium (Invoices) (37957, 4), Permissions --> Invoices (1704, 12). Read-only; case ids cited as C…. Case bodies (preconditions/steps/expected) read so far: 50 of 273 (see Known Gaps for the list); the rest only by title/refs.
 > - GitHub: folio-org/ui-invoice (package.json 8.1.0, CHANGELOG.md, translations/ui-invoice/en.json — identical to en_US.json, 511 keys), folio-org/mod-invoice (descriptors/ModuleDescriptor-template.json, ErrorCodes.java, PoLinePaymentStatusUpdateService.java, protected-fields classes, NEWS.md), folio-org/mod-invoice-storage (descriptor, ramls), folio-org/acq-models (mod-invoice-storage/schemas).
 > - Jira folio-org: 181 Done UINV/MODINVOICE/MODINVOSTO issues resolved since 2024-06-01 scanned; ~45 read in detail.
 > - docs.folio.org (GitHub source `content/en/docs/Acquisitions/Invoices`, `Settings/Settings_invoices`, `Additional topics/Invoice adjustments`, last dated 2026-05-15).
@@ -78,6 +78,9 @@ Invoices
 ## Invoice Header Fields
 
 ### Required fields
+
+Source: docs Acquisitions/Invoices (Invoice information: "Invoice date, Status, and Batch group are the only required fields"); C2299.
+
 - **Invoice date** — vendor invoice date
 - **Status** — Open (default) or Reviewed; can approve/pay from either
 - **Batch group** — groups invoices for voucher export
@@ -86,9 +89,9 @@ Invoices
 - **Vendor invoice number** — duplicate check on save is on vendor + vendor invoice number + invoice date (docs; `invoice.isNotUnique.confirmation.message`)
 - **FOLIO invoice number** — system-generated (`folioInvoiceNo`), searchable and exportable (UINV-556)
 - **Source** — User, API, EDI (schema enum, acq-models invoice.json); docs also list MARC. Filterable.
-- **Vendor** — must be an active vendor organization; non-vendor org can be selected but Approve will fail
+- **Vendor** — must be an active vendor organization; non-vendor org can be selected but Approve will fail (ErrorCodes `organizationIsNotVendor`; C388558, C388559). The vendor's primary address is shown on create and view (C2299)
 - **Fiscal year** — defaults to current FY; only editable by users with the `Invoice: Pay invoices in a different fiscal year` capability
-- **Acquisition units** — controls access same as Orders/Finance; a user outside the unit gets `Operation is not permitted because user is not a member of the specified acquisition unit` (en.json `invoice.actions.error.userNotAMemberOfTheAcq`; C446069, C357051)
+- **Acquisition units** — controls access same as Orders/Finance; a user outside the invoice's unit gets `Operation is not permitted because user is not a member of the specified acquisition unit` (en.json `invoice.actions.error.userNotAMemberOfTheAcq`). Exception: an invoice created from an order whose unit restricts View can still be approved&paid / paid by a user who is not in that unit (MODINVOICE-516; C446069, C630444 — see Known Gaps). Applying a unit to a Paid invoice by a unit member with edit + manage-units capabilities works (C357051)
 - **Bill to** — billing address from Settings > Tenant > Addresses (UINV-621 uses GET/PUT /tenant-addresses); dropdown options sorted alphabetically (UINV-601, C986308)
 - **Currency / exchange rate** — default is the tenant primary currency; non-default shows `Current exchange rate`; `Use set exchange rate` + `Set exchange rate` override the provider rate (docs)
 - **Enclosure needed**, **Check subscription overlap** (docs: logic not implemented — checkbox only), **Terms**, **Note**, **Approval date**, **Approved by**, **Payment date**, **Total units**, **Cancellation note** (entered in the Cancel dialog, optional)
@@ -134,8 +137,8 @@ Docs (Acquisitions/Invoices) list the full column set: `#`, `POL number`, `Descr
 - `Total (Exchanged)` column appears when the invoice currency differs from the tenant base currency (multi-currency scenario). In same-currency scenarios this column is absent or blank. Use verbatim when asserting column presence in currency-mismatch tests.
 
 ### Linking an invoice line to a POL
-- User clicks "Add fund distribution from POL" or links via POL number
-- Fund distribution from the POL is automatically pre-filled on the invoice line
+- User clicks `Actions > Add line from POL` in the Invoice lines accordion (Select order lines modal, with Order format facets such as Physical Resource) or links via POL number (C2327, C353566)
+- Fund distribution and details from the POL are automatically pre-filled on the invoice line (C2327); a confirmation pop-up (`Confirm`) appears when the POL currency or vendor differs from the invoice (C2327, C350741)
 - Linking updates the POL's Payment status when the invoice is **paid** (not at Approve — see Pay Flow). A POL whose payment status is `Fully paid` or `Payment not required` cannot be added from the PO search tab (C357026, DRAFT); in the Add-line-from-POL flow a red banner and red exclamation icon alert when the POL is already Fully paid (docs). Changing the invoice currency while creating from an order shows a warning modal `Confirm currency change` / `You are changing the currency of this invoice but the amounts are not being exchanged from the POL currency to the new invoice currency. If you would still like proceed please click confirm.` (UINV-579, C808485, en.json `invoice.form.fromPO.currency.confirmModal.*`). POL currency is NOT overwritten by the vendor's currency when creating the invoice from a PO (C451593); invoice currency is taken from the related order (C440073, C440076) or from the vendor's `Vendor currencies` (C451451).
 
 ---
@@ -192,10 +195,12 @@ User action: Actions → Approve
 4. **Approval date** set to today's date
 5. **Approved by** field populated with approving user's name
 6. A **Voucher** is generated (for accounting export purposes)
-7. If an invoice line has **Release encumbrance** checked, the linked encumbrance is released and shows `Released` with amount 0.00 (C350633; docs)
+7. If an invoice line has **Release encumbrance** checked, the linked encumbrance is released and shows `Released` with amount 0.00 (C350633; docs). This also holds when the line sub-total (96.99) is below the PO encumbrance (98) with encumbrance/expenditure limits enforced: Approve succeeds, encumbrance `Released`, Awaiting payment 96.99, Initial encumbrance 98 (C399084, MODINVOICE-477)
 8. The POL **Payment status is NOT changed at Approve**: since MODINVOICE-585 (mod-invoice 6.1.0, PR 531) the POL status update moved from Approve to Pay. Docs ("Approving an invoice") still state it becomes "Partially paid" on approve — outdated, see Known Gaps
-9. Approve is atomic: if voucher creation or a later step fails, pending payments are rolled back (MODINVOICE-519, MODINVOICE-626 — Approve & pay on a fund changed from inactive to active); the invoice stays Open and the toast is `Invoice was not approved` (C1009057)
-10. No pending payment / voucher is created when the PO line's fund has an Inactive budget and the invoice uses another fund — approval fails with `Invoice was not approved`, status stays Open, no Pending payment/Payment on the invoice fund, encumbrance on the PO fund stays Unreleased (C1009057, C1009058, MODINVOICE-626)
+9. Approve is atomic: if voucher creation or a later step fails, pending payments are rolled back (MODINVOICE-519; MODINVOICE-626 — Approve & pay on a fund changed from inactive to active used to leave an orphan pending payment, now rolled back with `Invoice was not approved/paid`); the invoice stays Open and the toast is `Invoice was not approved` (C1009057)
+10. Budget effect with a credit line (3 lines on one POL: +10, -10, +10; release encumbrance off): after Approve Available and Cash balance are unchanged, Encumbered 10, Awaiting payment 10, Unavailable 20 and 3 `Pending payment` transactions exist; after Pay Cash balance is 10 lower, Expended 20, Credited 10 (Credited since Ramsons; Expended was 10 before), transactions are 2 `Payment` + 1 `Credit`, all with source `invoice` (C347897)
+11. After Approve the voucher is shown in the Voucher accordion with status `Awaiting payment`, and the Pending payment transaction has Amount = line value and Source = invoice number (C10945); after Pay voucher status is `Paid` and the Payment transaction has the same Amount/Source (C3453). Expense classes: two fund distributions of the same fund with different expense classes create a Pending payment per expense class, turned into Payments on Pay (C15859)
+12. No pending payment / voucher is created when the PO line's fund has an Inactive budget and the invoice uses another fund — approval fails with `Invoice was not approved`, status stays Open, no Pending payment/Payment on the invoice fund, encumbrance on the PO fund stays Unreleased (C1009057, C1009058, MODINVOICE-626)
 
 ---
 
@@ -233,6 +238,7 @@ User action: Actions → Cancel
 - POL payment status reverts only for POLs that are `Fully Paid` or `Partially Paid` and whose invoice was **Paid** with a known fiscal year: if no other Paid invoice line in the same FY references the POL it becomes `Awaiting Payment` (C466207), if another paid invoice exists it becomes `Partially Paid` (C466208) or stays `Fully Paid` (C466209); `Payment not required` and `Ongoing` never change (C466210, C466211; PoLinePaymentStatusUpdateService). Cancelling an Approved invoice does not change POL payment status
 - Encumbrances: cancelling restores the initial encumbrance amount (C399092, C400612, C400614, C400615, C400618; MODINVOICE-613/616/628); an encumbrance of a Cancelled PO line stays Released (MODINVOICE-632, C1152357); Ongoing $0 order scenarios C825437, C829881, C844253, C844254, C844259, C844263, C844264, C864744; release-encumbrance=false scenarios C852110, C870004, C877073, C889713-C889715, C1028980-C1028985; manual unrelease scenarios C1045390, C1045391, C1045392, C1045395, C1045396
 - Can be cancelled after the PO line's fund distribution was changed (MODINVOICE-615, C895660); transactions are voided only for the invoice's own funds — an Inactive/Closed budget of the POL's other fund does not void Pending payment/Payment of the invoice fund and the invoice stays Approved/Paid with an error (MODINVOICE-632; C1045977, C1045991)
+- Cancelling an Approved invoice with a release-encumbrance line: before Cancel the encumbrance is `Released` with Awaiting payment = unit price; after Cancel it is `Unreleased` with Awaiting payment 0.00, the Pending payment amount is shown crossed out with a `Voided transaction` tooltip, toast `Invoice has been cancelled successfully` (C350728)
 - Invoices with >90 lines can be cancelled (C375062); >50 lines approve & pay (C446075); >1000 lines export (C700851)
 
 ### Cancel permission
@@ -257,6 +263,7 @@ A voucher is a payment request document generated when an invoice is Approved.
 ### Voucher export
 - Invoices list > Actions → **Voucher export** (capability `UI-Invoice Voucher Export`; docs) → choose a batch group → **Run manual export**; confirm text `All vouchers created since last export for the batch group {selectedBatchGroupName} will be exported and this process cannot be reversed` (en.json `settings.actions.manualExport.message`). There is no date-range selector: the export takes every not-yet-exported voucher of the group (docs "Exporting vouchers")
 - The export history table lists Date, Status (Pending, Generated, Uploaded, Error), Message (e.g. `Uploaded successfully to FTP location`) and a download arrow; file format comes from the batch group configuration (JSON or XML; if unset `File format not specified for voucher export. Please update Batch Group Configuration in system settings`)
+- Run manual export is disabled until a batch group is selected; after Continue the toast is `Voucher export has been started successfully` and the history table (Date, Status, Message, download icon, paginator) appears; the `The list contains no items` text shows when the group has no exports (C442851, C397985, C10943, C353220). With cleared FTP credentials the row is `Generated` / `Credentials for FTP upload were not found` and download still works (toast `Vouchers have been successfully downloaded`, en.json `voucherExport.download.success`); with valid SFTP/XML the row is `Uploaded` / `Uploaded successfully to FTP location`; Status `Error` is possible when no valid FTP location is defined (C10943). Without the Voucher export capability the Invoices Actions menu has no export option (C353222). With only the vendor's default Accounting code the XML has `<accountingCode>` and no `<accountNo>` (C397985). Voucher > Actions > Print offers a portrait/landscape Layout dropdown (C442851).
 - Only invoices with "Export to accounting" checked are included; unchecked invoices/adjustments are not exported or downloadable (C396387, C397317). Open and Reviewed invoices have no batch file to download (C396388, C396389)
 - Voucher export dates are human-readable timestamps in both JSON and XML (MODINVOICE-595/601 regressions to epoch long; C825246, C825247). Export with cleared credentials (C442851); export with many lines (Karate batch-voucher-export-with-many-lines.feature). Invoice-level `Voucher export details` accordion: Batch group, Batch file name, Batch file status (Uploaded / Error) and a download icon (docs; C353217, C396367, C396358, C396369)
 
@@ -294,7 +301,7 @@ Source: docs `Settings_invoices.md`, en.json `settings.*`, TestRail section 1289
 - **Batch group configuration**: Batch group, Location type (FTP / SFTP), Upload location (blank = file downloads to the user's computer), Port, Directory, Format (JSON / XML), Username, Password, `Show credentials`/`Hide credentials`, `Test connection` (toasts `Connection is valid`, `Connection error: {cause}`; C414961, C414963); save toasts `Batch group configuration has been successfully saved` / `Batch group configuration was not saved` (C10939). Credential permission tiers: see "Batch Group Credentials". `ui-invoice.batchVoucher.exportConfigs.credentials.view/edit` now also grant `settings.invoice.enabled` so Settings opens (UINV-608, UINV-593).
 - **Voucher number**: Prefix (letters only — `Voucher number prefix must contains only Unicode letters`), Starting number, `Reset sequence`, checkbox "Allow voucher number to be edited" (C10941). Prefixes and numbering moved from mod-configuration to the internal invoice-storage settings API (UINV-607, MODINVOICE-604, MODINVOSTO-208) — no mod-configuration dependency remains (UINV-616). Failed start number save: `Start number could not be saved.`
 - A "default value for Lock total" setting (UINV-463/464) is NOT present in docs, package.json or en.json — treat as not implemented.
-- Invoice settings in tenant A do not apply in tenant B (ECS, C353608).
+- Invoice settings in tenant A do not apply in tenant B (ECS): saving `Approve and pay in one click` shows toast `Setting was successfully updated.` in tenant A, where Approve & pay works (toast `Invoice has been approved and paid successfully`); in tenant B with the box unchecked the invoice Actions menu has only Edit and Approve (C353608).
 
 ## Search & Filter pane (Invoices)
 
@@ -341,7 +348,7 @@ Backend error codes seen by approve/pay/cancel (mod-invoice ErrorCodes.java): ac
 
 ## Main Sections / UI Structure
 
-### Panes
+### Panes (from ui-invoice source / TestRail pane names)
 - Invoices [from source]
 - Invoice details [from source]
 - Voucher information [from source]
@@ -356,7 +363,7 @@ Backend error codes seen by approve/pay/cancel (mod-invoice ErrorCodes.java): ac
 - Invoices > Actions > Approve
 - Invoices > Actions > Pay
 - Invoices > Actions > Cancel
-- Invoices > Actions > Export vouchers
+- Invoices > Actions > Voucher export (docs "Exporting vouchers"; C442851)
 - Settings > Invoices > Adjustments
 - Settings > Invoices > Vouchers
 - Settings > Invoices > Approvals
@@ -396,7 +403,7 @@ Backend error codes seen by approve/pay/cancel (mod-invoice ErrorCodes.java): ac
 | Vendor has no accounting code | `Invoice can not be approved (paid), because the identified vendor must have an accounting code for this invoice to be exported to accounting` |
 | Fund has no current budget | `Invoice cannot be approved because Fund <b>{fundCode}</b> has no current budget.` |
 | Fund has no budget for FY | `Invoice cannot be approved because Fund <b>{fundCode}</b> has no current budget for fiscal year <b>{fiscalYear}</b>.` |
-| Not enough money in fund | `One or more Fund distributions on this invoice can not be paid, because there is not enough money in <b>{fundCodes}</b>.` |
+| Not enough money in fund (legacy; since Trillium the budget-restriction messages below replace it — C375959) | `One or more Fund distributions on this invoice can not be paid, because there is not enough money in <b>{fundCodes}</b>.` (en.json `invoice.actions.approve.error.fundCannotBePaid`) |
 | Inactive expense class | `Invoice can not be <b>Approved</b> because expense class <b>{expenseClass}</b> is inactive.` |
 | Fund distribution not 100% | `Fund distributions summary should be 100 % or equal to subtotal for every associated invoice lines` |
 | Missing fund distribution | `At least one fund distribution should present for every associated invoice line` |
@@ -424,13 +431,12 @@ Backend error codes seen by approve/pay/cancel (mod-invoice ErrorCodes.java): ac
 | PO line update failure | `One or more purchase order line record(s) cannot be updated` |
 | Cancel: no active budget for target FY | `This operation could not be completed successfully. There is either no budget for <b>{fundCode}</b> for the targeted fiscal year or the budget is not Active.` (C422007-C422009) |
 | Cancel failed | `Invoice was not cancelled` |
-| Order acq unit | `Operation is not permitted because user is not a member of the specified acquisition unit of the Order(s)` (C446069) |
+| Order acq unit | `Operation is not permitted because user is not a member of the specified acquisition unit of the Order(s)` (en.json `invoice.actions.error.userNotAMemberOfTheAcq.order`; NOT reproduced by C446069/C630444, which expect success — see Known Gaps) |
 | Save invoice line: no FY | `Invoice line cannot be saved because invoice is not assigned to a Fiscal year.` (UINV-580, C569566) |
-| Save invoice line: no budget for FY | `Invoice line cannot be saved because Fund <b>{fundCode}</b> has no current budget for fiscal year <b>{fiscalYear}</b>.` (C569568, UINV-557) |
+| Save invoice line: no budget for FY | `Invoice line cannot be saved because Fund <b>{fundCode}</b> has no current budget for fiscal year <b>{fiscalYear}</b>.` (C569568, UINV-557); BE 404 code `budgetNotFoundByFundIdAndFiscalYearId` "Active budget not found by fund id and fiscal year id" when adding a POL whose fund has a budget only in another concurrent FY (C353566) |
 | Save invoice line: inactive expense class | `Invoice line can not be saved because expense class <b>{expenseClass}</b> is inactive.` |
 | Save invoice line failed | `Invoice line was not saved` |
 | Currency not convertible | `The selected currency cannot be converted. Please configure an exchange rate provider that supports this currency.` (UINV-610, C852071) |
-| Pending-order guard | `Invoice can not be approved. One or more of the related orders has a workflow status of "Pending". If desired, please open the related orders before approving this invoice.` (en.json `invoice.details.hasPendingOrders`) |
 
 ### Modal / Dialog Titles
 
@@ -469,15 +475,7 @@ Approve / Pay / Approve & pay dialogs are confirmed with **Submit** in TestRail 
 
 ### Error / Warning Messages
 
-| Condition | Message text | Source |
-|---|---|---|
-| Approve failed | Invoice was not approved | [confirmed — C1009057] |
-| Pay failed | Invoice was not paid | [from source] |
-| Approve/pay failed | Invoice was not approved/paid | [from source] |
-| Invoice load failure | Failed to load invoice data | [from source] |
-| Budget restriction | One or more Fund distributions on this invoice can not be paid, because there is not enough money in <b>{fundCodes}</b>. | [from source] |
-| Missing fund distribution | At least one fund distribution should present for every associated invoice line | [from source] |
-| Duplicate detection warning | This appears to be a duplicate invoice | [confirmed] |
+Approve/pay, budget, restriction and duplicate-warning texts are in the tables above. Others: `Invoice was not approved` (C1009057), `Invoice was not paid`, `Invoice was not approved/paid`, `Failed to load invoice data` (en.json `invoice.actions.*`, `invoice.actions.load.error`).
 
 ---
 
@@ -503,27 +501,29 @@ Awaiting Payment, Fully Paid, Partially Paid; also Ongoing and Payment Not Requi
 
 ## Capability Sets (Eureka)
 
-| Action | Capability Set |
-|---|---|
-| View invoices | `Data - UI-Invoice Invoice - View` |
-| Create invoices | `Data - UI-Invoice Invoice - Create` |
-| Edit invoices | `Data - UI-Invoice Invoice - Edit` |
-| Delete invoices | `Data - UI-Invoice Invoice - Delete` |
-| Approve invoices | `Procedural - UI-Invoice Invoice Approve - Execute` |
-| Pay invoices | `Procedural - UI-Invoice Invoice Pay - Execute` |
-| Cancel invoices | `Procedural - UI-Invoice Invoice Cancel - Execute` |
-| Pay in different fiscal year | `Procedural - UI-Invoice Invoice Pay-Different-Fy - Execute` |
-| Export vouchers | `Procedural - UI-Invoice Voucher Export - Execute` |
-| Download batch file | `Procedural - UI-Invoice BatchVoucher - Execute` |
-| Edit batch export credentials | `Data - UI-Invoice Batchvoucher Exportconfigs Credentials - Edit` |
-| Assign acquisition units | `Procedural - UI-Invoice Acq Unit Assignment - Execute` |
-| Manage acquisition units | `Data - UI-Invoice Acq Unit Assignment - Manage` |
-| Export search results | `Procedural - UI-Invoice Export CSV - Execute` |
-| View Invoices settings | `Settings - UI-Invoice Settings - View` (OKAPI: `Settings (Invoices): View settings`, `ui-invoice.settings.view`) |
-| Edit Invoices settings | `Settings - UI-Invoice Settings - Manage` (OKAPI: `Settings (Invoices): Can view and edit settings`, `ui-invoice.settings.all`) |
-| View batch group credentials | `Data - UI-Invoice Batchvoucher Exportconfigs Credentials - View` (`ui-invoice.batchVoucher.exportConfigs.credentials.view`) |
+| Action | Capability Set | Confirmed by |
+|---|---|---|
+| View invoices | `Data - UI-Invoice Invoice - View` | Cypress dictionary `uiInvoiceInvoiceView`; docs; C196775 |
+| Create invoices | `Data - UI-Invoice Invoice - Create` | Cypress `uiInvoiceInvoiceCreate`; C196773 |
+| Edit invoices | `Data - UI-Invoice Invoice - Edit` | Cypress `uiInvoiceInvoiceEdit`; C196776 precondition |
+| Delete invoices | `Data - UI-Invoice Invoice - Delete` | Cypress `uiInvoiceInvoiceDelete`; C196772 |
+| Approve invoices | `Procedural - UI-Invoice Invoice Approve - Execute` | Cypress `uiInvoiceInvoiceApprove`; C196776 |
+| Pay invoices | `Procedural - UI-Invoice Invoice Pay - Execute` | Cypress `uiInvoiceInvoicePay`; C196779 |
+| Cancel invoices | `Procedural - UI-Invoice Invoice Cancel - Execute` | Cypress `uiInvoiceInvoiceCancel`; C350728 precondition |
+| Pay in different fiscal year | `Procedural - UI-Invoice Invoice Pay-Different-Fy - Execute` | Cypress `uiInvoiceInvoicePayDifferentFy` |
+| Export vouchers | `Procedural - UI-Invoice Voucher Export - Execute` | docs Invoices capability table; C442851, C397985 preconditions (not in Cypress dictionary) |
+| Download batch file | `Procedural - UI-Invoice BatchVoucher - Execute` | docs; C196780, C353222 preconditions (not in Cypress dictionary) |
+| Assign acquisition units | `Procedural - UI-Invoice Invoices Acquisitions Units Assign - Execute` (since Trillium; before: `Procedural - UI-Invoice Acq Unit Assignment - Execute`) | Cypress `uiInvoiceInvoicesAcquisitionsUnitsAssign`; C196777 precondition |
+| Manage acquisition units | `Procedural - UI-Invoice Invoices Acquisitions Units Manage - Execute` (since Trillium; before: `Data - UI-Invoice Acq Unit Assignment - Manage`) | Cypress `uiInvoiceInvoicesAcquisitionsUnitsManage`; C196778, C357051 preconditions |
+| Export search results | `Procedural - UI-Invoice Export CSV - Execute` | docs Invoices capability table; ui-invoice package.json `ui-invoice.exportCSV` (not in Cypress dictionary) |
+| View Invoices settings | `Settings - UI-Invoice Settings - View` (OKAPI: `Settings (Invoices): View settings`, `ui-invoice.settings.view`) | docs Settings_invoices capability table (type settings / view) |
+| Edit Invoices settings | `Settings - UI-Invoice Settings - Manage` (OKAPI: `Settings (Invoices): Can view and edit settings`, `ui-invoice.settings.all`) | docs; C353608 precondition (C196781 still spells it `data - UI-Invoice Settings - manage`) |
+| View batch group credentials | `Data - UI-Invoice BatchVoucher ExportConfigs Credentials - View` (`ui-invoice.batchVoucher.exportConfigs.credentials.view`) | docs Settings_invoices capability table |
+| Edit batch group credentials | `Data - UI-Invoice BatchVoucher ExportConfigs Credentials - Edit` (`ui-invoice.batchVoucher.exportConfigs.credentials.edit`) | docs; C353222, C397985 preconditions |
 
-Source: docs Capabilities tables (Invoices and Settings_invoices), ui-invoice package.json permissionSets. Renamed in 8.0.0 to be easier to tell apart (UINV-620); `Batch-Groups Collection (view)` is included in the `UI-Invoice Invoice` view set (UINV-602); `stripes-core.settings.read` is in the base sets (UINV-615). Required companion capabilities used in TestRail preconditions: `data - UI-Orders Orders - view`, `data - UI-Finance Fund-Budget - view` (C1231686, C357038). A view-only user lacks `finance.exchange-rate.item.get`, so `Calculated total amount (Exchanged)` shows the unconverted amount (UINV-641, Done 2026-11-04). Permission cases: C196772-C196781, C350624, C353617 (warning when viewing without View permission).
+Source: Cypress dictionary (`cypress/support/dictionary/capabilitySets.js`), docs Capabilities tables (Invoices and Settings_invoices; the docs still list the pre-Trillium acquisition-unit names), ui-invoice 8.1.0 package.json permissionSets (display names), TestRail Permissions section 1704 and case preconditions. No capability name in this table is derived from naming convention. Renamed in 8.0.0 to be easier to tell apart (UINV-620); `Batch-Groups Collection (view)` is included in the `UI-Invoice Invoice` view set (UINV-602); `stripes-core.settings.read` is in the base sets (UINV-615). Required companion capabilities used in TestRail preconditions: `data - UI-Orders Orders - view` (C353566), `data - UI-Finance Fund-Budget - view` (C10945, C3453, C1231686, C357038); credit/budget setup in C347897 uses `data - UI-Finance Fund-Budget - create`. A view-only user lacks `finance.exchange-rate.item.get`, so `Calculated total amount (Exchanged)` shows the unconverted amount (UINV-641, Done 2026-11-04).
+
+Capability behaviour from Permissions section 1704 (C196772-C196781): the Invoice data capabilities are cumulative and exclusive at the edges — View: can view, cannot edit; Edit: view+edit, cannot create or delete; Create: view+edit+create, cannot delete; Delete: view+edit+delete, cannot create; Settings - Manage: view and edit Approvals/Adjustments (General) and Batch groups/Batch group configuration/Voucher number (Vouchers). Approve needs Approve + Invoice Edit (C196776); Pay needs Pay + Invoice Create (C196779); batch file download needs BatchVoucher + Invoice View (C196780). Invoices list is paginated 50 per page with Previous/Next (C196775, UINV-348, UINV-480). Following an invoice link from an order's Related invoices without Invoice view shows `You don't have permission to view this app/record` (C353617). Other permission cases: C350624 (Cancel capability assignable), C196777/C196778 (acquisition units).
 
 ---
 
@@ -579,7 +579,7 @@ Expected: Save invoice dialog appears with warning This appears to be a duplicat
 - If a referenced record (e.g. the vendor Organization) is later deleted, older versions still resolve it as "Record deleted" in the Vendor details accordion, and re-opening the live invoice shows an error toast `Failed to load invoice data`.
 - Adjustment-related field changes (Total adjustments, Calculated total amount, Description, Value, Pro rate, Relation to total) and currency/exchange-rate changes are tracked and highlighted like any other field.
 - Approving an invoice creates its own version entry with Status, Approval date, Approved by, Voucher number, and Exchange rate all listed as changed.
-- Version history shows human-readable values instead of internal IDs for adjustments and fund distributions (UINV-613, C877080); labels come from en.json `versionHistory.label.adjustments.*` (Adjustment description, Adjustment pro rate, Adjustment relation to total, Adjustment type, Adjustment value, Adjustment export to accounting) and `versionHistory.label.fundDistributions.*` (Fund distribution code / type / value / expense class). `No version history to display.` when empty (`invoice.versionHistory.noVersion`).
+- Version history also tracks Sub total and Calculated total amount (MODINVOICE-648, fixed 6.1.1). It shows human-readable values instead of internal IDs for adjustments and fund distributions (UINV-613, C877080); labels come from en.json `versionHistory.label.adjustments.*` (Adjustment description, Adjustment pro rate, Adjustment relation to total, Adjustment type, Adjustment value, Adjustment export to accounting) and `versionHistory.label.fundDistributions.*` (Fund distribution code / type / value / expense class). `No version history to display.` when empty (`invoice.versionHistory.noVersion`).
 - Fields tracked include Vendor details and Extended information accordions (UINV-569), voucher lines, links and documents, PO line association/disassociation (UINV-474/475/476); Sub total and Calculated total amount are included (MODINVOICE-648). Since UINV-639 (ui-invoice 8.1.0) `metadata.updatedDate` is no longer shown as a changed field in the invoice and invoice-line version views. A user with all invoice capabilities can see versions (UINV-576).
 - Audit events come from mod-invoice-storage's audit outbox (Invoice, InvoiceLine; edit events carry the old object — MODINVOSTO-216).
 
@@ -642,7 +642,7 @@ Expected: Save invoice dialog appears with warning This appears to be a duplicat
 
 ## ECS / Multi-Tenant Notes
 
-Consortium (Invoices) section 37957 holds 4 cases: C590842 (ECS | filter invoices by "Fund code" in member tenant), C610245 (ECS | pay invoice linked with POL created in Member tenant), C356846 (a user cannot view an invoice created by another tenant's user and vice versa), C353608 (invoice settings applied in tenant A are not applied in tenant B). Invoices, vouchers, batch groups and settings are tenant-local; primary behavior remains the same as the non-ECS lifecycle, with tenant/capability gating in consortial contexts. mod-invoice has no Central-tenant-specific endpoints in its ModuleDescriptor; the cross-tenant POL lookup lives in the shared stripes-acq-components modal.
+Consortium (Invoices) section 37957 holds 4 cases (bodies of C590842, C356846, C353608 read 2026-11-25; C610245 read 2026-07-22): C590842 (ECS | filter invoices by "Fund code" in member tenant — user is Staff type with `Data - UI-Invoice Invoice - View` in Member plus `Settings - UI-Consortia-Settings Settings NetworkOrdering - View` in Central; Fund A/B offered, Fund C bound to an acquisition unit the user is not in is NOT offered; selecting A returns invoices #1, #2, #4, adding B returns #1-#4, an invoice with no fund distribution is never returned; clearing the filter restores `<- Choose a filter or enter a search query to show results.`), C610245 (ECS | pay invoice linked with POL created in Member tenant), C356846 (a user cannot view an invoice created by another tenant's user and vice versa: searching the other tenant's invoice number shows `No results found for invoice number. Please check your spelling and filters.`), C353608 (invoice settings applied in tenant A are not applied in tenant B). Invoices, vouchers, batch groups and settings are tenant-local; primary behavior remains the same as the non-ECS lifecycle, with tenant/capability gating in consortial contexts. mod-invoice has no Central-tenant-specific endpoints in its ModuleDescriptor; the cross-tenant POL lookup lives in the shared stripes-acq-components modal.
 
 **Canonical mechanic documented in orders.md** ("Cross-Tenant Location Lookup via 'Affiliation' Dropdown") — Invoices reuses the identical UI, but nested one level deeper: inside an invoice's `Invoice lines` accordion, `Actions > Add line from POL` opens a `Select order lines` modal that has its own `Location` facet with the same `Location look-up` > `Select locations` > `Affiliation` dropdown pattern (confirmed C471510).
 
@@ -656,7 +656,7 @@ Consortium (Invoices) section 37957 holds 4 cases: C590842 (ECS | filter invoice
 ## Existing automation coverage
 
 - **Karate** (folio-org/folio-integration-tests, `acquisitions/src/main/resources/thunderjet/mod-invoice/`, runners `InvoicesApiTest.java`, `InvoicesExtendedApiTest.java`; 48 `.feature` files incl. reusables `approve-invoice`, `pay-invoice`, `cancel-invoice`, `create-invoice`, `create-invoice-line`): invoice.feature (main flow), approve-and-pay-invoice-with-past-fiscal-year, cancel-invoice, check-lock-totals-and-calculated-totals-in-invoice-approve-time, invoice-with-lock-totals-calculated-totals, check-approve-and-pay-invoice-with-zero-dollar-amount, pay-invoice-with-0-value, check-invoice-full-flow-where-subTotal-is-negative, check-invoice-line-validation-with-adjustments, check-invoice-lines-with-vat-adjustments, prorated-adjustments-special-cases, invoice-with-identical-adjustments, check-that-not-possible-add-invoice-line-to-approved-invoice, check-that-not-possible-pay-for-invoice-without-approved / -if-no-voucher, check-that-changing-protected-fields-forbidden-for-approved-invoice, check-invoice-and-invoice-lines-deletion-restrictions, check-invoice-lines-and-documents-are-deleted-with-invoice, check-that-can-not-approve-invoice-if-organization-is-not-vendor, check-error-respose-with-fundcode-upon-invoice-approval, check-remaining-amount-upon-invoice-approval, expense-classes-validation, create-voucher-lines-honor-expense-classes, voucher-with-lines-using-same-external-account, voucher-numbers, update-voucher, should_populate_vendor_address_on_get_voucher_by_id, batch-voucher-uploaded, batch-voucher-export-with-many-lines, exchange-rate-update-after-invoice-approval, set-invoice-fiscal-year-automatically, invoice-fiscal-years, fiscal-year-balance-with-negative-available, fund-code-auto-populate-invoice-lines, delete-line-check-next-line-number, edit-subscription-dates-after-invoice-paid, check-approve-and-pay-invoice-with-odd-pennies-number. API-verifiable rules in this file are therefore candidates for "already covered" in write-karate-first-cases.
-- **Cypress** (folio-org/stripes-testing): fragments `cypress/support/fragments/invoices/` (invoices.js, invoiceView.js, invoiceLineDetails.js, invoiceNewForm.js, invoiceEditForm.js, invoiceLineEditForm.js, newInvoice.js, newInvoiceLine.js, newBatchGroup.js, settingsInvoices.js, voucherExportForm.js, voucherView.js, vouchers.js, vendorAddress.js, invoiceStates.js, invoiceStorageSettings.js, modal/); 173 specs under `cypress/e2e/invoices/` covering approve/pay/cancel per FY, POL payment status after cancel (pol-payment-status-*), encumbrance cancel matrix (encumbrance-is-calculated-correctly-*, initial-encumbrance-remain-the-same-after-cancelling-*), duplicate (duplicate-invoice-*), fiscal-year permission and read-only cases (fiscal-year-*), filters (filter-invoices-*, invoices-can-be-found-by-*), version history (version-history-*), Save & keep editing (save-using-save-and-keep-editing-button-*), restriction error messages (check-encumbrance-restriction-*, check-expenditure-restriction-*), inactive/closed budget cases (pending-payment-transactions-are-not-created-*, voided-transactions-are-not-created-*, user-is-not-able-to-cancel-invoice-*), and `settings/` subfolder. Many TestRail cases have a same-named spec (e.g. C700852 -> pol-payment-status-not-updated-if-no-change-selected-when-approving-invoice-against-previous-fiscal-year.cy.js); Jira FAT-* "Review of C…" links (FAT-25268 for C1231686/C1241224, FAT-27662 for C1332438) mark automated cases.
+- **Cypress** (folio-org/stripes-testing): fragments `cypress/support/fragments/invoices/` (invoices.js, invoiceView.js, invoiceLineDetails.js, invoiceNewForm.js, invoiceEditForm.js, invoiceLineEditForm.js, newInvoice.js, newInvoiceLine.js, newBatchGroup.js, settingsInvoices.js, voucherExportForm.js, voucherView.js, vouchers.js, vendorAddress.js, invoiceStates.js, invoiceStorageSettings.js, modal/); 173 specs under `cypress/e2e/invoices/` (approve/pay/cancel per FY, `pol-payment-status-*`, encumbrance cancel matrix, `duplicate-invoice-*`, `fiscal-year-*`, `filter-invoices-*`, `version-history-*`, `save-using-save-and-keep-editing-button-*`, restriction-message specs, inactive/closed budget specs, `settings/`). Many TestRail cases have a same-named spec (e.g. C700852 -> pol-payment-status-not-updated-if-no-change-selected-when-approving-invoice-against-previous-fiscal-year.cy.js); Jira FAT-* "Review of C…" links (FAT-25268 for C1231686/C1241224, FAT-27662 for C1332438) mark automated cases.
 
 ---
 
@@ -664,70 +664,60 @@ Consortium (Invoices) section 37957 holds 4 cases: C590842 (ECS | filter invoice
 
 - Encumbrances with multiple expense classes on one fund distribution: both must be released on Approve/Pay with Release encumbrance = true (MODINVOICE-654, fixed 6.1.3; matching by POL + fund + expense class with fallback to POL + fund; credit and payment lines may share one encumbrance).
 - Different funds in POL and invoice line: Pending payment/Payment go to the invoice line's fund; the POL fund's encumbrance is released if release encumbrance is checked (MODINVOICE-290, MODINVOICE-600; C378895 invoice with fund different from POL can be approved; C353596 fund distribution changed in POL before approval).
-- Negative / over-limit encumbrance after paid + cancelled invoices (MODINVOICE-608, 613, 616, 628): initial encumbrance must be unchanged after cancelling (C399092 family) and must be recalculated correctly when another invoice with release encumbrance true/false exists (C1028980, C1028981, C1028984, C1028985) or after manual unrelease (C1045390, C1045391, C1045392, C1045395, C1045396).
+- Negative / over-limit encumbrance after paid + cancelled invoices (MODINVOICE-608, 613, 616, 628): case families are listed under Cancel Flow (encumbrances); initial encumbrance must be unchanged after cancelling and recalculated correctly when another invoice with release encumbrance true/false exists or after manual unrelease (C1028980, C1028981, C1028984, C1028985, C1045390-C1045396).
 - Cancelling an invoice in a past FY reopens the order and creates an unreleased encumbrance in the current FY — accepted edge case, MODINVOICE-656 closed as won't do.
-- Invoice line number is not reused after delete (MODINVOICE-647); Create/delete/recreate numbering also for lines created from POLs (C389497, C410742).
-- Voucher export date format regression (MODINVOICE-595/601).
 - Invoice not loading when the vendor organization was deleted: toast `Failed to load invoice data`, Vendor name blank, version history shows `Record deleted` (UINV-634; fixed 8.0.1).
 - Invoice lines imported via EDI/Data Import: search results must show fund code (MODINVOICE-620); full account-number dropdown selectable on EDI lines (UINV-575); invoice imported from EDIFACT can be deleted after editing another invoice (C358141); supplemental invoice creation failure was reported (MODINVOICE-635, RRT).
 - Large EDI files crashed Data Import (MODINVOICE-652/653 fixed 6.1.2) — Data Import log shows the `Invoice` section (TestRail section 131125).
 - Exchange: ECB provider does not support all currencies (UINV-610, C852071); amounts must use the Finance exchange rate API (MODINVOICE-579); Treasury / Currencyapi calculated total fix (MODINVOICE-611); "No key required" provider with manually set rate (C740212, C844847); update exchange rates on lines with multiple funds (C378881); currency without ECB support when exporting (C421999).
-- Approve & pay with fund changed from inactive to active used to leave an orphan pending payment (MODINVOICE-626); now rolled back and the error is `Invoice was not approved/paid`.
-- Saving an invoice line from a POL with an inactive budget is covered by C353572; editing comments/subscription info/tags of an Approved invoice (Inactive budget) or a Paid invoice (prior-FY budget Closed) is allowed (C919907, C919908, MODINVOICE-618).
-- Version history `Sub total` and `Calculated total amount` missing (MODINVOICE-648, fixed 6.1.1).
 - Multiple fiscal years on one invoice: MODINVOICE-642 / MODINVOSTO-214 prepare the module (fiscalYearId moves into fund distributions, Confluence "Process invoices against future fiscal years", UXPROD-4490) but the approve error `multipleFiscalYears` is still returned in the current release.
 
 ---
 
 ## Key Business Rules for Test Cases
 
-1. Default invoice workflow status on creation is Open and invoice is editable after save. (cases + source)
-2. Approval is allowed from both Open and Reviewed statuses; Reviewed is optional, not mandatory. (cases + source)
-3. Vendor must be a valid active vendor organization for successful approval. (cases)
-4. Duplicate detection is enforced on vendor + vendor invoice number + invoice date and requires explicit user decision to proceed. (cases + source)
-5. Lock total prevents approval when calculated totals do not match lock total amount. (cases)
-6. Approve creates pending payment transactions and moves budget amounts into Awaiting payment. (cases + source)
-7. Pay creates payment transactions and moves budget amounts into Expended while decreasing Awaiting payment. (cases + source)
-8. Only Approved and Paid invoices can be cancelled, always with the `Invoice: Cancel invoices` capability; Cancel voids the pending payment/payment/credit transactions and sets the voucher to Cancelled. (docs Cancelling an invoice; mod-invoice ErrorCodes `cannotCancelInvoice`; C350624, C350728)
-9. Negative calculated total posts credit behavior in Finance (increasing available budget). (cases)
-10. Separate from adjustments — and, since MODINVOICE-639/640 (mod-invoice 6.1.0), Included in adjustments — are not included in Total adjustments or Calculated total amount. (cases; docs; MODINVOICE-639, MODINVOICE-640)
-11. Not prorated adjustments require explicit fund distribution at adjustment level. (cases)
-12. Release encumbrance option controls whether release occurs at Approve instead of Pay for linked lines. (cases)
-13. Voucher is generated at approval and carries voucher metadata used in export/accounting workflows. (cases + source)
-14. Export to accounting controls voucher inclusion in batch export. (cases + source)
-15. Accounting code is required for approval/payment when export-to-accounting behavior is active. (cases + source)
+1. Default invoice workflow status on creation is Open and the invoice is editable after save. (C2299, C353566; docs)
+2. Approval is allowed from both Open and Reviewed statuses; Reviewed is optional, not mandatory. (C196776, C10945; docs)
+3. Vendor must be a valid active vendor organization for successful approval. (C388558, C388559; ErrorCodes `organizationIsNotVendor`)
+4. Duplicate detection is enforced on vendor + vendor invoice number + invoice date, requires an explicit user decision to proceed, and also runs on `Approve & pay`. (C440075; docs; en.json `invoice.isNotUnique.confirmation.message`)
+5. Lock total prevents approval when calculated totals do not match the lock total amount. (en.json `lockCalculatedTotalsMismatch`; Karate check-lock-totals-and-calculated-totals-in-invoice-approve-time.feature)
+6. Approve creates pending payment transactions and moves budget amounts into Awaiting payment. (C10945, C347897; MODINVOICE-346)
+7. Pay creates payment transactions and moves budget amounts into Expended while decreasing Awaiting payment. (C3453, C347897)
+8. Only Approved and Paid invoices can be cancelled, always with the `Invoice: Cancel invoices` capability; Cancel voids the pending payment/payment/credit transactions and sets the voucher to Cancelled. (docs Cancelling an invoice; ErrorCodes `cannotCancelInvoice`; C350624, C350728)
+9. Negative calculated total posts credit behavior in Finance (increasing available budget). (C343209, C347897; MODINVOICE-547)
+10. Separate from adjustments — and, since MODINVOICE-639/640 (mod-invoice 6.1.0), Included in adjustments — are not included in Total adjustments or Calculated total amount. (MODINVOICE-639, MODINVOICE-640; docs conflict in Known Gaps; TestRail Included-in cases C376007, C589259, C589504, C589508, C589510 predate the revert / are DRAFT)
+11. Not prorated adjustments require an explicit fund distribution at adjustment level; it is kept only while Pro rate = Not prorated — switching to any other Pro rate value strips it from UI and from the saved record (`fundDistributions: []`), and prorated invoice-level adjustments are read-only on the invoice-line form. (ErrorCodes `adjustmentFundDistributionsNotPresent`; C825250, C889747, C1292041; UINV-614, UINV-630)
+12. Release encumbrance (unchecked by default on a new blank line) controls release at Approve rather than at Pay: when checked the encumbrance shows 0.00/Released after Approve. (C389582, C350633, C399084)
+13. Voucher is generated at approval (status Awaiting payment) and carries the metadata used in export/accounting workflows. (C10945; docs Approving an invoice)
+14. Export to accounting controls voucher inclusion in batch export. (C396387, C397317)
+15. An accounting code on the vendor is required for approval/payment when Export to accounting is on. (en.json `accountingCodeNotPresent`; C10943 preconditions)
 16. POL payment status is changed at Pay (not Approve): Fully Paid if any line releases the encumbrance, else Partially Paid; Ongoing and Payment Not Required are never overwritten; Cancel of a Paid invoice returns it to Awaiting Payment / Partially Paid / keeps Fully Paid depending on other paid invoices in the same FY. (MODINVOICE-585, MODINVOICE-544, PoLinePaymentStatusUpdateService.java; C466207-C466211)
-17. Duplicating an invoice always resets status to Open and fiscal year to current/blank, and never carries over the original invoice's status, cancellation note, or fiscal year — only vendor invoice number, lines, and adjustments transfer. (cases)
-18. Version history tracks every save on both Invoice and Invoice line, highlighting changed fields in yellow and correctly labeling the oldest/newest cards as Original/Current version. (cases)
-19. "Save & keep editing" is available on both standalone create screens (invoice, invoice line) but not on the order-triggered "New invoice" flow. (cases)
-20. Batch group username/password access is gated by a permission tier strictly separate from general Invoice-settings view/edit access. (cases)
-21. An adjustment's fund distribution is only retained while Pro rate = Not prorated; switching to any other Pro rate value strips fund distribution from both UI and the persisted API record. (cases)
-22. Zero-decimal currencies (e.g. JPY) are displayed without decimals in Calculated total (Exchanged) even though the underlying exchange-calculation API always returns an explicit decimal value. (cases)
-23. An invoice's fiscal year auto-resolves to the current FY if left blank at creation, and cannot be reverted to blank once set. (cases)
-24. Approve/Pay transactions always post against the fiscal year the invoice/PO is actually scoped to, even when that FY is no longer the ledger's current one after a rollover. (cases)
-25. The "Add line from POL" modal's `Location` facet `Affiliation` dropdown is the same canonical cross-tenant lookup mechanic as Orders/Receiving — Central-tenant-only, positive flow confirmed C471510. (cases — C471510, C471512)
-26. Approve is allowed only with at least one invoice line, fund distributions totalling 100% of every line and non-prorated adjustment, all funds in one fiscal year, and no related order in Pending workflow status. (docs; en.json `invoice.details.hasPendingOrders`; ErrorCodes `fundDistributionsNotPresent`, `multipleFiscalYears`; C397321, C397326)
-27. Budget restrictions are validated by mod-finance-storage; the UI shows the fund-specific message for encumbrance vs expenditure restriction, and credits reduce the expenditure used. (MODINVOICE-631, MODINVOICE-547, UINV-623; C1231686, C1241224)
-28. Paying, approving&paying or cancelling an invoice against a previous fiscal year with a Release-encumbrance line on an Open One-time order requires a POL payment status choice (`Update order status` modal / `poLinePaymentStatus`); other combinations skip the modal. (MODINVOICE-573, MODINVOICE-585, MODINVOICE-587, UINV-577, UINV-600; C700852-C700861, C703334, C703346, C709266)
-29. Only users with `Invoice: Pay invoices in a different fiscal year` see/edit the Fiscal year field; it is read-only for Approved, Paid and Cancelled invoices and cannot be reset to blank. (docs; ErrorCodes `cannotResetInvoiceFiscalYear`; C387522, C387533, C387534, C387536, C387537)
-30. A vendor invoice line number is never reused after deleting a line. (MODINVOICE-647; C389497, C410742)
-31. Release encumbrance is unchecked by default on a new blank line and, when checked, the encumbrance is released and shows 0.00/Released at Approve. (C389582, C350633)
-32. Invoices can be deleted only in Open or Reviewed; lines cannot be added to an Approved invoice; documents can still be attached to and removed from Approved and Paid invoices. (docs Deleting an invoice; ErrorCodes `approvedOrPaidInvoiceDeleteForbiddenError`, `prohibitedInvoiceLineCreation`; C360544, C360546, C360547)
-33. Subscription info, comments and tags of invoice lines stay editable after Approve/Pay, including when the fund budget is Inactive or the prior-FY budget is Closed. (MODINVOICE-618; C350952, C919907, C919908)
-34. A voucher has one voucher line per fund external account number (incl. expense-class extension); the Group column is not shown; only disbursement number/date/amount (and voucher number if enabled in settings) are editable. (docs Voucher lines; UINV-629, UINV-565; C1152357, C423429)
-35. Voucher export takes all not-yet-exported vouchers of the batch group (no date range), includes only invoices/adjustments with Export to accounting checked, and writes human-readable timestamps in JSON and XML. (docs Exporting vouchers; MODINVOICE-595/601; C396387, C397317, C825246, C825247)
-36. The system `FOLIO` batch group can be edited but not deleted, and a batch group in use on invoices cannot be deleted. (docs Settings > Invoices > Batch groups; C10938, C367942)
-37. "Approve and pay in one click" turns the Approve action into `Approve & pay`; both modes must be verified for the inactive-organization and Pending-order guards. (docs Settings > Approvals; C388558, C388559, C397321, C397326)
-38. A cancelled invoice's `Cancellation note` is not copied on Duplicate (UI-side exclusion), and Duplicate is always Open with the current FY. (UINV-636; C1332438)
-39. Adjustments of the invoice level that are prorated are read-only on the invoice-line form; changing Pro rate clears the adjustment's fund distribution. (UINV-630, UINV-614; C1292041, C825250, C889747)
-40. A user with only the Invoice view capability gets an unconverted "Calculated total amount (Exchanged)" because `finance.exchange-rate.item.get` is missing from the set — regression check for capability boundaries. (UINV-641)
-41. Invoice currency defaults from the related order / vendor currencies, a currency-change warning modal appears when creating from an order, and unsupported-by-provider currencies show an informative toast. (UINV-579, UINV-610; C440073, C451451, C808485, C852071)
-42. Subtotal/total of the invoice are recalculated when a line is added or removed. (MODINVOICE-570; C663350)
-43. Search, filters and the CSV export honour time-zone for date created filters and include fund distribution and created/updated columns. (docs; C466118, C466123, C773245, C466125)
-44. Pay with total = 0 is allowed: positive fund parts become Payment transactions and the negative part a Credit; fund distribution types cannot be mixed for a zero price. (C357038, C357042, C357044; ErrorCodes `cannotMixTypesForZeroPrice`)
-45. An invoice-level adjustment fund differing from the line's fund still approves and pays; prorated adjustments cannot be added or deleted on a line when absent/present on the invoice. (C825243, C407745; ErrorCodes `cannotAddAdjustment`, `cannotDeleteAdjustment`)
-46. Settings > Invoices > Voucher number prefix must contain letters only; voucher number prefix and start number live in invoice-storage settings (no mod-configuration). (en.json `voucherNumberPrefixNotAlpha`; UINV-607, UINV-616)
-47. In ECS, invoices, vouchers and Invoices settings are tenant-local: one tenant cannot see the other's invoices or settings. (C356846, C353608)
+17. Duplicating an invoice always creates it as Open with all lines Open, resets fiscal year to the current FY (or blank), never copies the cancellation note (UI-side, UINV-636) and resets created-by metadata; vendor invoice number, lines (with POL links) and adjustments transfer. (C514954, C514958, C1332438; UINV-636)
+18. Version history tracks every save on both Invoice and Invoice line, highlighting changed fields in yellow and labeling the oldest/newest cards Original/Current version. (C613165, C663321)
+19. "Save & keep editing" is available on both standalone create screens (invoice, invoice line) but not on the order-triggered "New invoice" flow. (C663268, C663271)
+20. Batch group username/password access is gated by a permission tier strictly separate from general Invoice-settings view/edit access. (C422071, C422073, C422074)
+21. Zero-decimal currencies (e.g. JPY) are displayed without decimals in Calculated total (Exchanged) even though the exchange-calculation API always returns an explicit decimal value. (C1322894)
+22. An invoice's fiscal year auto-resolves to the current FY if left blank at creation and cannot be reverted to blank once set; only users with `Invoice: Pay invoices in a different fiscal year` see/edit the field, and it is read-only for Approved, Paid and Cancelled invoices. (C396373, C388645, C396390, C387522, C387533, C387534, C387536, C387537; ErrorCodes `cannotResetInvoiceFiscalYear`)
+23. Approve/Pay transactions always post against the fiscal year the invoice is scoped to, even when it is no longer the ledger's current one after a rollover. (C388520, C388538, C388563)
+24. The "Add line from POL" modal's `Location` facet `Affiliation` dropdown is the same canonical cross-tenant lookup mechanic as Orders/Receiving — Central-tenant-only, positive flow confirmed C471510. (C471510, C471512)
+25. Approve is allowed only with at least one invoice line, fund distributions totalling 100% of every line and non-prorated adjustment, all funds in one fiscal year, and no related order in Pending workflow status. (docs; en.json `invoice.details.hasPendingOrders`; ErrorCodes `fundDistributionsNotPresent`, `multipleFiscalYears`; C397321, C397326)
+26. Budget restrictions are validated by mod-finance-storage; the UI shows the fund-specific message for encumbrance vs expenditure restriction, and credits reduce the expenditure used; the legacy `not enough money` message applies only before Trillium. (MODINVOICE-631, MODINVOICE-547, UINV-623; C1231686, C1241224, C375959)
+27. Paying, approving&paying or cancelling an invoice against a previous fiscal year with a Release-encumbrance line on an Open One-time order requires a POL payment status choice (`Update order status` modal / `poLinePaymentStatus`); other combinations skip the modal. (MODINVOICE-573, MODINVOICE-585, MODINVOICE-587, UINV-577, UINV-600; C700852-C700861, C703334, C703346, C709266)
+28. A vendor invoice line number is never reused after deleting a line. (MODINVOICE-647; C389497, C410742)
+29. Invoices can be deleted only in Open or Reviewed; lines cannot be added to an Approved invoice; documents can still be attached to and removed from Approved and Paid invoices. (docs Deleting an invoice; ErrorCodes `approvedOrPaidInvoiceDeleteForbiddenError`, `prohibitedInvoiceLineCreation`; C360544, C360546, C360547)
+30. Subscription info, comments and tags of invoice lines stay editable after Approve/Pay, including when the fund budget is Inactive or the prior-FY budget is Closed. (MODINVOICE-618; C350952, C919907, C919908)
+31. A voucher has one voucher line per fund external account number (incl. expense-class extension); the Group column is not shown; only disbursement number/date/amount (and voucher number if enabled in settings) are editable. (docs Voucher lines; UINV-629, UINV-565; C1152357, C423429)
+32. Voucher export takes all not-yet-exported vouchers of the batch group (no date range), includes only invoices/adjustments with Export to accounting checked, and writes human-readable timestamps in JSON and XML. (docs Exporting vouchers; MODINVOICE-595/601; C396387, C397317, C825246, C825247)
+33. The system `FOLIO` batch group can be edited but not deleted, and a batch group in use on invoices cannot be deleted. (docs Settings > Invoices > Batch groups; C10938, C367942; en.json `settings.batchGroups.cannotDeleteTermMessage`)
+34. "Approve and pay in one click" turns the Approve action into `Approve & pay`; both modes must be verified for the inactive-organization and Pending-order guards. (docs Settings > Approvals; C388558, C388559, C397321, C397326)
+35. A user with only the Invoice view capability gets an unconverted "Calculated total amount (Exchanged)" because `finance.exchange-rate.item.get` is missing from the set — regression check for capability boundaries. (UINV-641)
+36. Invoice currency defaults from the related order / vendor currencies, a currency-change warning modal appears when creating from an order, and unsupported-by-provider currencies show an informative toast. (UINV-579, UINV-610; C440073, C451451, C808485, C852071)
+37. Subtotal/total of the invoice are recalculated when a line is added or removed. (MODINVOICE-570; C663350)
+38. Search, filters and the CSV export honour time-zone for date created filters and include fund distribution and created/updated columns. (docs; C466118, C466123, C773245, C466125)
+39. Pay with total = 0 is allowed: positive fund parts become Payment transactions and the negative part a Credit; fund distribution types cannot be mixed for a zero price. (C357038, C357042, C357044; ErrorCodes `cannotMixTypesForZeroPrice`)
+40. An invoice-level adjustment fund differing from the line's fund still approves and pays; prorated adjustments cannot be added or deleted on a line when absent/present on the invoice. (C825243, C407745; ErrorCodes `cannotAddAdjustment`, `cannotDeleteAdjustment`)
+41. Settings > Invoices > Voucher number prefix must contain letters only; voucher number prefix and start number live in invoice-storage settings (no mod-configuration). (en.json `voucherNumberPrefixNotAlpha`; UINV-607, UINV-616)
+42. In ECS, invoices, vouchers and Invoices settings are tenant-local: one tenant cannot see the other's invoices or settings; the Fund code filter in a Member tenant offers only funds the user may see (a fund bound to an acquisition unit the user is not in is absent) and multi-select returns the union. (C356846, C353608, C590842)
 
 ---
 
@@ -753,29 +743,23 @@ Invoices is strongly **`Functional` (~95%)**, median ~8 steps, `User Journey` ~1
 - [ ] `en.json` and `en_US.json` are identical in ui-invoice (511 keys, no differences) at the time of this refresh.
 - [ ] Whether a duplicated invoice's fiscal year can ever resolve to something OTHER than "current FY or blank" (e.g. if invoice date itself is edited pre-save) was not tested in the sampled cases.
 - [ ] Data Import (EDIFACT) invoice creation, Export Manager "Receiving Invoices" and the `Invoice` Data Import log section (TestRail sections 131125, 17494, Importing EDIFACT files 17150) are outside this file; only referenced.
-- [ ] Of the 273 cases in the four sections only titles/refs were listed for most; full text read in this refresh: C1231686, C357038, C1009057, C350633 (plus the 14 cases of the 2026-07-22 audit). Exact step wording of other cases is not reproduced here.
+- [ ] **TestRail coverage is partial: 50 of 273 case bodies read.** Read in full: C1231686, C357038, C1009057, C350633 (2026-11-24 refresh); C514954, C514958, C1332438, C613165, C663268, C422074, C471512, C610245, C396373, C700852, C1322894, C825250, C889747, C934328 (2026-07-22 audit); read 2026-11-25: C2299, C2327, C10945, C3453, C15859, C347897, C350728, C353566, C357051, C375959, C399084, C446069, C630444, C10943, C353222, C397985, C442851, C590842, C356846, C353608 and the whole Permissions --> Invoices section 1704 (C196772-C196781, C350624, C353617). Not read (titles/refs only): the rest of sections 329 (about 190 cases, e.g. adjustment-calculation C375998/C375999/C376007, FY cases C388520-C396390, encumbrance matrices C399092-C1045396, currency C436952-C451593, filters C353228-C466123, duplicate edge cases C514955-C514984, DRAFT cases), 1289 (about 14: C10937-C10939, C343345, C10947, C353217, C396358-C396369, C353220, C396387-C396389, C397317, C367942, C414961, C414963, C422071, C422073, C825246, C825247) and the C-ids cited above only through their titles. Exact step wording of unread cases is not reproduced here; statements citing them rely on title/refs plus code/docs.
+- [ ] **Acquisition units vs Pay (conflict).** The file previously cited C446069 for the error `...not a member of the specified acquisition unit...`. The case body expects the opposite: an invoice created from an order with an acquisition unit (all restrictions checked), user removed from the unit, `Approve & pay` succeeds, status Paid, a `Payment` and no `Pending payment` transaction (MODINVOICE-516; case flagged unstable/bug-created). C630444 (unit with View off, user not in unit, Approve then Pay) also expects success. en.json still has `invoice.actions.error.userNotAMemberOfTheAcq.order`; no TestRail case verified when it appears. Verify on a live environment.
+- [ ] **Acquisition-unit capability names.** Docs (Invoices capability table) still list `UI-Invoice Acq Unit Assignment` (procedural/execute and data/manage); Cypress dictionary and TestRail (C196777, C196778, C357051: "since Trillium") use `UI-Invoice Invoices Acquisitions Units Assign/Manage` (procedural/execute). The table above uses the Trillium names; check which names a given environment exposes.
+- [ ] **Invoice-line save error wording.** C353566 (updated 2026-11) expects `Invoice line cannot be saved because <Fund Beta> has no current budget.` (no fiscal year) when adding a POL whose fund has a budget only in a concurrent FY, while C569568/en.json give the `... for fiscal year <b>{fiscalYear}</b>.` variant. Not resolved.
+- [ ] **Voucher information labels in C397985.** Step text says the vendor's accounting code appears in `Account number` and the account number in `Accounting code` (hyphen), which looks swapped relative to the XML tags; confirm the real labels on a live environment.
+- [ ] **Create/save toast wording.** TestRail steps use `Invoice has been saved` (C353608, C356846) and `Invoice <number> has been saved` (C353566), while the Toast table lists `Invoice has been created` for creation; the ui-invoice en.json key was not matched to the exact create toast.
+- [ ] **Capability names not in the Cypress dictionary.** Voucher Export, BatchVoucher, Export CSV, Settings View/Manage and the credentials sets are confirmed by docs and TestRail preconditions only; C196781 spells Settings manage as `data - UI-Invoice Settings - manage` while docs and C353608 use the `settings` type.
 - [x] ~~Umbrellaleaf-tagged cases are not present in this subtree~~ — 2026-11-24: recently updated cases exist (C1231686, C1009057 carry custom_release id 20, label not resolved here); Umbrellaleaf tagging not enumerated.
 - [x] ~~Jira extraction returned zero Done stories/bugs~~ — 2026-11-24: anonymous REST by project key returned 181 Done issues since 2024-06-01.
 - [x] ~~Consortium (Invoices) ECS signals are sparse~~ — 2026-07-22 enrichment confirmed C471510 / C471512; section 37957 holds 4 cases (see ECS section).
 
-> N≥10 audit round (2026-07-22): 14 cases read (C514954, C514958, C1332438, C613165, C663268, C422074, C471512, C610245, C396373, C700852, C1322894, C825250, C889747, C934328). Added entirely new sections: Duplicate Invoice (field carry-over/reset rules), Version History (Invoice/Invoice line), "Save & keep editing" button mechanic, Batch group credentials permission tiers, strict Pro-rate↔fund-distribution coupling for adjustments, JPY zero-decimal display vs API contract, and fiscal-year auto-resolution/no-revert-to-blank rules. Added 8 new Key Business Rules (17-24) and enriched the "Update order status" modal row with its exact radio-option list and the Central-only ECS Affiliation-dropdown scoping.
-
+> Audit round 2026-07-22 (14 cases read, listed in the last Known Gaps item) added the Duplicate, Version History, Save & keep editing, Batch-group credential tiers, Pro-rate coupling, JPY and Fiscal-year sections above.
 
 ---
 
 ## Changes since 2026-06-18 (refresh 2026-11-24)
 
-> The body above was rewritten in the 2026-11-24 refresh and already includes these changes; kept as a short change log. Where this log and the body disagree, the body wins.
-> Sources: Jira UINV/MODINVOICE/MODINVOSTO Done since 2026-06-18; GitHub ui-invoice CHANGELOG 8.1.0 (IN PROGRESS); TestRail suite 21.
-
-### What changed (Umbrellaleaf R2 2026 window)
-- UINV-641 Bug — Calculated total amount (Exchanged) not converted for user with only `UI-Invoice Invoice - view` (Done 2026-11-04) — capability-boundary regression candidate.
-- UINV-639 Story — Do not show metadata.updatedDate in Version history for Invoice and Invoice line (Done 2026-11-03).
-- UINV-637 — Connected Tasks/Jobs fourth pane in Invoice and Invoice line detail views (ui-invoice CHANGELOG 8.1.0).
-- UINV-636 — Do not copy cancellation note when duplicating cancelled invoices (8.1.0, Done 2026-07-23).
-- UINV-634 — Invoice not loaded if vendor organization was deleted (8.0.1).
-- MODINVOSTO-216 — old object for EDIT audit events of Invoice/InvoiceLine (7.0.0, 2026-06-30); MODINVOICE-656 won't do; MODINVOICE-628 and MODINVOICE-654 (encumbrance fixes, 6.1.3) done.
-- Trillium R1 2026 (8.0.0 / 6.1.x): MODINVOICE-639/640 Included-in adjustments excluded from totals, MODINVOICE-631 + UINV-623 restriction messages, UINV-630, UINV-629, UINV-607/616 mod-configuration removal, UINV-577/600 Update order status modal, UINV-613 readable version history, UINV-614 clear adjustment fund distribution, UINV-592 exchanged totals on lines, UINV-579 currency-change modal, UINV-610 unsupported currency toast, UINV-601 sorted dropdowns.
-
-### TestRail — cases created since 2026-06-18
-- None new; many existing cases were updated on 2026-08..2026-09 (e.g. C1231686, C1241224, C1009057, C1332438, C1332520).
+> Change log only; the body above is authoritative. Sources: Jira UINV/MODINVOICE/MODINVOSTO Done since 2026-06-18; ui-invoice CHANGELOG 8.1.0 (in progress); TestRail suite 21 (no new cases; many updated 2026-08..2026-09, e.g. C1231686, C1241224, C1009057, C1332438, C1332520).
+- Umbrellaleaf R2 2026 window: UINV-641 (exchanged total for view-only user, Done 2026-11-04), UINV-639 (no `metadata.updatedDate` in version history, 8.1.0), UINV-637 (Connected Tasks/Jobs fourth pane in invoice and invoice-line detail views, 8.1.0), UINV-636 (cancellation note not copied on duplicate, 8.1.0), UINV-634 (invoice not loaded if vendor deleted, 8.0.1), MODINVOSTO-216 (old object in EDIT audit events), MODINVOICE-628/654 (encumbrance fixes, 6.1.3), MODINVOICE-656 won't do.
+- Trillium R1 2026 (8.0.0 / 6.1.x): MODINVOICE-639/640, MODINVOICE-631 + UINV-623, UINV-630, UINV-629, UINV-607/616, UINV-577/600, UINV-613, UINV-614, UINV-592, UINV-579, UINV-610, UINV-601 — each described in the body.
