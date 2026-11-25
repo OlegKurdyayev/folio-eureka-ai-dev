@@ -8,6 +8,7 @@
 > - TestRail releases in subtree: Trillium 448, Sunflower 78, Ramsons 46, Umbrellaleaf 23, Quesnelia 59, Poppy 71, Morning Glory 2, blank 3.
 > - GitHub (2026-11-24 HEAD): folio-org/ui-bulk-edit (translations/ui-bulk-edit/en.json — 617 keys, en_US.json — 604 keys; package.json stripes.permissionSets; CHANGELOG.md), folio-org/mod-bulk-operations (descriptors/ModuleDescriptor-template.json, src/main/resources/swagger.api/schemas/*.json, src/main/java/org/folio/bulkops/util/Constants.java, processors/services, db changelog, NEWS.md), folio-org/ui-plugin-query-builder (translations en.json).
 > - Jira (anonymous REST, 2026-11-24): UIBULKED + MODBULKOPS Story/Bug in Done/Closed resolved >= 2024-06-01 — 389 issues (256 stories, 133 bugs; Release field: Ramsons 105, Sunflower 59, Trillium 121, Umbrellaleaf 14, other/blank 90). fixVersions hold module versions, so scope is by resolution date. ~70 rule-bearing issues read in detail.
+> - Confluence (anonymous REST): space BULKEDIT — "Umbrellaleaf - Bulk Delete of User Records" UAT page.
 > - folio-integration-tests `mod-bulk-operations` (Karate), stripes-testing (Cypress, 625 bulk-edit specs), docs.folio.org source (`content/en/docs/Bulk Edit/_index.md`, `content/en/docs/Settings/Settings_bulk_edit/Settings_bulk_edit.md`).
 > Strings marked [confirmed] appear in both source files and TestRail cases.
 > Strings marked [from source] come from GitHub translations/docs only.
@@ -324,6 +325,7 @@ Rules from Jira / code (2026-11-24):
 ## Bulk Delete Users — entirely new feature (confirmed, C1385648)
 
 > Distinct from "Start bulk edit" — deletes matched User records outright rather than editing a field.
+> Feature UXPROD-3230; Confluence BULKEDIT page "Umbrellaleaf - Bulk Delete of User Records" (id 2348548103): UAT 2026-09-10..16 passed with no issues; blocking dependencies tested = open loan, fee/fine, manual block; flow Actions → `Start bulk delete` → `Delete`, not-deleted users listed per record in `Errors & warnings`, Logs files differ by identification method (file upload vs query).
 
 - After matching Users (identifier or query flow), the Actions menu offers `Start bulk delete` alongside the usual `Download matched records (CSV)` / `Start bulk edit` / `Select users bulk edit profile`.
 - Clicking it opens `Delete user records?` with: a warning banner `{n} user records will be deleted if the Delete button is clicked.` (n = matched count), a note `This action cannot be undone but a file of deleted user records will be available for download in Logs for 30 days.` (the "30 days" reflects the tenant's configured log-retention period, not a hard-coded value), `Cancel` (enabled) and `Delete` (enabled AND focused by default — a single Enter keypress confirms deletion).
