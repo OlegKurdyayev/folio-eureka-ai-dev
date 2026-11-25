@@ -1,6 +1,6 @@
 # FOLIO Loans — Business Logic Context
 
-> Built: 2026-11-24 · Release: Umbrellaleaf (R2 2026) — master: ui-users 13.1.0 (in progress), mod-circulation 24.6.0-SNAPSHOT · Builder: build-app-context (refresh) · Previous build: 2026-07-21 (browser-based), delta-refreshed 2026-11-07 — the delta is folded into the sections below.
+> Built: 2026-11-24 · Release: Umbrellaleaf R2 2026 (master: ui-users 13.1.0 (in progress), mod-circulation 24.6.0-SNAPSHOT) · Builder: build-app-context (refresh) · Previous build: 2026-07-21 (browser-based), delta-refreshed 2026-11-07 — the delta is folded into the sections below.
 
 > Sources (2026-11-24):
 > - TestRail project 14 / suite 21: section 97 "Loans" (21 cases) and subsections Additional Loan Comments 25717 (2), Anonymization 1132 (14), Change due date 1287 (4), Declare lost 1290 (4), Claim returned 1294 (5), Renewals 1540 (24), **Automatic renewals 17138 (9, new)**. "Permissions --> Loans" (174) is empty.
@@ -21,14 +21,14 @@ A **loan** is created when an item is checked out to a patron and closed when th
 
 | Term | Definition |
 |---|---|
-| Open loan | Active loan; `status.name` = `Open`. Item is out to the patron. |
-| Closed loan | Returned/resolved loan; `status.name` = `Closed`. |
+| Open loan | Active loan; `status.name` = `Open`. Item is out to the patron. (mod-circulation `ramls/loan.json`) |
+| Closed loan | Returned/resolved loan; `status.name` = `Closed`. (mod-circulation `ramls/loan.json`) |
 | Loan details | Per-loan page with loan fields + the **Loan action history** table (`loans.history`). |
 | Loan action | Row in the loan history (values in "Action values" below). Stored in loan `action` + `actionComment` (mod-circulation `ramls/loan.json`). |
-| Declared lost | Staff-marked lost status; bills per Lost item fee policy. |
-| Aged to lost | System-set lost status (lost item fee policy "Items aged to lost after overdue"). |
-| Claimed returned | Patron claims return; loan stays open, lost-item fees are suspended until resolved. |
-| Override | Renew despite a renewal block (needs renew-through-override capability) or despite a patron block. |
+| Declared lost | Staff-marked lost status; bills per Lost item fee policy. (C9191, C10960; CIRC-2130) |
+| Aged to lost | System-set lost status (lost item fee policy "Items aged to lost after overdue"). (CIRC-2629; Karate `loans.feature` aged-to-lost scenario) |
+| Claimed returned | Patron claims return; loan stays open, lost-item fees are suspended until resolved. (Karate `loans.feature`; docs Users "Mark an item claim returned"; C10960) |
+| Override | Renew despite a renewal block (needs renew-through-override capability) or despite a patron block. (C568, C170386) |
 | Automatic renewal | Scheduled backend renewal of eligible loans, enabled per loan policy (CIRC-2687, CIRC-2584). |
 | Use at location | Reading-room loan (In use / Held); shown in Open loans and Loans accordion (UIU-3405, UIU-3406). |
 
@@ -186,24 +186,25 @@ Claimed returned
 
 ## Capability Sets (Eureka)
 
-> Legacy permission (ui-users package.json) → capability set. Confirmed = asserted in a TestRail case or Cypress `capabilitySets.js`. Others are derived from the permission name by the Eureka naming convention (`<module>.<resource>.<action>` → `<Type> - UI-Users <Resource> - <Action>`) — verify in env before asserting.
+> Legacy permission (ui-users package.json) → capability set. Confirmed = the exact name appears in the Cypress dictionary (`cypress/support/dictionary/capabilitySets.js`) or in a TestRail case precondition. Every other name below is a candidate built from the permission name by the Eureka naming convention (`<module>.<resource>.<action>` → `<Type> - UI-Users <Resource> - <Action>`) and is NOT confirmed — do not put it in case preconditions as fact; verify in the environment first. Permission internal names / display names are confirmed by Cypress `permissions.js`.
 
 | Action | Legacy permission (displayName) | Capability set |
 |---|---|---|
-| View loans | `ui-users.loans.view` (Users: User loans view) | `Data - UI-Users Loans - View` — confirmed (C1621350, Cypress `uiUsersLoansView`) |
-| Renew (also grants view since UIU-1140) | `ui-users.loans-renew.create` (Users: User loans renew) | `Data - UI-Users Loans-Renew - Create` — confirmed (C1405041, Cypress `uiUsersLoansRenew`) |
-| View, change due date, renew | `ui-users.loans.all` | `Data - UI-Users Loans - Manage` (derived) |
-| Change due date | `ui-users.loans-due-date.edit` | `Data - UI-Users Loans-Due-Date - Edit` (derived) |
-| Renew through override | `ui-users.loans-renew-override.create` | `Data - UI-Users Loans-Renew-Override - Create` (derived) |
-| Add patron/staff info | `ui-users.loans-add-info.create` (Users: User loans: add staff or patron information) | `Data - UI-Users Loans-Add-Info - Create` (derived) |
-| Declare lost | `ui-users.loans-declare-item-lost.execute` | `Procedural - UI-Users Loans-Declare-Item-Lost - Execute` (derived) |
-| Claim returned | `ui-users.loans-claim-item-returned.execute` | `Procedural - UI-Users Loans-Claim-Item-Returned - Execute` (derived) |
-| Mark claimed returned as missing | `ui-users.loans-declare-claimed-returned-item-as-missing.execute` | `Procedural - UI-Users Loans-Declare-Claimed-Returned-Item-As-Missing - Execute` (derived) |
-| Anonymize loans | `ui-users.loans-anonymize.execute` | `Procedural - UI-Users Loans-Anonymize - Execute` (derived) |
-| Lost items requiring actual cost | `ui-users.lost-items-requiring-actual-cost.execute` | `Procedural - UI-Users Lost-Items-Requiring-Actual-Cost - Execute` (derived) |
-| Circulation log (verification steps) | — | `Data - UI-Circulation-Log Log-Event - Manage` — confirmed (C1621350) |
+| View loans | `ui-users.loans.view` (Users: User loans view) | `Data - UI-Users Loans - View` — confirmed (C1621350 precondition "data - UI-Users Loans - view"; Cypress `uiUsersLoansView`) |
+| Renew (also grants view since UIU-1140) | `ui-users.loans-renew.create` (Users: User loans renew) | `Data - UI-Users Loans-Renew - Create` — confirmed (C1405041; Cypress `uiUsersLoansRenew`) |
+| View, change due date, renew | `ui-users.loans.all` (Users: User loans view, change due date, renew) | `Data - UI-Users Loans - Manage` (capability set name not confirmed — verify) |
+| Change due date | `ui-users.loans-due-date.edit` (Users: User loans change due date) | `Data - UI-Users Loans-Due-Date - Edit` (capability set name not confirmed — verify) |
+| Renew through override | `ui-users.loans-renew-override.create` (Users: User loans renew through override) | `Data - UI-Users Loans-Renew-Override - Create` (capability set name not confirmed — verify) |
+| Add patron/staff info | `ui-users.loans-add-info.create` (Users: User loans: add staff or patron information) | `Data - UI-Users Loans-Add-Info - Create` (capability set name not confirmed — verify) |
+| Declare lost | `ui-users.loans-declare-item-lost.execute` (Users: User loans declare lost) | `Procedural - UI-Users Loans-Declare-Item-Lost - Execute` (capability set name not confirmed — verify) |
+| Claim returned | `ui-users.loans-claim-item-returned.execute` (Users: User loans claim returned) | `Procedural - UI-Users Loans-Claim-Item-Returned - Execute` (capability set name not confirmed — verify) |
+| Mark claimed returned as missing | `ui-users.loans-declare-claimed-returned-item-as-missing.execute` (Users: User loans mark claimed returned missing) | `Procedural - UI-Users Loans-Declare-Claimed-Returned-Item-As-Missing - Execute` (capability set name not confirmed — verify) |
+| Anonymize loans | `ui-users.loans-anonymize.execute` (Users: User loans anonymize) | `Procedural - UI-Users Loans-Anonymize - Execute` (capability set name not confirmed — verify) |
+| Lost items requiring actual cost | `ui-users.lost-items-requiring-actual-cost.execute` | `Procedural - UI-Users Lost-Items-Requiring-Actual-Cost - Execute` (capability set name not confirmed — verify) |
+| Circulation log (verification steps) | — | `Data - UI-Circulation-Log Log-Event - Manage` — confirmed (C1621350 precondition "data - UI-Circulation-Log Log-Event - manage"; not in the Cypress dictionary) |
 
-> The previous build's names (`Procedural - UI-Users Loans Declare-Lost - Execute`, `… Claim-Returned …`, `… Renew-Override …`, `Data - UI-Users Loans Anonymize - Execute`) do not match the permission names in ui-users package.json and were replaced. Older cases still use legacy displayNames ("view loans, renew loans, renew through override") — prefer capability sets in new cases.
+> The previous build's names (`Procedural - UI-Users Loans Declare-Lost - Execute`, `… Claim-Returned …`, `… Renew-Override …`, `Data - UI-Users Loans Anonymize - Execute`) do not match the permission names in ui-users package.json and were replaced. Older cases still use legacy displayNames ("view loans, renew loans, renew through override") — prefer capability sets in new cases. TestRail P14 semantic search for the unconfirmed names (2026-11-25) returned no case precondition containing them.
+
 
 ---
 
@@ -213,7 +214,7 @@ Claimed returned
 - Fee/fine workflows are not supported in the LoC Secure tenant — declaring lost a Congressional loan with a >0 set-cost policy is out of scope (CIRC-2673 closed with that comment).
 - Duplicate `Aged to lost` actions / double billing were seen only in the ECS Professional tenant on Trillium BF (CIRC-2629) — assert exactly one `Aged to lost` row per loan in ECS cases.
 - Loan/request data must reset when switching users or returning to Open loans (UIU-3460, UIU-3612 verified in non-ECS, ECS member, ECS central with mod-tlr).
-- No `custom_ecs_enabled` cases exist in the Loans sections.
+- No `custom_ecs_enabled` cases exist in the Loans sections (TestRail suite 21 section 97 subtree, case fields as of 2026-11-24).
 
 ---
 
@@ -297,7 +298,7 @@ After the scheduled cycle: Open loans row shows new due date + `Renewal count`; 
 
 ## Authoring style (measured 2026-07-23)
 
-Loans skews **`Other` (~85%, 59/69)** with only ~15% `Functional` — median ~6 steps, `User Journey` ~0%. Most cases verify loan-details / closed-loan display and single actions as compact checks; end-to-end journeys live in Check out / Check in. Use `Other` for display/single-action cases; `Functional` for behaviour that computes state (recall recalculation, bulk renew/override, automatic renewal). Preconditions carry the loan setup with symbolic identifiers (`<barcode>`, service point `S`, loan policy with the relevant fields); automatic-renewal cases state "persistent environment — not Snapshot" (C1621350). New Umbrellaleaf cases carry capability sets in preconditions (C1405041, C1621350).
+Loans skews **`Other` (~85%, 59/69; TestRail S21 section 97 case-type counts)** with only ~15% `Functional` — median ~6 steps, `User Journey` ~0%. Most cases verify loan-details / closed-loan display and single actions as compact checks; end-to-end journeys live in Check out / Check in. Use `Other` for display/single-action cases; `Functional` for behaviour that computes state (recall recalculation, bulk renew/override, automatic renewal). Preconditions carry the loan setup with symbolic identifiers (`<barcode>`, service point `S`, loan policy with the relevant fields); automatic-renewal cases state "persistent environment — not Snapshot" (C1621350). New Umbrellaleaf cases carry capability sets in preconditions (C1405041, C1621350).
 
 ---
 
@@ -309,7 +310,7 @@ Loans skews **`Other` (~85%, 59/69)** with only ~15% `Functional` — median ~6 
 - [ ] Loan-closed action label: C10948 asserts `Loan closed`; en.json `data.loanActionMap.closedLoan` = `Closed loan`.
 - [ ] Claim returned modal title: C10959 describes the modal by body text only; en.json uses `Confirm item status: Claimed returned` (single) and `Confirm claim returned` (bulk). Verify which one the single flow shows in env.
 - [ ] `Due date & time has successfully been changed` (ssc `cddd.changeSucceeded`) — not confirmed whether it renders as a callout or inside the dialog.
-- [ ] Capability sets marked "derived" are built from permission names, not seen in a case — verify exact Eureka names in env.
+- [ ] Nine capability set names (Loans - Manage, Loans-Due-Date, Loans-Renew-Override, Loans-Add-Info, Loans-Declare-Item-Lost, Loans-Claim-Item-Returned, Loans-Declare-Claimed-Returned-Item-As-Missing, Loans-Anonymize, Lost-Items-Requiring-Actual-Cost) are marked `(capability set name not confirmed — verify)`: they are built from permission names; neither the Cypress dictionary nor any TestRail precondition found confirms them — verify exact Eureka names in env.
 - [ ] `Patron blocked from renewing`, `Reason for block:`, `View block details`, `Comment*` come only from C170386 (strings live outside ui-users en.json loans keys) — not re-verified against translations.
 - [ ] Automatic renewal is still evolving: CIRC-2584 status Blocked (2026-11-24); retry semantics ("Attempt additional retries for") and the failure notice wording are not yet confirmed by Done stories.
 - [ ] UIU-3595 / UICIRC-1361 (user-specific anonymization) are In QA — UI may still change; en_US.json does not yet contain the new keys.
