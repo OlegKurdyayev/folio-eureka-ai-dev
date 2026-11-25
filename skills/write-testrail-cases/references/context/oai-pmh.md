@@ -27,7 +27,7 @@ OAI-PMH in FOLIO provides a metadata harvesting endpoint for discovery systems a
 | Identify | OAI-PMH verb returning repository identity information (`repositoryName`, `baseURL`, `granularity`, `adminEmail`, `deletedRecord` come from Settings > OAI-PMH — docs Settings_oaipmh.md). |
 | ListMetadataFormats | OAI-PMH verb returning supported output metadata formats. |
 | ListRecords | OAI-PMH verb returning full records; paginated by resumption token. |
-| ListSets | Returns one fixed set: `setSpec`=`all`, `setName`=`All records` (mod-oai-pmh `AbstractHelper.getSupportedSetTypes`). |
+| ListSets | Returns exactly one fixed set: `setSpec`=`all`, `setName`=`All records` (mod-oai-pmh `AbstractHelper.getSupportedSetTypes`; Karate `verbs/list_sets.feature`). |
 | resumptionToken | OAI-PMH paging token used for continuation requests; carries `cursor`, `completeListSize`, `expirationDate`. |
 | Full harvest | A request with no `from`/`until` (also none inside the resumptionToken). Excludes deleted records (MODOAIPMH-669). |
 | Incremental harvest | A request with `from` and/or `until`. Follows "Deleted records support" (MODOAIPMH-669). |
@@ -55,12 +55,9 @@ Generated (Inventory) MARC: `001` = HRID, `005` = updated date, `245$a` (ind 0/0
 Holdings/item data populates MARC `952` subfields; electronic access populates `856`:
 `952$a/$b/$c/$d` = Effective location Institution/Campus/Library/Name; `952$e/$f/$g/$h` = Effective call number call number/prefix/suffix/type; `952$i` = Material type; `952$j` = Volume; `952$k` = Enumeration; `952$l` = Chronology; `952$m` = Barcode; `952$n` = Copy number. `952$r` = **ILL Policy name** (populated from Holdings' ILL policy field; appears in `952 ff` — confirmed for both a Holdings-only ILL policy and after adding an Item to that Holdings — cases C423498). `856$u/$y/$3/$z` = Electronic access URI / Link text / Materials specified / Public note (separate `856` datafield per URL, from both holding and item level); `856` 1st indicator `4`, 2nd indicator encodes Relationship (`8`=No display constant, blank/empty=No information, `2`=Related resource, `0`=Resource, `1`=Version of resource, `3`=Component part(s) of resource, `4`=Version of component part(s) of resource — Confluence "Harvested Inventory Data").
 
-Additional 952 subfields (added/confirmed 2026-11-24):
-- `952$d` = effective location **Discovery display name**, falling back to location **name** when display name is null; `952$s` = effective location **FOLIO name** (always the name) (MODOAIPMH-587; mod-oai-pmh `RecordMetadataManager.java`).
-- Inactive effective location: `$d` and `$s` values get the prefix `Inactive ` (e.g. `Inactive DCB`) (MODOAIPMH-561; `RecordMetadataManager.java`).
-- `952$p` = **Loan type** — item temporary loan type if set, otherwise permanent loan type (`RecordMetadataManager.updateSubfieldsMapWithItemLoanTypeSubfield`; Confluence).
+Additional 952 subfields (added/confirmed 2026-11-24; `$d`/`$s` Discovery display name vs FOLIO name, `Inactive ` prefix, `$p` Loan type and `$k`/`$l` vs Display summary are in Key Business Rules 25-28 below):
 - `952$t` = discovery-suppression flag (`0`/`1`) in transfer mode (`RecordMetadataManager.java`; MODOAIPMH-672 sample).
-- `952$k/$l` vs **Display summary** (MODOAIPMH-657, verification matrix in comments): Enumeration only → `$k`=Enumeration; Chronology only → `$l`=Chronology; Enumeration+Chronology → `$k`+`$l`; any combination that includes Display summary → `$k`=Display summary and no `$l`.
+- `952$k/$l` verification matrix (MODOAIPMH-657 comments): Enumeration only → `$k`; Chronology only → `$l`; Enumeration+Chronology → `$k`+`$l`; any combination including Display summary → `$k`=Display summary, no `$l`.
 
 ### Other confirmed field mappings
 
@@ -311,12 +308,12 @@ With "Associate with HTTP status 200" all except `serviceUnavailable` return 200
 
 | Action | Capability Set | Okapi permission (ui-oai-pmh package.json) |
 |---|---|---|
-| View OAI-PMH settings pages (navigation) | Settings - Settings Oai-Pmh Enabled - View | `settings.oai-pmh.enabled` (not visible) |
+| View OAI-PMH settings pages (navigation) | Settings - Settings Oai-Pmh Enabled - View (capability set name not confirmed — verify; resource/type/action from docs Settings_oaipmh.md) | `settings.oai-pmh.enabled` (not visible) |
 | View all OAI-PMH settings (read-only, save disabled) | Settings - UI-Oai-Pmh Settings - View | `ui-oai-pmh.settings.view` "Settings (OAI-PMH): Can view" |
 | View and edit OAI-PMH settings | Settings - UI-Oai-Pmh Settings - Edit | `ui-oai-pmh.settings.edit` "Settings (OAI-PMH): Can view and edit settings" |
-| View OAI-PMH logs | Settings - UI-Oai-Pmh Settings Logs - View | `ui-oai-pmh.settings.logs.view` "Settings (OAI-PMH): Can view logs" |
+| View OAI-PMH logs | Settings - UI-Oai-Pmh Settings Logs - View (capability set name not confirmed — verify; resource/type/action from docs Settings_oaipmh.md) | `ui-oai-pmh.settings.logs.view` "Settings (OAI-PMH): Can view logs" |
 
-Capability-set names: docs Settings_oaipmh.md "Capabilities and Capability Sets"; verified on Eureka in UIOAIPMH-95 comments ("Settings - UI-Oai-Pmh Settings - View/Edit capability set"). Edit includes View; Logs view includes View (package.json `subPermissions`). Harvesting itself is not a UI capability: edge API user needs `oai-pmh.all`.
+Capability-set names: `Settings - UI-Oai-Pmh Settings - View` and `... - Edit` are confirmed by the UIOAIPMH-95 verification comment (2025-11-21, scenarios 1-2) and match docs Settings_oaipmh.md "Capabilities and Capability Sets" (Resource `UI-Oai-Pmh Settings`, type settings, action view/edit). The Cypress dictionary (`cypress/support/dictionary/permissions.js`: `oaipmhView`, `oaipmhSettingsEdit`, `oaipmhViewLogs`) only holds Okapi permission display names, no capability-set names. The `Settings Oai-Pmh Enabled` and `UI-Oai-Pmh Settings Logs` names are built from the docs resource column only and are not confirmed on Eureka. Edit includes View; Logs view includes View (package.json `subPermissions`). Harvesting itself is not a UI capability: edge API user needs `oai-pmh.all`.
 
 ---
 
@@ -390,52 +387,46 @@ OAI-PMH release-focused cases in this subtree include cross-tenant setup pattern
 ## Key Business Rules for Test Cases
 
 1. Enable OAI service is the global gate; when disabled, every OAI-PMH request returns HTTP 503 with `serviceUnavailable` "OAI-PMH service is disabled", independent of other settings, including "Associate with HTTP status 200". (cases + mod-oai-pmh `OaiPmhImpl.java`, `ResponseHelper.java`)
-2. View and Edit capabilities are separate; View-only users can open settings but cannot persist changes. (C422242; Cypress `oai-pmh/oai-pmh-view-permissions.cy.js`; ui-oai-pmh package.json)
-3. Logs capability is separate from settings edit capability; edit users cannot access Logs without logs view capability (the Logs nav item has `perm: ui-oai-pmh.settings.logs.view`). (cases + ui-oai-pmh `src/settings/index.js`)
+2. View and Edit capabilities are separate; View-only users can open settings but cannot persist changes. (C422242; Cypress `oai-pmh/oai-pmh-view-permissions.cy.js`; ui-oai-pmh package.json; docs Settings_oaipmh.md)
+3. Logs capability is separate from settings edit capability; edit users cannot access Logs without logs view capability (the Logs nav item has `perm: ui-oai-pmh.settings.logs.view`). (ui-oai-pmh `src/settings/index.js`; Cypress `oai-pmh/verify-list-of-recently-run-harvests.cy.js` — user with settings edit + logs view)
 4. ListMetadataFormats must expose exactly three supported formats: marc21, oai_dc, marc21_withholdings. (docs Settings_oaipmh.md; mod-oai-pmh `MetadataPrefix.java`)
-5. Deleted records support controls whether deleted records are represented and how retention is declared (No/Persistent/Transient); the value appears in Identify `deletedRecord`. (cases + docs Settings_oaipmh.md)
+5. Deleted records support controls whether deleted records are represented and how retention is declared (No/Persistent/Transient); the value appears in Identify `deletedRecord`. (docs Settings_oaipmh.md "Deleted records support"; C376963, C388546)
 6. Deleted-record detection: the Inventory instance `deleted` flag is the single source of truth (MARC, FOLIO and LINKED_DATA); legacy MARC records with LDR05=`d` are aligned by migration. (MODOAIPMH-667, MODOAIPMH-670, MODINVSTOR-1557, MODOAIPMH-615)
-7. Suppressed records processing has opposite export outcomes: transfer mode includes suppression markers; skip mode omits suppressed instances. (cases + docs Settings_oaipmh.md)
+7. Suppressed records processing has opposite export outcomes: transfer mode includes suppression markers; skip mode omits suppressed instances; with skip, GetRecord of a suppressed record returns `idDoesNotExist` "No matching identifier in repository." (docs Settings_oaipmh.md "Suppressed records processing"; MODOAIPMH-568)
 8. When transfer-suppressed mode is used, suppression marker subfield t=1 is expected in exported records for instance (999), holdings/item (952) and electronic access (856) mappings. (docs Settings_oaipmh.md; `RecordMetadataManager.java`)
-9. Record source setting determines corpus composition: SRS-only excludes non-MARC inventory records; inventory mode includes generated records; mixed mode combines both. (cases + Confluence "Harvested Inventory Data"; Cypress `oai-pmh/marc-instances-not-retrieved-when-record-source-inventory.cy.js`)
-10. Max records per response controls page size and harvester continuation behavior through resumptionToken. (cases + docs)
+9. Record source setting determines corpus composition: SRS-only excludes non-MARC inventory records; inventory mode includes generated records; mixed mode combines both. (Confluence "Harvested Inventory Data"; Cypress `oai-pmh/marc-instances-not-retrieved-when-record-source-inventory.cy.js`)
+10. Max records per response controls page size and harvester continuation behavior through resumptionToken. (docs Settings_oaipmh.md "Max records per response"; C380633, see rule 17)
 11. Enable validation introduces schema checking and can fail malformed outputs that would pass when validation is off. (tooltip `settings.technical.tooltip.enableValidation`)
 12. Formatted output changes readability/payload formatting only and not business semantics of the response. (tooltip `settings.technical.tooltip.formattedOutput`)
 13. "Associate with HTTP status 200" returns OAI errors with HTTP 200; "Associate with HTTP error statuses" maps badArgument/badResumptionToken/badVerb → 400, idDoesNotExist/noRecordsMatch → 404, cannotDisseminateFormat → 422, others → 404. (mod-oai-pmh `ResponseHelper.buildFailureResponse`)
 14. Logs retain completed harvest history for 30 days and expose downloadable error detail files only for failed record subsets. (C400648, C398012; `LinkToErrorFile.js`)
-15. Time granularity controls accepted precision for from/until selective harvesting parameters; default `YYYY-MM-DDThh:mm:ssZ`. (source: `config/general.json`)
-16. Base URL must match real endpoint URL; mismatch can break continuation and downstream harvester workflows. (tooltip `settings.general.tooltip.baseUrl`; docs)
+15. Time granularity controls accepted precision for from/until selective harvesting parameters; default `YYYY-MM-DDThh:mm:ssZ`. (docs Settings_oaipmh.md "Time granularity" = Identify `granularity`; default from `config/general.json`). That it also constrains accepted from/until precision is (unverified); bad values return `Bad datestamp format` (`Constants.BAD_DATESTAMP_FORMAT_ERROR`).
+16. Base URL sets the Identify `baseURL` and the `request` element of ListRecords responses and should be the real edge endpoint URL (tooltip `settings.general.tooltip.baseUrl`; docs Settings_oaipmh.md "Base URL"). That a mismatch breaks continuation or harvesters is (unverified).
 17. **`resumptionToken`'s `cursor` attribute increments exactly by the configured "Max records per response" page size** — e.g. with max=100: page 1 has `cursor="0"`, page 2 (after following the token) has `cursor="100"`, page 3 has `cursor="200"`, and so on; the final page omits `resumptionToken` entirely. Each page's record count is capped at the configured max. Summing every page's record count across the full resumptionToken chain must not exceed the true total record count for the query's date range (verify independently via `instance-storage` API count) — this is the standard way to validate pagination correctness end-to-end rather than trusting any single page. (cases — C380633)
 18. **Moving Holdings/Items from one MARC instance to another triggers incremental harvesting for BOTH the source and destination instances**, not just the instance that gained the holdings — assert both instances appear in the next incremental `ListRecords`/`ListIdentifiers` harvest window after the move. (cases — C1347154)
 19. **A plain edit to an Item (e.g. Material type, Temporary location, Electronic access) — with no Holdings/Instance move involved — is itself sufficient to make the parent FOLIO Instance appear in the next incremental `ListRecords` window** (Record source = Inventory, `metadataPrefix=marc21_withholdings`, `from`/`until` bracketing the edit timestamp). The harvested `marc21_withholdings` record's `999`, `952`, and `856` fields carry a `t` subfield set to `'0'` (not `'1'`) for a normal, non-suppressed item — `t=0` is the baseline/non-suppressed counterpart to the already-documented `t=1` transfer-suppression marker (Rule 8); don't assume the `t` subfield only appears in suppressed-mode exports. (cases — C375209)
 20. A full harvest (no `from`/`until`, also none inside the resumptionToken) never contains deleted records, even with Deleted records support = Persistent/Transient; incremental harvests keep following the setting. (MODOAIPMH-669; mod-oai-pmh `QueryBuilder.buildDeleted`; C376983, C376969 updated with MODOAIPMH-669)
-21. "Set record for deletion" (Actions menu) and the "Set for deletion" checkbox in Edit instance make MARC and FOLIO instances harvest as `deleted` in ListRecords, ListIdentifiers and GetRecord (Persistent/Transient), in non-ECS and ECS single/cross-tenant harvests. (MODOAIPMH-613, MODOAIPMH-614; Karate C729189/C729193/C729194/C729195/C729198–C729201)
-22. With Deleted records support = `No`, set-for-deletion instances are not returned by any verb. (MODOAIPMH-614 comment, MODOAIPMH-567 verification "Scenario 3")
-23. An instance whose `deleted` field is absent/null is treated as not deleted and is harvested. (MODOAIPMH-624, MODINVSTOR-1422)
-24. For a MARC instance, edit SRS, edit instance, add/edit/delete holdings and add/edit/delete item all count as an update for incremental harvesting — also when the instance is already deleted (then it is returned as `deleted` with the update timestamp). (MODSOURCE-906 / MODOAIPMH-619 steps; MODOAIPMH-662 steps)
-25. DCB instance `9d1b77e4-f02e-4b7f-b296-3f2042ddac54` and DCB holdings `10cd3a5a-d36f-4c7a-bc4f-e1ae3cf820c9` are excluded from full and incremental harvests for ListRecords, ListIdentifiers and GetRecord (all prefixes), and edits to them do not trigger incremental inclusion. (MODOAIPMH-661; mod-oai-pmh `Constants.java`; Karate `oaipmh-dcb.feature`)
-26. `952$k` gets Display summary whenever the item has one, and `$l` is then omitted; without Display summary `$k`=Enumeration, `$l`=Chronology. (MODOAIPMH-657)
-27. `952$s` = effective location FOLIO name; `952$d` = Discovery display name, or the location name if display name is null. (MODOAIPMH-587; `RecordMetadataManager.java`)
-28. An Inactive effective location is still output, with `Inactive ` prefixed to `952$d` and `952$s`. (MODOAIPMH-561; `RecordMetadataManager.java`)
-29. `952$p` = item temporary loan type if present, otherwise permanent loan type. (`RecordMetadataManager.java`; Confluence "Harvested Inventory Data")
-30. A MARC `856` with blank 1st indicator still gets `$t` (`0`/`1` by suppression) in GetRecord and ListRecords. (MODOAIPMH-666, mod-oai-pmh 3.16.1)
-31. LINKED_DATA instances: transfer mode sets `999$t` and `856$t` to `1` if suppressed / `0` if not; skip mode omits suppressed ones — same for all verbs, all three Record source values, ECS and non-ECS. (MODOAIPMH-600)
-32. LINKED_DATA instances: `999 ff` has `$i` instance UUID, `$s` SRS UUID, `$l` Linked_Data UUID for GetRecord and ListRecords and all Record source values. (MODOAIPMH-602; C663352)
-33. Non-ASCII characters in location names (952 `$a`–`$d`) must be output intact in UTF-8 (no replacement characters). (MODOAIPMH-584; MODOAIPMH-672 in QA)
-34. ListSets returns exactly one set: `setSpec`=`all`, `setName`=`All records`. (mod-oai-pmh `AbstractHelper.getSupportedSetTypes`; Karate `verbs/list_sets.feature`)
-35. With "Skip suppressed from discovery records", GetRecord of a suppressed record returns `idDoesNotExist` "No matching identifier in repository." (MODOAIPMH-568)
-36. Since Trillium, OAI-PMH settings live in mod-oai-pmh (`/oai-pmh/configuration-settings`), not mod-configuration; tenant upgrade migrates existing values; settings must be present and service enabled after an environment rebuild. (MODOAIPMH-621, UIOAIPMH-95, MODOAIPMH-653)
-37. With the service disabled (General page): `Enable OAI service` is enabled and unchecked; `Repository name`, `Base URL`, `Administrator email(s)` are disabled and empty; `Time granularity` is disabled but not empty; nothing is marked required. (UIOAIPMH-99; C1273159)
-38. With the service disabled (Technical/Behavior pages): all fields are disabled with their current or default values and not marked required; the banner and tooltip use the "in the General section" wording. (UIOAIPMH-99; C1273159)
-39. With the service enabled: Repository name, Base URL, Administrator email(s) and Max records per response are required; Time granularity, Enable validation and Formatted output are not; all Behavior fields are required. (UIOAIPMH-99; `GeneralFormValidator.js`, `TechnicalFormValidator.js`)
-40. General-page field validation runs only when Enable OAI service is checked. (`GeneralFormValidator.js`)
-41. Max records per response accepts whole numbers from 1 to 500. (`TechnicalFormValidator.js`; en.json `settings.all.validationMessage.less500`, `.isIntegerGreaterThanZero`)
-42. Settings pages must not show the disabled-service banner while settings are still loading. (UIOAIPMH-102)
-43. The Sets page is hidden in Settings > OAI-PMH while the `/oai-pmh/sets` API stays available. (UIOAIPMH-62; C376937; `src/settings/index.js`)
-44. In the error log file, each error appears once per instance. (MODOAIPMH-647)
-45. A harvest with `from`/`until` returns only records changed within the window; records missing from ListRecords but returned by GetRecord usually mean a wrong window. (MODOAIPMH-570 resolution comment)
-46. OAI-PMH has no export profiles: mappings are fixed; marc21_withholdings can carry one `856` from the SRS record plus one per holdings/item electronic access. (MODOAIPMH-427 comment)
-47. With Record source = Source records storage and Inventory, FOLIO-source instances are returned as an abbreviated MARC generated from the default mappings; MARC-source instances return the full SRS record. (EDGOAIPMH-135 comment; Confluence "Harvested Inventory Data")
+21. With Deleted records support = `No`, set-for-deletion instances are not returned by any verb (MODOAIPMH-614 comment, MODOAIPMH-567 verification "Scenario 3"). "Set record for deletion" (Actions menu) and the "Set for deletion" checkbox in Edit instance make MARC and FOLIO instances harvest as `deleted` in ListRecords, ListIdentifiers and GetRecord (Persistent/Transient), in non-ECS and ECS single/cross-tenant harvests. (MODOAIPMH-613, MODOAIPMH-614; Karate C729189/C729193/C729194/C729195/C729198–C729201)
+22. An instance whose `deleted` field is absent/null is treated as not deleted and is harvested. (MODOAIPMH-624, MODINVSTOR-1422)
+23. For a MARC instance, edit SRS, edit instance, add/edit/delete holdings and add/edit/delete item all count as an update for incremental harvesting — also when the instance is already deleted (then it is returned as `deleted` with the update timestamp). (MODSOURCE-906 / MODOAIPMH-619 steps; MODOAIPMH-662 steps)
+24. DCB instance `9d1b77e4-f02e-4b7f-b296-3f2042ddac54` and DCB holdings `10cd3a5a-d36f-4c7a-bc4f-e1ae3cf820c9` are excluded from full and incremental harvests for ListRecords, ListIdentifiers and GetRecord (all prefixes), and edits to them do not trigger incremental inclusion. (MODOAIPMH-661; mod-oai-pmh `Constants.java`; Karate `oaipmh-dcb.feature`)
+25. `952$k` gets Display summary whenever the item has one, and `$l` is then omitted; without Display summary `$k`=Enumeration, `$l`=Chronology. (MODOAIPMH-657)
+26. `952$s` = effective location FOLIO name; `952$d` = Discovery display name, or the location name if display name is null. (MODOAIPMH-587; `RecordMetadataManager.java`)
+27. An Inactive effective location is still output, with `Inactive ` prefixed to `952$d` and `952$s`. (MODOAIPMH-561; `RecordMetadataManager.java`)
+28. `952$p` = item temporary loan type if present, otherwise permanent loan type. (`RecordMetadataManager.java`; Confluence "Harvested Inventory Data")
+29. A MARC `856` with blank 1st indicator still gets `$t` (`0`/`1` by suppression) in GetRecord and ListRecords. (MODOAIPMH-666, mod-oai-pmh 3.16.1)
+30. LINKED_DATA instances: transfer mode sets `999$t` and `856$t` to `1` if suppressed / `0` if not; skip mode omits suppressed ones — same for all verbs, all three Record source values, ECS and non-ECS. (MODOAIPMH-600)
+31. LINKED_DATA instances: `999 ff` has `$i` instance UUID, `$s` SRS UUID, `$l` Linked_Data UUID for GetRecord and ListRecords and all Record source values. (MODOAIPMH-602; C663352)
+32. Non-ASCII characters in location names (952 `$a`–`$d`) must be output intact in UTF-8 (no replacement characters). (MODOAIPMH-584; MODOAIPMH-672 in QA)
+33. Since Trillium, OAI-PMH settings live in mod-oai-pmh (`/oai-pmh/configuration-settings`), not mod-configuration; tenant upgrade migrates existing values; settings must be present and service enabled after an environment rebuild. (MODOAIPMH-621, UIOAIPMH-95, MODOAIPMH-653)
+34. With the service disabled (General page): `Enable OAI service` is enabled and unchecked; `Repository name`, `Base URL`, `Administrator email(s)` are disabled and empty; `Time granularity` is disabled but not empty; nothing is marked required. General-page validation runs only when Enable OAI service is checked (`GeneralFormValidator.js`; UIOAIPMH-99; C1273159)
+35. With the service disabled (Technical/Behavior pages): all fields are disabled with their current or default values and not marked required; the banner and tooltip use the "in the General section" wording. (UIOAIPMH-99; C1273159)
+36. With the service enabled: Repository name, Base URL, Administrator email(s) and Max records per response are required; Time granularity, Enable validation and Formatted output are not; all Behavior fields are required. (UIOAIPMH-99; `GeneralFormValidator.js`, `TechnicalFormValidator.js`)
+37. Max records per response accepts whole numbers from 1 to 500. (`TechnicalFormValidator.js`; en.json `settings.all.validationMessage.less500`, `.isIntegerGreaterThanZero`)
+38. Settings pages must not show the disabled-service banner while settings are still loading. (UIOAIPMH-102)
+39. A harvest with `from`/`until` returns only records changed within the window; records missing from ListRecords but returned by GetRecord usually mean a wrong window. (MODOAIPMH-570 resolution comment)
+40. OAI-PMH has no export profiles: mappings are fixed; marc21_withholdings can carry one `856` from the SRS record plus one per holdings/item electronic access. (MODOAIPMH-427 comment)
+41. With Record source = Source records storage and Inventory, FOLIO-source instances are returned as an abbreviated MARC generated from the default mappings; MARC-source instances return the full SRS record. (EDGOAIPMH-135 comment; Confluence "Harvested Inventory Data")
 
 ---
 
@@ -460,6 +451,8 @@ OAI-PMH: **`Other` ~84%** / Func ~16%, median ~8 steps, `User Journey` ~0%. This
 
 ## Known Gaps / Items to Verify
 
+- [ ] Capability set names `Settings - Settings Oai-Pmh Enabled - View` and `Settings - UI-Oai-Pmh Settings Logs - View` are not confirmed on Eureka (only UI-Oai-Pmh Settings View/Edit are, UIOAIPMH-95) — verify in the role editor.
+- [ ] Rule 15/16 consequences (Time granularity constraining from/until precision; Base URL mismatch breaking continuation) are unverified; docs only say they populate Identify `granularity`/`baseURL`.
 - [ ] Exact save/run toast strings for current Umbrellaleaf and Trillium environments (settings toast is source-confirmed; "run" toasts belong to supporting apps).
 - [x] ~~Exact labels and control names in Logs filter accordion~~ — resolved 2026-11-24: Logs has no filter pane in source (`Logs.js` = header + table); the earlier "Search and filter pane in Logs [from cases]" entry was removed.
 - [ ] Release-tag consistency in TestRail custom release field for all subtree cases.
@@ -475,9 +468,7 @@ OAI-PMH: **`Other` ~84%** / Func ~16%, median ~8 steps, `User Journey` ~0%. This
 - [ ] Does editing LDR05 to `d` in quickMARC set the Inventory `deleted` flag in every path? MODOAIPMH-667 relies on Folijet's sync statement; verify in env for MARC and ECS shared records.
 - [ ] Service disabled: UIOAIPMH-99 comments say Behavior/Technical fields are not reset to defaults when the service is unchecked (FE shows latest saved values) — expected values are "default or previously populated".
 
-> N≥10 audit round (2026-07-21): 12 cases read — C375138, C400648, C376937, C410816, C423498, C411725, C411613, C376963, C388546, C1347154, C663352, C380633. Added: default settings values, Logs pane retention/columns, page-title formats, 952$r ILL Policy and 022$l Linking ISSN mappings, bound-with dual-instance visibility, LINKED_DATA source type mapping (999$l), Deleted-records-support=No hard-exclusion behavior vs Persistent/Transient, resumptionToken cursor semantics, and cross-instance incremental harvest on holdings move. Also surfaced a discrepancy: the "Sets" settings feature documented in this file appears NOT to exist in the current UI.
-
-> Random spot-check (2026-07-23): picked one fresh uncited case at random from the 275-case section tree (C375209) — confirmed that a plain Item edit (no move/transfer involved) is by itself enough to trigger incremental re-harvest of the parent Instance, and surfaced the `t=0` non-suppressed counterpart to the already-documented `t=1` suppression marker. Added Key Business Rule 19.
+> Earlier audit rounds (2026-07-21 / 2026-07-23): cases read C375138, C400648, C376937, C410816, C423498, C411725, C411613, C376963, C388546, C1347154, C663352, C380633, plus random spot-check C375209 (Rule 19). They added defaults, Logs retention/columns, page titles, 952$r/022$l mappings, bound-with dual visibility, LINKED_DATA 999$l, Deleted-support=No exclusion, resumptionToken cursor semantics, holdings-move incremental harvest, and showed the Sets UI does not exist.
 
 > Full refresh (2026-11-24): Jira MODOAIPMH/UIOAIPMH/EDGOAIPMH (56 Done stories/bugs since 2024-06-01 + tasks + open), ui-oai-pmh en.json/src, mod-oai-pmh descriptor/source/config, edge-oai-pmh README/RAML, Karate and Cypress trees, docs and Confluence "Harvested Inventory Data", TestRail cases updated since 2026-06-17 (26; read C410816, C376983). Corrected: page-title format, Record source label casing, Logs pane structure, service-disabled error behavior. Added rules 20–47, API surface, error texts, tooltips, validation, defaults, coverage.
 
@@ -492,30 +483,9 @@ OAI-PMH: **`Other` ~84%** / Func ~16%, median ~8 steps, `User Journey` ~0%. This
 ### What changed
 - No ui-oai-pmh commits; new manual harvest cases created for Consortia SRS/Inventory initial harvests (see TestRail list).
 
-### Jira — Done since build (eureka / data-export / oai-pmh / courses / dcb / ERM (STCOR, MODUSERSKC, MODROLESKC, UIROLES, MDEXP, UIDEXP, MODOAIPMH, UICR, MODCR, MODDCB, ERM) since 2026-06-16 (first 50))
+### Jira — cross-area query (not OAI-PMH specific)
+- The 2026-11-07 delta also listed Done items for eureka / data-export / courses / dcb / ERM (STCOR-1087/1095/1089/1099/1105/1109/781/782/780, MODROLESKC-413/388, MODUSERSKC-143, UIROLES-175, MDEXP-936, ERM-4161/4123..4126/4133); none changes OAI-PMH behavior, so they are omitted here. Jira project ERM is readable anonymously (contrary to the older build-app-context note).
 
-- STCOR-1087 Bug — session timeout counter resets to 1 min after refresh / affiliation change; STCOR-1095 session refresh after closing original tab; STCOR-1089/1099 forgot password/username requests; STCOR-1105 "Sorry, there was an error during initialization. Please try again." on first open; STCOR-1109 dates not affected by time zone for non-admin user (Sunflower)
-- STCOR-781/782/780 Story — application unloading UI message; "update is ready" indicator; polling tenant entitlements
-- MODROLESKC-413 Story — role names: "/" character constraint; MODROLESKC-388 Bug — ECS role create in member via Consortium manager; MODUSERSKC-143 Bug — reset password works from 2nd attempt for users with no capabilities; UIROLES-175 Bug — Authorization roles UI slowness
-- MDEXP-936 Bug — download-record returns stale MARC after SRS update
-- ERM-4161 Story — on-demand GOKB package harvesting (Agreements, Sunflower CSP); ERM-4123..4126/4133 domain events for agreement lines and licenses (backend)
-- Jira projects ERM are accessible with the current token (contrary to the build-app-context note)
-
-### TestRail — cases created since 2026-06-17: 16 (16 manual, 0 automated/Karate)
-
-- C1505039 Consortia\| SRS \| Initial harvest ListRecords from member:  MARC  instances are harvested (marc21) — refs MODOAIPMH-524,EDGOAIPMH-99,MODOAIPMH-492,MODOAIPMH-490
-- C1505038 Consortia \| SRS + Inventory\| Initial harvest from member tenant\| marc21 — refs MODOAIPMH-524,EDGOAIPMH-99,MODOAIPMH-492,MODOAIPMH-490
-- C1505037 Consortia \| Inventory\| Initial harvest from member tenant\| marc21 — refs MODOAIPMH-524,EDGOAIPMH-99,MODOAIPMH-492,MODOAIPMH-490
-- C1505036 Consortia \| Inventory\| Initial harvest from central tenant\| marc21 — refs MODOAIPMH-524,EDGOAIPMH-99,MODOAIPMH-492,MODOAIPMH-490
-- C1505035 Consortia \| Inventory\| Initial harvest from central tenant\| marc21_withholdings — refs MODOAIPMH-524,EDGOAIPMH-99,MODOAIPMH-492,MODOAIPMH-490,EDGOAIPMH-112
-- C1505034 Consortia \| Inventory\| Initial harvest from member tenant\| marc21_withholdings — refs MODOAIPMH-524,EDGOAIPMH-99,MODOAIPMH-492,MODOAIPMH-490
-- C1505033 Consortia \| SRS + Inventory\| Initial harvest from member tenant\| marc21_withholdings — refs MODOAIPMH-524,EDGOAIPMH-99,MODOAIPMH-492,MODOAIPMH-490
-- C1505032 Consortia \| SRS \| Initial harvest from central tenant\|  MARC  instances are harvested (marc21) — refs MODOAIPMH-524,EDGOAIPMH-99,MODOAIPMH-492,MODOAIPMH-490
-- C1505031 Consortia \| SRS + Inventory\| Initial harvest from central tenant\|  MARC & FOLIO  instances are harvested (marc21) — refs MODOAIPMH-524,EDGOAIPMH-99,MODOAIPMH-492,MODOAIPMH-490
-- C1505030 Consortia \| SRS + Inventory\| Initial harvest from central tenant\|  MARC & FOLIO  instances are harvested (marc21_withholdings) — refs MODOAIPMH-524,EDGOAIPMH-99,MODOAIPMH-492,MODOAIPMH-490,EDGOAIPMH-112
-- C1505029 Consortia \| SRS \| Initial harvest from central tenant\|  MARC  instances are harvested (marc21_withholdings) — refs MODOAIPMH-524,EDGOAIPMH-99,MODOAIPMH-492,MODOAIPMH-490,EDGOAIPMH-112
-- C1505028 Consortia \| SRS \| Initial harvest from member tenant\|  MARC  instances are harvested (marc21_withholdings) — refs MODOAIPMH-524
-- C1505025 Inventory: Initial harvest with metadataPrefix set to oai_dc — refs MODOAIPMH-455
-- C1505023 Inventory: Initial harvest with metadataPrefix set to marc21 — refs MODOAIPMH-499,MODOAIPMH-509,MODOAIPMH-322,MODOAIPMH-490,MODOAIPMH-491,MODEXPS-167,MODOAIPMH-138,MODOAIPMH-457,MODOAIPMH-513
-- C1505022 SRS: Initial harvest with metadataPrefix set to oai_dc — refs MODOAIPMH-455,MODOAIPMH-457,MODOAIPMH-513
-- C1505021 SRS: Initial harvest with metadataPrefix set to marc21_withholdings — refs UXPROD-2740,MODOAIPMH-254,PERF-144,MODOAIPMH-509,MODOAIPMH-490,MODOAIPMH-491,MODEXPS-167
+### TestRail — 16 manual cases created since 2026-06-17 (none automated)
+- Consortia initial-harvest cases C1505028–C1505039 (SRS / Inventory / SRS+Inventory × central / member tenant × `marc21` / `marc21_withholdings`); refs MODOAIPMH-524, EDGOAIPMH-99, MODOAIPMH-492, MODOAIPMH-490, EDGOAIPMH-112 (withholdings cases).
+- Non-ECS initial-harvest cases: C1505021 (SRS, `marc21_withholdings`; UXPROD-2740, MODOAIPMH-254, PERF-144, MODOAIPMH-509, MODOAIPMH-490/491, MODEXPS-167), C1505022 (SRS, `oai_dc`; MODOAIPMH-455/457/513), C1505023 (Inventory, `marc21`; MODOAIPMH-499/509/322/490/491/138/457/513, MODEXPS-167), C1505025 (Inventory, `oai_dc`; MODOAIPMH-455).
