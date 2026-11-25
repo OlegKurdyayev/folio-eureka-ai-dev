@@ -105,20 +105,20 @@ From `descriptors/ModuleDescriptor-template.json`; `permissionsRequired` in brac
 
 | Okapi permission (package.json `stripes.permissionSets`) | Eureka capability set |
 |---|---|
-| `ui-inn-reach.app.all` — INN-Reach App: All permissions | `data - UI-Inn-Reach App - manage` (C844853, C1543961) |
-| `ui-inn-reach.settings.view` — Settings (inn-reach): All INN-Reach settings: Read-only | `settings - UI-Inn-Reach Settings - view` (derived from naming convention, UIINREACH-259 — verify) |
-| `ui-inn-reach.settings.edit` — …: Read, edit | `settings - UI-Inn-Reach Settings - edit` (UIINREACH-259 — verify) |
-| `ui-inn-reach.settings.all` (replaces `ui-inn-reach.settings.crud`) — …: CRUD | `settings - UI-Inn-Reach Settings - manage` (MODINREACH-542, UIINREACH-259) |
+| `ui-inn-reach.app.all` — INN-Reach App: All permissions | `Data - UI-Inn-Reach App - manage` (confirmed: C844853, C1543961 preconditions, which spell it `data - UI-Inn-Reach App - manage`; C1395025 differs, see Known Gaps) |
+| `ui-inn-reach.settings.view` — Settings (inn-reach): All INN-Reach settings: Read-only | `Settings - UI-Inn-Reach Settings - view` (confirmed by UIINREACH-259 description: "Settings - UI-Inn-Reach Settings" has `view` and `edit`; exact casing in a Eureka UI not seen) |
+| `ui-inn-reach.settings.edit` — …: Read, edit | `Settings - UI-Inn-Reach Settings - edit` (confirmed by UIINREACH-259, as above) |
+| `ui-inn-reach.settings.all` (replaces `ui-inn-reach.settings.crud`) — …: CRUD | `Settings - UI-Inn-Reach Settings - manage` (confirmed: UIINREACH-259 names "Settings - UI-Inn-Reach Settings - manage" as the replacement for the Crud set; MODINREACH-542) |
 
 Most transaction cases also need Check out, Inventory view and Users loans view capabilities (preconditions of C353659/C353939); Local "Transfer hold to another item" additionally needs `ui-requests.moveRequest` [code].
 
 ## Settings rules (FOLIJET wiki "Inn-reach settings" unless noted)
 
-- INN-Reach locations: code exactly 5 characters, description optional.
-- Contribution criteria: excluded locations → items there are not contributed; an instance whose holdings are all in excluded locations is de-contributed. "Contribute but suppress" stat code → contributed, not discoverable. "Exclude" stat code → not contributed; instance de-contributed when all its items carry it. "System-owned resource" stat code → instance contributed as INN-Reach resource.
+- INN-Reach locations: code exactly 5 characters, description optional [wiki]; mod-inn-reach `innReachLocationDTO.json` only enforces `maxLength: 5` (exact length is wiki-only).
+- Contribution criteria [wiki]: excluded locations → items there are not contributed; an instance whose holdings are all in excluded locations is de-contributed. "Contribute but suppress" stat code → contributed, not discoverable. "Exclude" stat code → not contributed; instance de-contributed when all its items carry it. "System-owned resource" stat code → instance contributed as INN-Reach resource.
 - Material to item type mapping: adding a new material type in Settings > Inventory makes the mapping status Invalid until mapped; ongoing contribution stops meanwhile (MODINREACH-539 comments).
 - FOLIO to INN-Reach locations: for a library mapping, only locations of that library are listed (UIINREACH-246).
-- Circulation status mapping: unavailable statuses, non-lendable loan types / locations / material types → item contributed as Unavailable.
+- Circulation status mapping [wiki]: unavailable statuses, non-lendable loan types / locations / material types → item contributed as Unavailable.
 - FOLIO circulation user for INN-Reach patron type: user barcodes with special symbols cannot be saved; all central patron types are listed (no 10-row limit, UIINREACH-274, Trillium+).
 - Pickup locations: checked → service point from the transaction payload is used; unchecked → the mapped user's default pickup service point is used; without one the transaction is created as CANCEL_REQUEST (C357039, C357046, C357048).
 - Central server configuration: "Generate keypair" in edit mode regenerates only the secret; the local server key is preserved (UIINREACH-272, ui 6.1.0); the local server key must be a UUID (MODINREACH-490).
@@ -126,7 +126,7 @@ Most transaction cases also need Check out, Inventory view and Users loans view 
 
 ## Karate and Cypress coverage
 
-- Karate `folio-org/folio-integration-tests/mod-inn-reach` (Vega; runner `src/test/java/org/folio/InnReachApiTest.java`, 20 features in `src/main/resources/vega/mod-inn-reach/features/`): central-server(-configuration), inn-reach-location, contribution(-criteria), item-contribution-options-configuration, material-type-mapping, item-type-mapping, library-mapping, location-mapping, agency-mappings, central-patron-type-mapping, patron-type-mapping, user-custom-field-mapping, inn-reach-recall-user, marc-transformation-options-settings, marc-record-transformation, bib-info, patron-info, authentication, inn-reach-proxy, inn-reach-transaction (item/patron hold lifecycle incl. negative cases), inn-reach-circulation (all D2IR operations incl. ownerrenew, finalcheckin). Helpers in `global/transaction-helper.feature`. Uses Okapi permissions and mod-configuration.
+- Karate `folio-org/folio-integration-tests/mod-inn-reach` (Vega; runner `src/test/java/org/folio/InnReachApiTest.java`, 23 `.feature` files in `src/main/resources/vega/mod-inn-reach/features/`, verified 2026-11-25): central-server(-configuration), inn-reach-location, contribution(-criteria), item-contribution-options-configuration, material-type-mapping, item-type-mapping, library-mapping, location-mapping, agency-mappings, central-patron-type-mapping, patron-type-mapping, user-custom-field-mapping, inn-reach-recall-user, marc-transformation-options-settings, marc-record-transformation, bib-info, patron-info, authentication, inn-reach-proxy, inn-reach-transaction (item/patron hold lifecycle incl. negative cases), inn-reach-circulation (all D2IR operations incl. ownerrenew, finalcheckin). Helpers in `global/transaction-helper.feature`. Uses Okapi permissions and mod-configuration.
 - Karate `edge-inn-reach` (runner `EdgeInnReachApiTest.java`): central-server, inn-reach-proxy.
 - Not covered by Karate: paging-slip-template, paging-slips, visible-patron-field-configuration, patronhold/remove, localhold/transfer-item, transaction sorting by title/patronName, report queries.
 - Cypress `stripes-testing`: only `cypress/e2e/inn-reach-integration/verify-that-record-meta-data-is-present-on-staff-slips.cy.js` (C411863, Circulation staff slips); no INN-Reach app UI specs.
@@ -185,7 +185,7 @@ INN-Reach is not part of ECS setups; INN-Reach cases are marked "ECS unsupported
 
 ## Known Gaps / Items to Verify
 
-- [ ] Capability set names for `ui-inn-reach.settings.view` / `.edit` are derived from the naming convention (UIINREACH-259), not seen in a case. C1395025 writes the app set as "Data - UI - Inn-Reach - Manage" while C844853/C1543961 use "data - UI-Inn-Reach App - manage" — verify on a Eureka env.
+- [ ] Capability set names for the Settings sets are confirmed only by the UIINREACH-259 description (not in Cypress dictionary, which has no INN-Reach entries, nor in a case); exact casing on a Eureka env not seen. C1395025 writes the app set as "Data - UI - Inn-Reach - Manage" while C844853/C1543961 use "data - UI-Inn-Reach App - manage" — verify on a Eureka env.
 - [ ] Owning site paged too long report: code sends `createdDate > today − (minDays − 1)` (`getParamsForOwningSitePagedTooLongReport`), i.e. transactions created within the last N days; the wiki "Inn-reach app reports and slips" asks the same question; UIINREACH-236 expected older-than semantics. Confirm with PO before asserting.
 - [ ] Wiki Item hold flow says Final check-in becomes active at ITEM_RECEIVED; code also enables it in RECEIVE_UNANNOUNCED and ITEM_IN_TRANSIT. Code wins.
 - [ ] Wiki Patron hold flow: Cancel hold is clickable after check-out to patron but does nothing; renewal of an Item-hold loan from Users does not change the transaction status ("to be investigated").
