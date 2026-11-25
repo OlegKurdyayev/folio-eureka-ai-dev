@@ -1,16 +1,10 @@
 # FOLIO Finance App - Business Logic Context
 
-> Built: 2026-07-21 · Delta-refreshed: 2026-11-07 · Refreshed: 2026-11-24 · Release: Umbrellaleaf R2 2026 (ui-finance master package.json 9.1.0; mod-finance master 6.0.0-SNAPSHOT; last fixVersions seen: UIF 9.0.0 / MODFIN 5.2.0 / MODFISTO 8.9.0 = Trillium R1 2026) · Builder: build-app-context/manual — header normalized 2026-11-07, see area-map.md → Freshness
+> Built: 2026-07-21 · Delta-refreshed: 2026-11-07 · Refreshed: 2026-11-25 · Release: Umbrellaleaf R2 2026 (ui-finance master package.json 9.1.0; mod-finance master 6.0.0-SNAPSHOT; last fixVersions seen: UIF 9.0.0 / MODFIN 5.2.0 / MODFISTO 8.9.0 = Trillium R1 2026) · Builder: build-app-context/manual — header normalized 2026-11-07, see area-map.md → Freshness
 
-> Generated/refreshed by the build-app-context workflow on 2026-06-18.
-> **Manual enrichment on 2026-07-21** (browser-based). TestRail cases C186156/C380517/C648502 supplied the Transaction detail-pane fields, Budget structure, Rollover page/dialogs and rollover rules. The public GitHub translation file `folio-org/ui-finance/translations/ui-finance/en_US.json` supplied every exact toast, error, confirm-dialog and create-form field label. "Exact UI Texts" is now complete for Finance; see Known Gaps for the (minor) remaining metadata staleness.
-> Sources used in the 2026-06-18 run:
-> - TestRail subtree scoped from group_id=454 (sections: 12, cases: 249 total)
-> - Focus releases requested: Umbrellaleaf, Trillium, Sunflower, Ramsons, 2023 Poppy (0 exact-label matches in this subtree)
-> - Release labels observed in this subtree include: Trillium (16), Sunflower (28), Ramsons (56), Poppy (as "R2 2023 Poppy", 24)
-> - GitHub: folio-org/ui-finance, folio-org/mod-finance-storage (9 files sampled)
-> - Jira: FOLIO component "Finance" (0 Done stories, 0 Done bugs returned in this run)
-> This file combines stable Finance domain rules with run evidence for test-writing decisions.
+> Originally built 2026-06-18 by build-app-context (TestRail group 454: 12 sections / 249 cases; ui-finance + mod-finance-storage; Jira component "Finance" returned 0 Done issues, so UIF / MODFIN / MODFISTO keys are used since the 2026-11 refresh).
+> **Manual enrichment 2026-07-21:** TestRail C186156 / C380517 / C648502 (transaction detail pane, budget structure, rollover page/dialogs) and `folio-org/ui-finance` `translations/ui-finance/en_US.json` (toasts, errors, confirm dialogs, form labels). `en.json` is now the source of truth for strings (see Known Gaps).
+> Combines stable Finance domain rules with run evidence for test-writing decisions.
 
 ---
 
@@ -44,10 +38,11 @@ Group  (cross-Ledger grouping of Funds - for reporting/summary only)
 
 ### Key rules
 - A single tenant can have multiple fiscal year series running in parallel (e.g. FYA for academic library, FYG for government library on different calendar years)
-- The "current" fiscal year is determined by whether today's date falls within the Period Begin-End range, not by a manual flag
+- The "current" fiscal year is determined by dates, not by a manual flag: mod-finance picks it from the ledger's fiscal-year series using today's date in the system time zone (`LedgerDetailsService.defineCurrentFiscalYear`; Karate `curr-fiscal-year-for-ledger-consider-time-zone.feature`)
 - A ledger can be associated with multiple fiscal years (for rollover history)
-- Budget currency is locked at fiscal year creation time - set to the tenant primary currency when the fiscal year record is created; if tenant currency changes later, existing budgets remain in the original currency
+- Budget currency is locked at fiscal year creation time - set to the tenant primary currency when the fiscal year record is created; if tenant currency changes later, existing budgets remain in the original currency (docs.folio.org Finance → Fiscal year `Currency`; MODFIN-386, UIF-538)
 - Optional: Acquisition units, Description
+- Before creating an FY check Settings → Tenant → Language and localization `Primary currency` - the FY (and its budgets/funds) take that currency (docs Finance → Fiscal year)
 
 ---
 
@@ -62,14 +57,14 @@ Group  (cross-Ledger grouping of Funds - for reporting/summary only)
 ### Key fields
 | Field | Notes |
 |---|---|
-| Enforce all budget encumbrance limits | Checked by default; if checked: FOLIO rejects encumbrances that exceed available budget |
-| Enforce all budget expenditure limits | Checked by default; if checked: FOLIO rejects expenditures that exceed available budget |
+| Enforce all budget encumbrance limits | Checked by default (docs Finance → Ledger; `CreateLedger.js` initial `restrictEncumbrance: true`); if checked: FOLIO rejects encumbrances that exceed available budget |
+| Enforce all budget expenditure limits | Checked by default (docs; `CreateLedger.js` `restrictExpenditures: true`); if checked: FOLIO rejects expenditures that exceed available budget |
 | Acquisition units | Controls who can view/edit this ledger |
 | Description | Optional |
 
-### Ledger status values
-- Active - ongoing; funds and budgets can be transacted against
-- Frozen - paused; no new transactions allowed
+### Ledger status values (docs.folio.org Finance → Ledger; schema `ledger.json`)
+- Active - ongoing
+- Frozen - paused (docs say only "put on pause"; transaction blocking for Frozen is (unverified), see Known Gaps)
 - Inactive - no longer in use
 
 ### Ledger detail view
@@ -80,11 +75,8 @@ Shows: associated Funds with current Budget values, Groups, summary totals per f
 
 ### Rollover
 Triggered from ledger Actions -> Rollover:
-1. Creates new budgets for the next FY (configurable allocation carry-over)
-2. Creates new encumbrances for open orders in the next FY
-3. Optionally closes current budgets
-4. Does not automatically advance the "current" FY - determined by FY period dates
-- Requires Finance rollover execute capability set
+See "Rollover Fiscal Year" and "Rollover - additional rules" below for what it does. It does not advance the "current" FY - that is date-driven.
+- Requires `Procedural - UI-Finance Ledger Rollover - Execute`
 
 ---
 
@@ -97,8 +89,8 @@ Triggered from ledger Actions -> Rollover:
 
 ### Key characteristics
 - Cross-ledger grouping of funds for summary/reporting
-- Does not restrict transactions - reporting only
-- A fund can belong to multiple groups
+- Does not restrict transactions - summary/reporting only (docs Finance → Group: groups bring funds together so totals can be summarized by group, ledger or fiscal year)
+- A fund can belong to multiple groups (docs Finance → Group)
 - Optional: Acquisition units, Description
 
 ---
@@ -108,28 +100,27 @@ Triggered from ledger Actions -> Rollover:
 ### Required fields
 - Name
 - Code - must be unique; alphanumeric recommended
-- Ledger - exactly one; cannot be changed after creation
+- Ledger - exactly one (docs.folio.org Finance → Fund `Ledger`); "cannot be changed after creation" is (unverified) - the Fund form (`ui-finance` `FundForm.js`) does not disable the Ledger select in edit mode, see Known Gaps
 - Status - Active / Frozen / Inactive
 
 ### Key fields
 | Field | Notes |
 |---|---|
 | Currency | Pre-filled from the fiscal year currency; read-only after creation |
-| Type | Optional category (e.g. Endowment, Restricted); used to group funds at rollover; funds without type grouped under "No fund type" at rollover |
-| Acquisition units | Controls access; funds with restricted acquisition units are hidden from fund distribution dropdowns in Orders/Invoices for users outside those units |
+| Type | Optional category (e.g. Endowment, Restricted); used to group funds at rollover (docs Finance → Fund `Type`); funds without type show `No fund type` on the Rollover page (`ledger.rollover.noFundType`, `RolloverLedgerBudgets.js`) |
+| Acquisition units | Controls who can edit the fund (docs Finance → Fund); hiding restricted funds from fund-distribution dropdowns in Orders/Invoices is (unverified) - Orders/Invoices-side, not checked |
 | Group | Assign fund to one or more groups |
-| Transfer from | Restrict which funds can transfer into this fund; blank = any fund allowed |
+| Transfer from | Restrict which funds can transfer into this fund; blank = any fund allowed (docs Finance → Fund) |
 | Transfer to | Restrict which funds this fund can transfer to; blank = any fund allowed |
 | External account number | Optional accounting system reference |
 | Description | Optional |
 | Donor information | Optional donor attribution |
-| Locations | Optional location restrictions - limit fund use to specific library locations |
+| Locations | Optional location restrictions - limit fund use to specific library locations (docs: appears when `Restrict use by location` is checked; on a PO line only the fund's locations are offered in the location dropdown; to unrestrict, also uncheck the box) |
 | Tags | Optional |
 
 ### Fund status
-- Active - required for orders to be opened against this fund and for invoices to be paid
-- Frozen - paused; no new transactions
-- Inactive - no longer in use
+- Active - required for orders to be opened against this fund and for invoices to be fully paid (docs Finance → Fund `Status`)
+- Frozen - paused (docs); Inactive - no longer in use (docs). Transaction blocking for Frozen/Inactive is (unverified), see Known Gaps
 
 ---
 
@@ -144,12 +135,12 @@ One budget per Fund per Fiscal Year.
 ### Key fields
 | Field | Notes |
 |---|---|
-| Allowable encumbrance (%) | Maximum percentage of allocation that can be encumbered; optional; if blank, no encumbrance limit beyond ledger setting |
+| Allowable encumbrance (%) | Maximum percentage of allocation that can be encumbered; optional; if blank, no encumbrance limit beyond ledger setting (docs Finance → Budget; semantics under Docs-sourced field semantics) |
 | Allowable expenditure (%) | Maximum percentage of allocation that can be expended; optional |
-| Status | Active / Planned / Closed / Frozen / Inactive (budget schema `budgetStatus` enum — acq-models `mod-finance/schemas/budget.json`; docs.folio.org Finance → Budget status; TestRail C663288 creates budgets in Inactive and Closed) |
+| Status | Active / Planned / Closed / Frozen / Inactive (schema `budgetStatus` — acq-models `budget.json`; docs Finance → Budget status; C663288 creates Inactive and Closed budgets) |
 | Expense classes | Add one or more expense classes to track spending by category within the budget |
 
-### Budget financial buckets
+### Budget financial buckets (docs.folio.org Finance → Budget summary; formulas also verified in cases C449364, C496145)
 
 | Bucket | Description | Formula |
 |---|---|---|
@@ -159,17 +150,18 @@ One budget per Fund per Fiscal Year.
 | Encumbered | Reserved for open orders not yet invoiced | Sum of open Encumbrance transactions |
 | Awaiting payment | Approved invoices not yet paid | Sum of Pending payment transactions |
 | Expended | Paid invoices | Sum of Payment transactions |
-| Unavailable | Encumbered + Awaiting payment + Expended | Sum of all committed/spent amounts |
-| Over encumbered | Amount by which encumbrances exceed available | Only shows if ledger restrictions disabled |
-| Over expended | Amount by which expenditures exceed available | Only shows if ledger restrictions disabled |
+| Credited | Sum of Credit transactions | Shown separately from Expended (docs Finance → Budget summary; UIF-494..498) |
+| Unavailable | Encumbered + Awaiting payment + Credited + Expended | Sum of all committed/spent amounts (docs: credited is part of Unavailable) |
+| Over encumbered | Amount by which encumbrances exceed available (docs Finance → Fiscal year summary) | Only shows if ledger restrictions disabled (unverified) |
+| Over expended | Amount by which expenditures exceed available | Only shows if ledger restrictions disabled (unverified) |
 | Cash balance | Total funding - Expended | Remaining cash |
 | Available | Total funding - Unavailable | Money not yet committed |
 
 ### Budget status values
 Schema enum (acq-models `budget.json`): `Active`, `Frozen`, `Inactive`, `Planned`, `Closed`.
-- Active - current; accepts transactions
+- Active - current; accepts transactions (docs Finance → Budget `Status`)
 - Planned - future budget; not yet active for transactions (FOLIO still allows a Planned budget in the current FY and an Active one in a future FY — MODFIN-407 comment)
-- Closed - no longer accepting transactions; typically set during fiscal year rollover
+- Closed - the budget's period of activity has ended (docs: typically a result of fiscal year rollover); docs state the budget must be Active to open an order or approve/pay an invoice
 - Frozen / Inactive - budget paused / no longer in use (docs.folio.org Finance → Budget fields)
 
 ### Expense classes
@@ -187,7 +179,7 @@ Allocation adds money to a budget. Three allocation operations:
 ### Increase allocation
 - Budget -> Actions -> Increase allocation
 - Enter amount -> Save -> Allocation transaction created
-- Requires allocation create capability set + view/edit fund and budget capability sets
+- Requires `Data - UI-Finance Allocations - Create` + the Fund-Budget Edit capability set (docs: must include view and edit fund and budget)
 
 ### Decrease allocation
 - Budget -> Actions -> Decrease allocation
@@ -203,14 +195,14 @@ Allocation adds money to a budget. Three allocation operations:
 - Multiple funds can be allocated simultaneously:
   - Via UI - select multiple funds -> Actions -> Batch allocate -> enter amounts per fund
   - Via **allocation worksheet (CSV)** - download the worksheet, edit it, upload it back
-- Batch allocation jobs are logged; logs can be viewed and deleted (separate capability sets: `Data - UI-Finance Fund-Update-Logs - View` / `- Delete`)
+- Batch allocation jobs are logged; logs can be viewed and deleted (separate capability sets: `Data - UI-Finance Fund-Update-Logs - View` / `- Delete`, docs)
 
 #### Allocation worksheet (CSV) — download & upload (confirmed C648502/C648514/C651511 etc.; refs UIF-525, UIF-526, MODFIN-391, MODFIN-421)
 
 - **Download:** from a **Ledger view** → `Actions > Download allocation worksheet (CSV)` → **"Select fiscal year"** modal (`Fiscal year` dropdown, **newest FY selected by default**, `Cancel` / `Confirm`). Confirm shows toast `Please wait while the worksheet is generated. Your download will start automatically` and downloads a CSV.
 - **Worksheet columns:** Fund columns are always populated — `Fiscal year`, `Fund name`, `Fund code`, `Fund UUID`, `Fund status`; Budget columns — `Budget name`, `Budget UUID`, `Budget status`, `Budget initial allocation`, `Budget current allocation`, … — are **blank when the fund has no budget for that FY** (that's how a budget gets *created* on upload).
 - **Upload:** `Actions > Upload allocation worksheet (CSV)` **creates or updates budgets in batch** for the worksheet's fiscal year — works for both the **Current** and a **Future** fiscal year (C648514 / C651511). A blank budget row → budget created; a filled row → budget updated.
-- **Upload validations (each its own negative case):** rejects a file that is not `.csv`, a worksheet with a **missing column**, a CSV that **doesn't correspond** to the generated worksheet, rows whose **fiscal years differ**, a **fund belonging to another Ledger**, and **invalid fund/budget status** values. Batch-allocation access is also capability-gated (a user without the capability can't reach the worksheet actions).
+- **Upload validations (each its own negative case; exact messages and rules in the Batch Allocation section):** non-`.csv` file, missing column, CSV not matching the generated worksheet, differing fiscal years, fund of another Ledger, invalid fund/budget status. Access is capability-gated (`ui-finance.allocations.create`; C648454).
 
 ---
 
@@ -222,7 +214,7 @@ Transfers move money between two fund budgets.
 - From budget: Actions -> Transfer
 - Specify: From fund (source), To fund (target), Amount, Fiscal year
 - Transfer restrictions on funds (Transfer from/to fields) are enforced
-- Requires transfer create capability set
+- Requires `Data - UI-Finance Transfers - Create` (+ Fund-Budget Edit per docs)
 
 ### Transfer restrictions
 - If a fund has Transfer from restrictions: only listed funds can transfer into it
@@ -233,23 +225,23 @@ Transfers move money between two fund budgets.
 
 ## Encumbrances
 
-Created automatically by Orders when a PO is opened. Not manually creatable in Finance UI.
+Created automatically by Orders when a PO is opened (docs Finance → Transactions filter descriptions); no create action exists in the Finance UI (mod-finance exposes no dedicated encumbrance POST - only `POST /finance/transactions/batch-all-or-nothing`, see API Surface).
 
 ### Manually releasing an encumbrance
 - Budget transaction log -> select encumbrance -> Release encumbrance
-- Requires encumbrance manual release capability set
+- Requires `Procedural - UI-Finance Encumbrance Release-Manually - Execute` (see Capability Sets)
 - Use case: vendor cancelled; free funds before invoice arrives
 
 ### Unreleasing an encumbrance
 - Budget transaction log -> select released encumbrance -> Unrelease encumbrance
-- Requires encumbrance unrelease capability set
+- Requires `Procedural - UI-Finance Encumbrance Unrelease - Execute` (see Capability Sets)
 - Use case: encumbrance released by mistake during invoice approval
 
 ---
 
 ## Transactions
 
-All financial activity is recorded as immutable transactions. Transactions cannot be edited or deleted.
+All financial activity is recorded as transactions. mod-finance-storage exposes only `GET` and `POST /finance-storage/transactions/batch-all-or-nothing` for transactions (no PUT/DELETE; descriptor `finance-storage.transactions`), so there is no user-facing edit/delete; internal changes (e.g. encumbrance release/update) go through the batch endpoint.
 
 | Transaction type | Created by | Budget impact |
 |---|---|---|
@@ -273,13 +265,13 @@ Acquisition units gate access to Finance records (same behavior as in Orders and
 
 ### How they work
 - Each Finance record (Fiscal Year, Ledger, Fund, Group) can have one or more Acquisition units assigned
-- User must be a member of at least one assigned unit to view/edit the record
-- Users with bypass acquisition unit capability can access all records
+- User must be a member of at least one assigned unit to edit the record; if no units are assigned any user with the capability can edit it (docs Finance → Fiscal year/Ledger/Group/Fund `Acquisition units`)
+- Users with a bypass-acquisition-units capability can access all records (unverified - no Finance source read)
 - Hidden from fund distribution: funds with acquisition unit restrictions are filtered out of fund selection dropdowns in Orders/Invoices for users outside those units
 
 ### Assign on create vs manage on edit
 - Assign acquisition units to new record (Procedural execute) - only allows assigning units on create
-- Manage acquisition units (Data manage) - allows changing unit assignment when editing existing records
+- Manage acquisition units - allows changing unit assignment when editing existing records (docs table lists it as Data manage; package.json names it `ui-finance.finance.acquisitions_units.manage.execute`: type unresolved, see Capability Sets). `FundForm.js` uses `CREATE_UNITS_PERM` on create and `MANAGE_UNITS_PERM` on edit.
 
 ---
 
@@ -287,20 +279,22 @@ Acquisition units gate access to Finance records (same behavior as in Orders and
 
 In case of data inconsistency (e.g. transactions deleted administratively):
 - Budget -> Actions -> Recalculate budget totals
-- Recomputes all bucket values from actual transactions
-- Requires recalculation execute capability set
+- Recomputes all bucket values from actual transactions (`POST /finance/budgets/{id}/recalculate`; docs capability description: use after financial transactions were deleted)
+- Requires `Procedural - UI-Finance Fund-Budget Recalculate-Totals - Execute`
 
 ---
 
 ## Deleting Records
 
-| Record | Can be deleted when... |
+Verified general rule (docs.folio.org Finance → notes on deleting fund/ledger/group/budget records): financial structure records cannot be deleted if other records are assigned to them; budgets cannot be deleted once they have any transaction other than allocations (Karate `budget-can-be-deleted-if-have-only-allocation-transactions-from-or-to.feature`); funds cannot be deleted if they were part of a fiscal year rollover, including test rollovers. Error texts: see Error table.
+
+| Record | Per-record condition |
 |---|---|
-| Budget | Status is Planned or Closed; no transactions |
-| Fund | No active budget with transactions; not referenced by open orders or unpaid invoices |
-| Ledger | No active funds |
-| Group | Always deletable (no transactional dependency) |
-| Fiscal Year | Not referenced by any ledger |
+| Budget | No transactions other than allocations (docs); "status must be Planned or Closed" is (unverified) |
+| Fund | Not part of a rollover (docs); "no active budget with transactions; not referenced by open orders or unpaid invoices" is (unverified) |
+| Ledger | Has no assigned funds (docs, general rule); "no active funds" wording (unverified) |
+| Group | "Always deletable" is (unverified) - docs only give the general rule |
+| Fiscal Year | Not referenced by a ledger (docs, general rule) |
 
 ---
 
@@ -309,16 +303,13 @@ In case of data inconsistency (e.g. transactions deleted administratively):
 Triggered from a Ledger -> Actions -> Rollover.
 
 ### Rollover configuration options
-- Rollover type: whether to roll over encumbrances (open orders) into new FY
-- Allocation strategy: carry over full amount / carry over remaining amount / no carry over
-- Close budgets: optionally close current FY budgets after rollover
-- Fund types: rollover can be configured per fund type
+Exact fields and dropdown values: see `Rollover page — fields` in Exact UI Texts (en.json `ledger.rollover.*`). The earlier generic list ("Allocation strategy: full / remaining / none") was superseded by `Rollover budget value` (`None`/`Available`/`Cash balance`), `Rollover value as` and `Based on`; rollover settings are defined per fund type (docs Finance → Rollover fiscal year).
 
-### What rollover does
-1. Creates new Budget records for each fund in the ledger for the new fiscal year
-2. Creates new Encumbrance transactions in new budgets for each open PO with encumbrances in current year
+### What rollover does (docs Finance → Rollover fiscal year)
+1. Creates new (Planned) Budget records for each fund in the ledger for the new fiscal year, with or without allocation depending on fund type settings
+2. Rolls encumbrances onto the new budgets by order type (one-time / ongoing / ongoing-subscription)
 3. Optionally closes current year budgets (status = Closed)
-4. Generates a rollover log with results
+4. Writes a rollover log (results / errors)
 
 ### Rollover log
 - Viewable after rollover: shows successes, errors, funds processed
@@ -328,8 +319,7 @@ Triggered from a Ledger -> Actions -> Rollover.
 
 ## Exact UI Texts
 
-> Use these verbatim in expected results. Never paraphrase.
-> ✅ **Fully seeded on 2026-07-21.** Modal/transaction-pane/budget/rollover fields were mined from TestRail cases (C186156, C380517, C648502); all toast, error, dialog and form-field strings below were pulled verbatim from the public GitHub translation file `folio-org/ui-finance` → `translations/ui-finance/en_US.json`. These are the exact rendered strings — safe to assert directly. `{placeholders}` interpolate at runtime.
+> Use these verbatim in expected results; never paraphrase. Seeded 2026-07-21 from TestRail C186156 / C380517 / C648502 (modal, transaction pane, budget, rollover fields) and `folio-org/ui-finance` `translations/ui-finance/en_US.json` (toasts, errors, dialogs, labels); refreshed against `en.json` 2026-11-24. `{placeholders}` interpolate at runtime.
 
 ### Transaction detail pane — fields (the core Finance verification surface)
 
@@ -341,7 +331,7 @@ Encumbrance `Status` values: `Unreleased`, `Released`, `Pending`.
 
 - Fund pane accordions: `Current budget`, `Planned budget` (a rolled-over budget appears here named `<Fund code> - <FY code>`, e.g. "Fund A - FY #2"). [confirmed — C186156]
 - Budget page accordions: `Budget summary` (Funding information table: Allocated, Net transfers, Total funding, Encumbered, Awaiting payment, Expended, Unavailable, Over encumbered/expended, Cash balance, Available), `Budget information` (contains `Status` field and the `View transactions` link), `Expense classes`.
-- Budget `Status` values: `Active`, `Planned`, `Closed` seen in rollover cases (C186156); the schema also has `Frozen`, `Inactive`.
+- Budget `Status` values seen in rollover cases (C186156): `Active`, `Planned`, `Closed`; full list in Status Values table.
 
 ### Modal / Dialog Fields & Titles
 
@@ -357,15 +347,9 @@ Encumbrance `Status` values: `Unreleased`, `Released`, `Pending`.
 
 Top-level: `Fiscal year` dropdown; `Enforce all budget encumbrance limits during rollover` checkbox (labelled `Enforce all budget encumbrance limits` before Ramsons); `Enforce all budget expenditure limits during rollover` (removed since Trillium); `Close all current budgets` checkbox. [confirmed — C186156]
 `Rollover budgets` accordion: `Rollover allocation` checkbox, `Adjust allocation, %` field, `Rollover budget value` dropdown (options `None`, `Available`, `Cash balance` — en.json `ledger.rollover.rolloverBudgetValue.*`), `Rollover value as` dropdown (`Transfer` / `Allocation` — `ledger.rollover.addAvailableTo.*`), `Set allowances` checkbox, `Allowed encumbrance, %`, `Allowed expenditure, %`.
-`Rollover encumbrances` accordion: `Ongoing encumbrances` toggle, `Ongoing-subscription encumbrances` toggle, `One-time encumbrances` toggle, each with a `Based on` dropdown (options `Expended`, `Initial encumbrance`, `Remaining` — en.json `ledger.rollover.basedOn.*`; C375267/C400643 cover `Remaining`) and an `Increase by, %` field.
+`Rollover encumbrances` accordion: `Ongoing encumbrances` toggle, `Ongoing-subscription encumbrances` toggle, `One-time encumbrances` toggle, each with a `Based on` dropdown (options `Expended`, `Initial encumbrance`, `Remaining` — en.json `ledger.rollover.basedOn.*`; C375267/C400643 cover `Remaining`; C376601–C376611 cover the option combinations) and an `Increase by, %` field.
 
-### Validation / Error Messages (inline)
-
-| Condition | Message text | Behaviour | Source |
-|---|---|---|---|
-| Move/allocate amount would drive total allocation negative | `Total allocation cannot be less than zero` | Red message below the `Amount` field; `Confirm` becomes **disabled** (no error toast — validation is inline, the action cannot be submitted) | [confirmed — C380517] |
-
-> Note the interaction model: insufficient-funds is caught by **inline validation that disables Confirm**, NOT by an error toast after submitting. Do not write a "click Confirm → error toast" flow for this scenario.
+> Interaction model for insufficient funds on **Move allocation**: validation is inline and disables `Confirm` (`Total allocation cannot be less than zero`, C380517); there is NO "click Confirm -> error toast" flow for this case. Transfer behaves differently (rule 25).
 
 ### Button / Action Labels (key actions)
 
@@ -373,7 +357,7 @@ Actions, Increase allocation, Decrease allocation, Move allocation, Transfer, Co
 
 ### Toast Messages
 
-> All rows below are **[confirmed — GitHub `ui-finance/translations/ui-finance/en_US.json`, pulled 2026-07-21]**. `{placeholders}` are interpolated at runtime; `<b>` marks bold segments in the rendered toast.
+> All rows: **[confirmed — `ui-finance` translations, 2026-07-21]** unless a row names `finance/states.js`; `<b>` marks bold segments.
 
 | Event | Toast text |
 |---|---|
@@ -404,11 +388,11 @@ Actions, Increase allocation, Decrease allocation, Move allocation, Transfer, Co
 | Rollover test started | `{name} rollover test has started successfully` [from source — `finance/states.js`, 2026-08-06] |
 | Rollover budget results export started | `Export of budget results has been started` [from source — `finance/states.js`, 2026-08-06] |
 
-### Error / Validation Messages (confirmed — GitHub translations, 2026-07-21)
+### Error / Validation Messages (confirmed — translations)
 
 | Condition | Message text |
 |---|---|
-| Allocation/transfer would make total allocation negative | `Total allocation cannot be less than zero` (inline; disables Confirm) |
+| Allocation/transfer would make total allocation negative | `Total allocation cannot be less than zero` (red text under `Amount`; disables Confirm; C380517) |
 | Allocate more than source has | `{amount} was not successfully allocated to the budget <b>{toBudgetName}</b> because it exceeds the total allocation amount of <b>{fromBudgetName}</b>.` |
 | Allocate more than source has, restrictions active | `{amount} was not successfully allocated to the budget <b>{toBudgetName}</b> because it exceeds the total allocation amount of <b>{fromBudgetName}</b> and ledger fund restrictions are active.` |
 | Transfer exceeds expenditure limit (restrictions active) | `$X.XX could not be transferred to the budget {firstBudgetName} because it exceeds the allowable expenditure limit for {secondBudgetName} and ledger fund restrictions are active.` [from source — `finance/states.js`, 2026-08-06; `X.XX` = the formatted dollar amount] |
@@ -461,100 +445,75 @@ The `Expense classes` accordion inside a budget shows a table with these columns
 
 ## Capability Sets (Eureka)
 
-| Action | Capability Set |
-|---|---|
-| View fiscal years | Data - UI-Finance Fiscal-Year - View |
-| Create/edit fiscal years | Data - UI-Finance Fiscal-Year - Create/Edit |
-| Delete fiscal years | Data - UI-Finance Fiscal-Year - Delete |
-| View ledgers | Data - UI-Finance Ledger - View |
-| Create/edit ledgers | Data - UI-Finance Ledger - Create/Edit |
-| Delete ledgers | Data - UI-Finance Ledger - Delete |
-| View groups | Data - UI-Finance Group - View |
-| Create/edit groups | Data - UI-Finance Group - Create/Edit |
-| Delete groups | Data - UI-Finance Group - Delete |
-| View funds and budgets | Data - UI-Finance Fund-Budget - View |
-| Create/edit funds and budgets | Data - UI-Finance Fund-Budget - Create/Edit |
-| Delete funds and budgets | Data - UI-Finance Fund-Budget - Delete |
-| Create allocations | Data - UI-Finance Allocations - Create |
-| Create transfers | Data - UI-Finance Transfers - Create |
-| Execute fiscal year rollover | Procedural - UI-Finance Ledger Rollover - Execute |
-| Manually release encumbrance | Procedural - UI-Finance Encumbrance Release-Manually - Execute |
-| Unrelease encumbrance | Procedural - UI-Finance Encumbrance Unrelease - Execute |
-| Recalculate budget totals | Procedural - UI-Finance Fund-Budget Recalculate-Totals - Execute |
-| Export finance records | Procedural - UI-Finance - Execute (UI permission `ui-finance.exportCSV`) |
-| Assign acquisition units to new record | Procedural - UI-Finance Acq Unit Assignment - Execute (UI permission `ui-finance.finance.acquisitions_units.assign.execute`) |
-| Manage acquisition units on existing record | Data - UI-Finance Acq Unit Assignment - Manage |
-| View batch allocation logs | Data - UI-Finance Fund-Update-Logs - View |
-| Delete batch allocation logs | Data - UI-Finance Fund-Update-Logs - Delete |
+> Names are `<Type> - <Resource> - <Action>`. Sources: **[Cypress]** = `stripes-testing/cypress/support/dictionary/capabilitySets.js` and `cypress/e2e/eureka/**` role specs; **[docs]** = docs.folio.org Finance → "Capabilities & capability sets" table (resource / type / action); **[pkg]** = ui-finance `package.json` permission ids. Eureka has separate actions View / Edit / Create / Delete (docs: "View, edit" = Edit, "View, edit, create" = Create, "View, edit, delete" = Delete) - there is NO combined `Create/Edit` action.
+
+| Action | Capability Set | Source |
+|---|---|---|
+| View fiscal years | Data - UI-Finance Fiscal-Year - View | Cypress, docs |
+| Edit fiscal years | Data - UI-Finance Fiscal-Year - Edit | docs |
+| Create fiscal years | Data - UI-Finance Fiscal-Year - Create | Cypress (`create-role-selecting-apps.cy.js`), docs |
+| Delete fiscal years | Data - UI-Finance Fiscal-Year - Delete | docs |
+| View / Edit / Create / Delete ledgers | Data - UI-Finance Ledger - View / Edit / Create / Delete | docs (not in Cypress dictionary) |
+| View / Edit / Create / Delete groups | Data - UI-Finance Group - View / Edit / Create / Delete | docs (not in Cypress dictionary) |
+| View funds and budgets | Data - UI-Finance Fund-Budget - View | Cypress (`uiFinanceFundBudgetView`), docs |
+| Edit / Create / Delete funds and budgets | Data - UI-Finance Fund-Budget - Edit / Create / Delete | docs (not in Cypress dictionary) |
+| Create allocations | Data - UI-Finance Allocations - Create | Cypress, docs |
+| Create transfers | Data - UI-Finance Transfers - Create | Cypress, docs |
+| Execute fiscal year rollover | Procedural - UI-Finance Ledger Rollover - Execute | docs |
+| Manually release encumbrance | Procedural - UI-Finance Encumbrance Release-Manually - Execute | docs |
+| Unrelease encumbrance | Procedural - UI-Finance Encumbrance Unrelease - Execute | docs |
+| Recalculate budget totals | Procedural - UI-Finance Fund-Budget Recalculate-Totals - Execute | docs |
+| Export finance records | Procedural - UI-Finance - Execute (UI permission `ui-finance.exportCSV`) | Cypress, docs |
+| Assign acquisition units to new record | Procedural - UI-Finance Finance Acquisitions Units Assign - Execute (UI permission `ui-finance.finance.acquisitions_units.assign.execute`) | Cypress role specs; docs table spells the resource `UI-Finance Acq Unit Assignment` (docs lag - verify in the target env) |
+| Manage acquisition units on existing record | Data - UI-Finance Acq Unit Assignment - Manage (capability set name not confirmed — verify); package.json id `ui-finance.finance.acquisitions_units.manage.execute` suggests a Procedural ... Execute set instead | docs vs pkg conflict |
+| View batch allocation logs | Data - UI-Finance Fund-Update-Logs - View | docs |
+| Delete batch allocation logs | Data - UI-Finance Fund-Update-Logs - Delete | docs |
+| View Finance settings | Settings - UI-Finance Settings - View | Cypress (`create-role-selecting-apps.cy.js`), docs |
+| Manage (view, edit, create, delete) Finance settings | Settings - UI-Finance Settings - Manage | docs |
+| Export fund and expense class codes | Settings - UI-Finance Settings ExportFundAndExpenseClassCodes - View | docs (Settings_finance) |
+| Manage external exchange rate source | Settings - UI-Finance Settings Exchange Rate Source - Manage | docs (Settings_finance; UIF-583) |
+
+Docs' own table has typos (e.g. a missing closing `**` on the Fund-Budget delete row); where docs and Cypress disagree, Cypress (what the automated role specs select in the UI) wins.
 
 ---
 
 ## Key Business Rules for Test Cases
 
-1. Budget values are read-only and derived from transactions; they cannot be directly edited
-2. Budget currency is locked at fiscal year creation; tenant currency changes do not retroactively alter existing budgets
-3. Fund belongs to exactly one ledger and cannot be reassigned after creation
-4. Ledger enforce encumbrance/expenditure limits are checked by default; if enabled, overdraw transactions are blocked
-5. Acquisition units gate access and hide restricted funds from Orders/Invoices distribution dropdowns
-6. Fund must be Active for orders to open and invoices to pay
-7. Groups are reporting-only and do not affect transaction processing
-8. Current fiscal year is date-driven, and rollover does not manually set current FY
-9. Transactions are immutable; corrections require recalculate or compensating transactions
-10. One budget per fund per fiscal year
-11. Closed budgets block new transactions
-12. Fund type drives rollover grouping; untyped funds fall under "No fund type"
-13. Budget allowable encumbrance/expenditure percentages can impose additional limits
-14. Transfer restrictions are directional and enforced on both incoming and outgoing paths
-15. Assign vs Manage acquisition unit capability sets are distinct and independently required
-16. Rollover requires a dedicated procedural capability set
-17. Release and Unrelease encumbrance are separate procedural capability sets
-18. Batch allocation log deletion capability set is separate from viewing logs
-19. Fund code uniqueness is global across ledgers
-20. Expense classes are optional but transaction-visible and used for spending analysis
-21. **Rollover creates a `Planned budget` for each fund in the new FY** and (if `Close all current budgets` is set) moves the source budgets to `Closed`; encumbrances roll per the Rollover encumbrances toggles. Rolled encumbrances land as `Unreleased` in the new-FY budget; the closed-FY copy reflects the pre-rollover end state. (cases — C186156)
-22. **Rollover is blocked-with-warning by unpaid invoices** — the `Unpaid invoices` dialog appears and requires explicit `Continue` before the rollover confirm. (cases — C186156)
-23. **A fiscal year series is identified by its alpha code prefix** (e.g. `FYA2025` → alpha `FYA`); rollover requires the next FY to share the same alpha. (cases — C186156)
-24. **A ledger can only be rolled over once from a given source fiscal year.** After Ledger rolls FY-A → FY-B, attempting a second rollover from the ledger's (now-current) FY-B to a further FY-C does not error on FY-C being invalid — it errors because the ledger *already has a completed rollover on record*: `"{ledgerName} was already rolled over from the {fromYearCode} fiscal year to the {toYearCode} fiscal year"`, and the second rollover does not run. Test this as its own scenario (rollover once → succeed; immediately rollover again → blocked with this exact message), not just "rollover succeeds." (cases — C360956)
-25. **"Move allocation" and "Transfer" enforce negative-available differently** — Move allocation is a **hard block**: if the amount would drive total allocation negative, `Confirm` is disabled with the inline message `Total allocation cannot be less than zero` and the action cannot be submitted at all. Transfer, by contrast, **allows** a resulting negative available balance but requires an extra confirmation step: clicking `Confirm` first opens a `Negative available amount` dialog (`Completing this transfer will result in <budgetName> having a negative available amount. Are you sure you would like to complete this transaction?`); only a second `Confirm` on that dialog commits it. Don't write these two actions as having the same negative-balance behavior — one is blocked outright, the other is allowed-with-warning. (cases — C374166, C374183)
-26. **Remaining allowed encumbrance is computed, not just compared to a flat cap**: `remaining allowed encumbrances = (allocated + netTransfers) × allowableEncumbered% − (encumbered + awaitingPayment + expended)`. When a PO's requested encumbrance would exceed this remaining figure (with "Enforce all budget encumbrance limits" active on the Ledger), Opening the order fails with the toast `One or more fund distributions on this order can not be encumbered, because there is not enough money in [{Fund name}].` — order stays `Pending`, the POL's Current encumbrance shows `-`, and no encumbrance transaction is created for that order at all (verify via Fund > Actions > View transactions for current budget). This is the Orders-side symptom of a Finance-side limit; when writing an Orders test for this, cross-check the encumbrance math against this formula rather than guessing a round-number threshold. (cases — C449364)
-27. **"Available" (and similarly negative budget figures) render in parentheses, not with a minus sign**, since Ramsons — e.g. `($500.00)` for a budget that is $500 over. Pre-Ramsons cases/screenshots show a leading `-` instead; don't assert the old format against a current-release environment. (cases — C374183, C496145)
-28. **A Fund's "Restrict use by location" checkbox blocks Save & close on its own, with no separate confirm step.** Checking it expands a `Locations` accordion showing `Locations must be assigned` while empty; attempting to Save & close with the checkbox checked and zero locations added leaves the user on the Create/Edit page with that warning still showing — it does not throw a toast or navigate away. Unchecking the box removes the requirement immediately (accordion disappears, Save & close proceeds normally). Test both the blocked-save path and the unchecked-passthrough path, not just "restricted funds require locations" as a single assertion. (cases — C423530)
-29. **Rollover based on "Expended" promotes the Planned budget to Active and folds the old Current budget's allocation into it** — after rollover, the old FY's budget becomes `Closed`; the new FY's Planned budget becomes `Active`, with `Initial allocation` = the Planned budget's own pre-set allocation, `Increase in allocation` = the old Current budget's allocated amount, and `Total allocated` = the sum of both. Additionally, any **paid-invoice amount that exceeded the old POL's fund-distribution value** rolls forward as a new `Unreleased` encumbrance in the new fiscal year, sourced to the same PO number, with `Initial encumbrance` = that paid amount and `Awaiting payment`/`Expended` reset to $0.00. Don't test "Planned → Active" and "encumbrance carries the overage" as unrelated facts; they're two sides of the same rollover-with-Expended-basis behavior. (cases — C359186)
-30. **With `Rollover allocation` OFF and `Rollover budget value` = `None`, the new FY's Planned budget still gets created and set `Active` — just entirely zeroed out**: `Initial allocation`, `Increase/Decrease in allocation`, `Total allocated`, `Net transfers`, `Unavailable`, and `Available` all read `$0.00`/`0`. This refines Rule 21 — "a Planned budget is created for each fund" doesn't by itself imply it carries any money forward; the specific combination of toggles determines whether it's a real starting balance or an empty shell. (cases — C376609)
-31. **Budget `status` has five schema values** (`Active`, `Frozen`, `Inactive`, `Planned`, `Closed`), not three; budgets can be created in Inactive/Closed status, but not with negative allocation or negative allowable percentages. (acq-models `budget.json`; UIF-573, MODFIN-405; C663288)
-32. **Batch allocation (worksheet / Batch edit) is limited to 1000 funds per ledger** and is available from the Ledger Actions → Allocation tools only (not Fiscal year, Fund; removed from Group). (UIF-647, UIF-525, UIF-598; C648520)
-33. **New budget created by batch allocation gets status `Active` in the current FY and `Planned` in a future FY** unless the user sets a valid status. (MODFISTO-517, UIF-596; C651440, C651433)
-34. **Increasing allocation on an Inactive/Frozen fund via batch allocation makes the fund Active**; non-increasing changes leave the fund status alone. (MODFIN-407; C651420)
-35. **`0` is a valid allocation (budget created with no allocation transaction); a resulting total allocation below zero is rejected** on Increase/Decrease/Move allocation, Batch edit (`New total allocation cannot be negative.`) and budget create. (UIF-576, UIF-621, UIF-573; C825298, C374166)
-36. **If any budget in a batch allocation is not Active/Planned the whole update fails** with `Allocations have not been updated because one or more budgets are not active or planned.` (UIF-651; en.json `errors.failedToCreateAllocations`)
-37. **Worksheet upload is rejected for**: non-CSV file, missing required headers, unparsable file, empty file, unresolvable or inconsistent fiscal year, duplicate (FY, budget, fund) rows, unknown Budget/Fund UUID, fund of another ledger, invalid status text; each has its own en.json message. (en.json `batchAllocations.uploadWorksheet.validation.error.*`; MODFIN-403; C651417, C651435, C651423, C651422)
-38. **Batch allocation logs are restricted by acquisition units** of the ledger; Group-based log cases are DEFERRED. (MODFIN-416, UIF-588; C688780, C663299)
-39. **Batch Edit `Save & close` disabled after changes made post-Recalculate; `Unsaved changes` modal on cancel.** (UIF-591, UIF-652; C1292042)
-40. **Only one row per unique budget in Batch edit and worksheet after rollover.** (MODFIN-412, UIF-587; C656288)
-41. **`PUT /finance/finance-data` supports preview mode with no DB commit and no log entry.** (MODFIN-382; Karate `finance-data.feature`)
-42. **Rollover with only some encumbrance order types selected must leave unselected types with the "none selected" outcome (Released, $0.00, PO line stays on current-FY encumbrance).** (MODFISTO-559, MODFISTO-560; C1347127)
-43. **Rollover `Based on` supports `Expended`, `Initial encumbrance`, `Remaining`; `Rollover budget value` supports `None`, `Available`, `Cash balance`; `Rollover value as` supports `Transfer`/`Allocation`.** (en.json `ledger.rollover.*`; C376601–C376611, C400643)
-44. **Rollover budget % adjustments must round to currency precision.** (MODFIN-439; C831977)
-45. **Rolled-over `Rollover transfer` amounts are counted in `Net transfers` after Recalculate.** (MODFIN-394; C627392)
-46. **After a multi-ledger PO line rollover, budget Encumbered must be correct for every ledger without a manual recalculation.** (MODFISTO-549; C397990)
-47. **Rollover cannot be re-run for the same ledger/FY pair; test rollover is blocked after the common rollover.** (en.json `ledger.rollover.error.conflict`; C402327, C360956)
-48. **Rollover results/errors logs are not limited to 10 records and export works for funds without a budget.** (UIF-455, UIF-607; C380629, C770425)
-49. **Rollover logs error CSV does not yet fill fund code / PO line number.** (UIF-624; C399078 marked NOT implemented)
-50. **`Enforce all budget expenditure limits during rollover` no longer exists** in the rollover form or in log settings. (UIF-611)
-51. **Unrelease of an encumbrance is blocked when it has pending payment, credit or expended transactions.** (MODFISTO-542 comment)
-52. **Cancelling approved invoices / paid credit invoices must give correct encumbered amount** (cap to zero only at the end). (MODFISTO-537, MODFISTO-542, MODFISTO-512)
-53. **Budget summaries show credited totals separately from expended** (FY, Ledger, Group, Budget; CSV export). (UIF-494..498, MODFIN-371, MODFISTO-481; Cypress `export-budget-credited-columns.cy.js`)
-54. **Expense class tables include an `Unassigned` first row for transactions without an expense class** (fund, budget, group). (UIF-617, MODFIN-433)
-55. **Fiscal year currency is stored on the FY and must not change when the FY is edited or when the system currency changes.** (MODFIN-386, UIF-538; Cypress `currency-consistency-for-fiscal-year-and-budget-after-changing-currency-settings.cy.js`)
-56. **FY Period End Date means end of the selected day (23:59 UTC).** (UIF-666)
-57. **When the current FY of a ledger lapses, UI shows `No current fiscal year found.` (and `No planned fiscal year found.` for planned lookups); no rollover-complete toast.** (UIF-645, MODFIN-445, UIF-539; C514909)
-58. **Fund restricted by location in ECS shows only locations from the user's affiliations.** (UIF-561, UIF-606; C466311, C468164)
-59. **Exchange rate source setting needs `Settings (Finance): Manage external exchange rate source`; ECB is the default; Key required type makes API key mandatory.** (UIF-583, UIF-605; docs Settings_finance; C736705, C736706)
-60. **Browse tab is controlled by Settings → Finance → Navigation `Enable browse tab`.** (UIF-544; en.json `settings.navigation.*`; C788678 draft)
-61. **Optimistic locking applies to all Finance entities; conflict shows a banner/message, not a generic error.** (MODFISTO-303, MODFISTO-513, UIF-565; C353947–C353961)
-62. **Fund-type and expense-class deletion is blocked when in use.** (docs Settings_finance; C367941, C15857)
-63. **Transfer/Allocation error toasts depend on the cause**: not enough money, ledger restrictions, no budget for fund, restrictive "allow transfer to or from", same-budget; all keyed in en.json `transaction.transfer.*` / `transaction.allocation.*`. (UIF-543, UIF-604, UIF-619; C380517, C825296)
-64. **`Move allocation`/`Transfer` `Swap` re-evaluates validation live.** (UIF-524; C808443, C825298)
+> Each rule carries its source: docs = docs.folio.org Finance (`Acquisitions/Finance/_index.md`, `Settings_finance.md`); cases = TestRail C-ids; en.json = ui-finance translations; Karate/Cypress = automation paths. Rules about batch allocation, rollover edge cases, settings, display/calculation, optimistic locking and limits are in the dedicated sections below (each bullet there has its Jira/C-id source) and are not repeated here.
+
+1. Budget values (Allocated, Net transfers, Encumbered, Expended ...) are sums of transactions; money enters a budget only through Increase/Decrease/Move allocation, Transfer, Batch allocation or Rollover, not by editing a field. (docs Finance → Budget summary / Allocating money to a budget)
+2. Budget currency is locked at fiscal year creation (tenant primary currency at that moment); tenant currency changes do not alter existing budgets, and editing an FY must not overwrite its currency. (docs Fiscal year `Currency`; MODFIN-386, UIF-538; Cypress `currency-consistency-for-fiscal-year-and-budget-after-changing-currency-settings.cy.js`)
+3. A fund belongs to exactly one ledger. (docs Fund `Ledger`) Reassigning the ledger after creation is (unverified), see Known Gaps.
+4. Ledger `Enforce all budget encumbrance/expenditure limits` are checked by default; when checked, over-limit encumbrances/expenditures are rejected. (docs Ledger; `CreateLedger.js`)
+5. Acquisition units gate editing of Fiscal year/Ledger/Group/Fund records (blank = any user with the capability). (docs `Acquisition units` fields) Hiding restricted funds from Orders/Invoices distribution dropdowns is (unverified).
+6. A fund must be Active for an order to open or an invoice to be fully paid; the budget must also be Active. (docs Fund `Status`, Budget `Status`)
+7. Groups are summary/reporting only and do not affect transaction processing. (docs Group)
+8. The current fiscal year is date-driven (series + today's date in the system time zone); rollover does not set it manually. (`LedgerDetailsService.defineCurrentFiscalYear`; Karate `curr-fiscal-year-for-ledger-consider-time-zone.feature`; docs Rollover)
+9. No PUT/DELETE exists for transactions in mod-finance-storage (only GET and `batch-all-or-nothing` POST); corrections are done via Recalculate or compensating transactions. (descriptor `finance-storage.transactions`; docs Recalculate)
+10. One budget per fund per fiscal year. (mod-finance-storage `schema.json` unique index `budget(fundId, fiscalYearId)`; docs Budget)
+11. A budget must be Active for orders to open and invoices to be approved/paid; behaviour of Closed/Frozen/Inactive budgets for other transactions is (unverified), see Known Gaps. (docs Budget `Status`)
+12. Fund type drives rollover settings per type; funds without a type appear as `No fund type` on the Rollover page. (docs Fund `Type`, Rollover; `ledger.rollover.noFundType`)
+13. Budget `Allowable encumbrance/expenditure %` add limits per budget (blank = unrestricted; encumbrance % effective only if the ledger enforces encumbrance limits). (docs Budget; see Docs-sourced field semantics; C449364)
+14. Transfer restrictions (`Transfer from` / `Transfer to`) are enforced in both directions; violation gives `..."allow transfer to or from" Fund setting ... is too restrictive.` (docs Fund; en.json `transaction.transfer.allowableAllocationIdsMismatch`)
+15. Assign and Manage acquisition-unit capabilities are distinct; the Fund form uses `CREATE_UNITS_PERM` on create and `MANAGE_UNITS_PERM` on edit. (docs capabilities table; ui-finance `FundForm.js`; package.json `ui-finance.finance.acquisitions_units.assign|manage.execute`)
+16. Rollover needs its own procedural capability set `Procedural - UI-Finance Ledger Rollover - Execute`. (docs; package.json `ui-finance.ledger.rollover.execute`)
+17. Release and Unrelease encumbrance are separate procedural capability sets. (docs; package.json `ui-finance.encumbrance.release-manually.execute` / `.unrelease.execute`)
+18. Batch allocation log deletion (`Fund-Update-Logs - Delete`) is separate from viewing logs (`- View`). (docs; package.json `ui-finance.fund-update-logs.view` / `.delete`)
+19. Fund code is unique across the whole tenant (not per ledger); fund name is unique per ledger. (mod-finance-storage `schema.json` unique index `fund(code)`; docs Fund `Code`; en.json `This Fund code is already in use.` / `This Fund name is already in use on the selected Ledger.`; `FundForm.js` name check by ledgerId)
+20. Expense classes are optional; transactions without one appear in the `Unassigned` row. (docs Finance → Expense classes; UIF-617, MODFIN-433)
+21. **Rollover creates a `Planned budget` for each fund in the new FY** (named `<Fund code> - <FY code>`) and, with `Close all current budgets`, moves the source budgets to `Closed`; encumbrances roll per the Rollover encumbrances toggles and land as `Unreleased` in the new-FY budget (the closed-FY copy keeps the pre-rollover end state). (cases — C186156)
+22. **Unpaid invoices block-with-warning**: the `Unpaid invoices` dialog appears and requires an explicit `Continue` before the rollover confirm. (cases — C186156)
+23. **A fiscal year series is identified by its alpha code prefix** (`FYA2025` -> `FYA`); rollover requires the next FY to share the same alpha. (cases — C186156; docs Fiscal year `Code`)
+24. **A ledger can be rolled over only once from a given source FY.** A second rollover from the now-current FY-B to FY-C fails with `{ledgerName} was already rolled over from the {fromYearCode} fiscal year to the {toYearCode} fiscal year` and does not run; test it as its own scenario (rollover -> succeeds; immediately again -> blocked with this message). Test rollover is likewise blocked after the common rollover. (cases — C360956, C402327; en.json `ledger.rollover.error.conflict`)
+25. **Move allocation vs Transfer on negative available**: Move allocation is a hard block (`Confirm` disabled, inline `Total allocation cannot be less than zero`); Transfer allows a negative available balance but first opens a `Negative available amount` dialog (`Completing this transfer will result in <budgetName> having a negative available amount. Are you sure you would like to complete this transaction?`) and only a second `Confirm` commits it. Never write the two with the same behaviour. (cases — C374166, C374183)
+26. **Remaining allowed encumbrance** = `(allocated + netTransfers) × allowableEncumbered% − (encumbered + awaitingPayment + expended)`. When a PO's requested encumbrance exceeds it (ledger `Enforce all budget encumbrance limits` active), Open fails with `One or more fund distributions on this order can not be encumbered, because there is not enough money in [{Fund name}].`; the order stays `Pending`, the POL's Current encumbrance shows `-`, and no encumbrance transaction is created (verify via Fund > Actions > View transactions for the current budget). When writing the Orders test, cross-check against this formula, not a round-number threshold. (cases — C449364)
+27. **Negative `Available` (and other negative figures) render in parentheses**, e.g. `($500.00)`, since Ramsons; pre-Ramsons screenshots/cases show a leading `-` - do not assert the old format on a current release. (cases — C374183, C496145; UIF-540)
+28. **Fund `Restrict use by location` blocks Save & close by itself**: checking it expands `Locations` with `Locations must be assigned` while empty; Save & close with zero locations stays on the page (no toast, no navigation). Unchecking removes the requirement (accordion disappears, save proceeds). Test the blocked path and the unchecked path separately. (cases — C423530)
+29. **Rollover based on `Expended` promotes the Planned budget to Active and folds the old Current allocation into it**: old FY budget -> `Closed`; new FY budget -> `Active` with `Initial allocation` = its own pre-set allocation, `Increase in allocation` = old Current allocated amount, `Total allocated` = sum. A paid-invoice amount above the old POL fund-distribution value rolls forward as a new `Unreleased` encumbrance (same PO number, `Initial encumbrance` = that amount, `Awaiting payment`/`Expended` reset to $0.00). Both effects belong to the same scenario. (cases — C359186)
+30. **With `Rollover allocation` OFF and `Rollover budget value` = `None` the Planned budget is still created and set `Active`, fully zeroed** (`Initial allocation`, `Increase/Decrease in allocation`, `Total allocated`, `Net transfers`, `Unavailable`, `Available` = `$0.00`/`0`); refines rule 21. (cases — C376609)
+31. **Budget `status` has five schema values** (`Active`, `Frozen`, `Inactive`, `Planned`, `Closed`); budgets can be created Inactive/Closed, but not with negative allocation or negative allowable percentages. (acq-models `budget.json`; UIF-573, MODFIN-405; C663288)
+32. **Batch allocation**: limited to 1000 funds per ledger and available only from Ledger Actions -> Allocation tools; new budgets get `Active` (current FY) / `Planned` (future FY) unless a valid status is set; increasing allocation on an Inactive/Frozen fund makes it Active; `0` is valid (budget without allocation transaction), a negative total is rejected; if any budget is not Active/Planned the whole update fails. Details, messages and sources: Batch Allocation section.
+33. **Rollover specifics** (partial encumbrance-type selection, `Based on` / `Rollover budget value` / `Rollover value as` options, rounding, `Net transfers` after Recalculate, multi-ledger POLs, logs, removed expenditure-limit toggle, unrelease blocked when payments exist): see Exact UI Texts → Rollover page and `Rollover - additional rules`.
 
 ---
 
@@ -673,11 +632,10 @@ TestRail permission checks: C648454 (`User cannot access batch allocation option
 ## Ledger / Fiscal year / Budget display and calculation rules (2026-11-24)
 
 - Ledger detail has a `Fiscal year` select (current default, previous years selectable) replacing the key/value `Current fiscal year` (UIF-600). Fiscal year pane shows the currency (UIF-538) and Credited totals appear in FY / Ledger / Group / Budget views (UIF-494..497, MODFIN-371/MODFISTO-481 separated credits from expenditures).
-- Negative values render in parentheses (UIF-540).
 - Fund/budget `Unassigned` expense class row shows totals for transactions without an expense class (UIF-617, MODFIN-433, en.json `budget.expenseClasses.unassigned.tooltip`: `"Unassigned" applies to transactions completed prior to the inclusion of expense classes on the budget, if there are any that exist.`; C15857 area; Cypress `totals-for-transactions-without-expense-class-are-included-in-expense-class-summary.cy.js`). Percent of total expended must stay correct when over-expended (MODFIN-372, C496115, C440081).
 - Over-encumbrance is calculated per budget/ledger/FY (MODFIN-373, MODFISTO-484, C496175, C496145/149/153).
 - Budget validation on update (MODFIN-374; C503053): remaining-allowed-encumbrance / expenditure checks take paid and pending credits into account (C496166, C496167).
-- Fiscal year currency: edit of an FY must not overwrite its currency with the current system currency (MODFIN-386); Cypress `currency-consistency-for-fiscal-year-and-budget-after-changing-currency-settings.cy.js`. Period End Date is end of the selected day, UTC (UIF-666); FY form/view shows `UTC` (Cypress `utc-is-displayed-when-create-or-view-fiscal-year.cy.js`).
+- Fiscal year currency: see rule 2. Period End Date is end of the selected day, UTC (UIF-666); FY form/view shows `UTC` (Cypress `utc-is-displayed-when-create-or-view-fiscal-year.cy.js`).
 - When the ledger's current FY lapses (end date moved to the past) the Ledger/Group view shows `No current fiscal year found.` (`errors.currentFiscalYearNotFound`, MODFIN-445, UIF-539, UIF-645) and no `Rollover is complete` toast appears (C514909); Group details must not throw a null-pointer if the ledger has no active FY (Cypress `no-null-pointer-exception-in-group-details-if-ledger-has-no-active-fiscal-year.cy.js`).
 - Budget creation: a negative `Allocated` value shows the inline error `Should be positive` under the field after Save & close (UIF-573 description); negative allowable percentages are also rejected; `0` is allowed (UIF-573 comment, MODFIN-405, C663288). Creating a Planned budget requires an upcoming FY in the same series (C353528).
 - Budget deletion messages: with transactions `Budget can not be deleted, because it has transactions`; with expense classes see Error table above. Budgets that have only allocation transactions (from/to) can be deleted (Karate `budget-can-be-deleted-if-have-only-allocation-transactions-from-or-to.feature`; Cypress `delete-budget-with-transfer-transaction.cy.js`).
@@ -734,10 +692,6 @@ Enabled on Budget, Budget+Expense class, Fund, Fiscal year, Fund type, Ledger, G
 ## Docs-sourced field semantics (docs.folio.org `Acquisitions/Finance/_index.md`, `Settings_finance.md`)
 
 - **Allowable expenditure %** applies to the budget balance including pending payments but ignoring encumbrances; blank = unrestricted; 100 restricts to available balance; >100 allows beyond it; 0 restricts to 0. **Allowable encumbrance %**: same semantics; only effective if the ledger has `Enforce all budget encumbrance limits` checked.
-- **Allocated (required)** on budget create: `0` accepted and generates no allocation transaction.
-- Fund `Currency` is prefilled from the FY currency (the FY gets the tenant primary currency at creation — check Settings → Tenant → Language and localization before creating an FY).
-- Fund `Restrict use by location` exposes `Locations` accordion; on a PO line only the fund's locations are offered in the location dropdown; to unrestrict also uncheck the box.
-- Fund `Transfer from` blank = any fund may transfer in; `Transfer to` blank = may transfer to any fund.
 - Fiscal year summary does not show Net transfers (transfers only within one FY); Net transfers appear on Ledger, Group and Budget summaries.
 
 ---
@@ -748,11 +702,18 @@ Enabled on Budget, Budget+Expense class, Fund, Fiscal year, Fund type, Ledger, G
 - [ ] Browse tab (UIF-544..548): commits showed revert and re-introduction in Aug–Oct 2026; settings page and `browse.*` strings exist in en.json; only a DRAFT TestRail case (C788678) — verify in target env before asserting.
 - [ ] Rollover confirm dialog text differs between `en.json` (current) and `en_US.json`/old file; this file now uses en.json. The `FOLIO has found invoices that are not yet paid...` unpaid-invoice message is unchanged.
 - [ ] Docs (docs.folio.org) list Frozen/Inactive budget statuses and say a budget can be "Frozen"; older TestRail cases mention only Active/Planned/Closed — expected behavior of Frozen/Inactive budgets for transactions is not documented in any source read.
-- [ ] Rules 'Deleting Records' table (fund/ledger/group/FY delete conditions) and 'Over encumbered/over expended only shows if ledger restrictions disabled' have no source in this refresh; keep conservative.
+- [ ] Rules 'Deleting Records' table (fund/ledger/group/FY delete conditions) and 'Over encumbered/over expended only shows if ledger restrictions disabled' have no source in this refresh; keep conservative. 2026-11-25 pass: docs give only the general rule (records with assigned records cannot be deleted; budgets with non-allocation transactions cannot be deleted; funds in a rollover cannot be deleted) - per-record conditions beyond that are marked (unverified) in the `Deleting Records` table.
 - [ ] `en.json` exposes `transaction.transfer.budgetRestrictedExpendituresError` with different wording (`{amount} could not be transferred to the budget <b>{toBudgetName}</b> because it exceeds the allowable expenditure limit for <b>{fromBudgetName}</b> and ledger fund restrictions are active.`) than the `states.js`-sourced string in the Error table; check which one the UI renders per case.
 - [ ] Confluence (folio-org.atlassian.net/wiki anonymous REST) returned only Acquisitions SIG meeting notes / RM SIG pages for "fiscal year rollover"; no Finance requirement page was found or relied on.
 - [ ] Jira Done search returned no entries with fixVersion naming Umbrellaleaf/Trillium/Sunflower/Ramsons by release name (fixVersions are module versions); mapping used: Ramsons R2 2024 = UIF 7.0.0 / MODFIN 5.0.0 / MODFISTO 8.7.0; Sunflower R1 2025 = UIF 8.0.0 / MODFIN 5.1.0 / MODFISTO 8.8.0; Trillium R1 2026 = UIF 9.0.0 / MODFIN 5.2.0 / MODFISTO 8.9.0 (from "Release" tasks UIF-558/599/660, MODFIN-383/420/459, MODFISTO-505/521/556).
 - [ ] Batch allocation worksheet column list beyond the ones confirmed in C648502 was not re-verified against the BE schema (`finance-data.json` not read).
+- [ ] Fund `Ledger` "cannot be changed after creation" (old Fund rule): docs say only that a fund has one ledger; `ui-finance` `FundForm.js` does not disable the Ledger select in edit mode and no BE check was found in mod-finance (`FundsHelper`) - reassignment behaviour (UI/API) unverified.
+- [ ] Behaviour of Frozen/Inactive **ledgers, funds** (not only budgets) for transactions: docs only say "paused" / "no longer in use"; the earlier statement "Frozen - no new transactions" had no source and was reworded.
+- [ ] Orders/Invoices-side claims with no Finance source read: restricted-unit funds hidden from fund-distribution dropdowns; a bypass-acquisition-units capability.
+- [ ] Capability sets: `Manage acquisition units` - docs say `Data - UI-Finance Acq Unit Assignment - Manage`, package.json id is `...acquisitions_units.manage.execute` (Procedural/Execute shape), Cypress only has the Assign set (`UI-Finance Finance Acquisitions Units Assign`, procedural execute; docs spell it `Acq Unit Assignment`) - exact names marked `(capability set name not confirmed — verify)`. Ledger/Group/Fund-Budget Edit/Create/Delete, Rollover, Release/Unrelease, Recalculate, Fund-Update-Logs and Settings Manage/ExportFundAndExpenseClassCodes/Exchange Rate Source names come from docs.folio.org only (not in the Cypress dictionary); verify in the target env.
+- [ ] Docs list `Credited` as part of `Unavailable` (Unavailable = encumbered + awaiting payment + credited + expended); the remaining-allowed-encumbrance formula in rule 26 (C449364) omits credited - verify with a credit-invoice case (C496166/C496167).
+- [ ] Transactions: mod-finance-storage has no PUT/DELETE for transactions, but release/unrelease/encumbrance updates are applied via `batch-all-or-nothing`; the old statement "transactions cannot be edited or deleted" was narrowed to the API fact.
+- [ ] TestRail was not re-read in the 2026-11-25 pass (size/traceability pass only); no new case bodies were read.
 - [x] "Exact UI Texts" seeded 2026-07-21 and refreshed against en.json 2026-11-24 (batch allocation, upload validation, logs, exchange rate, navigation, rollover options added).
 - [x] The old note that Jira returned 0 Done issues for component "Finance" is obsolete: project keys UIF / MODFIN / MODFISTO are used (93 / 63 / 69 Done issues resolved since 2024-06-01).
 
@@ -768,35 +729,16 @@ Enabled on Budget, Budget+Expense class, Fund, Fiscal year, Fund type, Ledger, G
 
 ### What changed
 - **Browse** tab in Finance (Search | Browse): select a fiscal year, hierarchy Ledger → Group → Fund → Budget → Expense class, status filters (Ledger/Group/Fund/Budget/Expense class status), New fiscal year/ledger/group/fund actions (UIF-545..548; enabled via finance navigation setting UIF-544). Commits show a revert on 2026-08-18 and re-introduction in Sep–Oct — verify the tab is present in the target env before asserting.
-- Fiscal year **Period End Date** displays as the end of the selected day, labelled UTC (UIF-666).
 
 ### UI strings changed since 2026-07-21 [source — en.json, 2026-11-07]
 
 > `en.json` is the source of truth; `en_US.json` is a Lokalise copy that can lag behind. `<b>`/`<strong>` render as bold; `{x}` are placeholders.
 
-**New strings**
-
-| Key | Text |
-|---|---|
-| `browse.tab.search` | Search |
-| `browse.tab.browse` | Browse |
-| `browse.title` | Browse finance |
-| `browse.subtitle` | Select a fiscal year to browse results |
-| `browse.selectFiscalYear` | Select a fiscal year to browse results. |
-| `browse.filter.fiscalYear` | Fiscal years |
-| `browse.filter.ledgerStatus` | Ledger status |
-| `browse.filter.groupStatus` | Group status |
-| `browse.filter.fundStatus` | Fund status |
-| `browse.filter.budgetStatus` | Budget status |
-| `browse.filter.expenseClassStatus` | Expense class status |
-| `browse.actions.newFiscalYear` | New fiscal year |
-| `browse.actions.newLedger` | New ledger |
-| `browse.actions.newGroup` | New group |
-| `browse.actions.newFund` | New fund |
+**New strings** (15 keys, all under `browse.*`): `browse.tab.search` = Search; `browse.tab.browse` = Browse; `browse.title` = Browse finance; `browse.subtitle` = Select a fiscal year to browse results; `browse.selectFiscalYear` = Select a fiscal year to browse results.; `browse.filter.fiscalYear` = Fiscal years; `browse.filter.ledgerStatus` = Ledger status; `browse.filter.groupStatus` = Group status; `browse.filter.fundStatus` = Fund status; `browse.filter.budgetStatus` = Budget status; `browse.filter.expenseClassStatus` = Expense class status; `browse.actions.newFiscalYear` = New fiscal year; `browse.actions.newLedger` = New ledger; `browse.actions.newGroup` = New group; `browse.actions.newFund` = New fund
 
 ### Jira — Done since build (finance (UIF, MODFIN) since 2026-07-21)
 
-- UIF-666 Bug — Fiscal year Period End Date displayed as end of selected day (23:59 UTC)
+- UIF-666 Bug — Fiscal year Period End Date displays as end of the selected day (23:59 UTC); see Display rules
 - (GitHub only, no Done ticket yet) UIF-544..548 Browse tab / finance hierarchy
 
 ### TestRail — cases created since 2026-07-21: 1 (1 manual, 0 automated/Karate)
