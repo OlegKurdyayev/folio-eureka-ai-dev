@@ -1,14 +1,14 @@
 ---
 area: open-access
-generated_on: 2026-11-24
+generated_on: 2026-11-25
 generator_version: manual (build-app-context method, refresh)
 jira_status: ok
 ---
 
 # FOLIO Open Access — Business Logic Context
 
-> Built: 2026-11-07 · Refreshed: 2026-11-24 · Release: Umbrellaleaf R2 2026 (master: ui-oa 3.2.0 "IN PROGRESS", mod-oa 3.4.0 "IN PROGRESS"; last releases ui-oa 3.1.0 2026-07-08 and mod-oa 3.3.0 2026-07-06 = Trillium-compatible per UIOA-248 / MODOA-85) · Builder: build-app-context method, manual
-> Sources: TestRail suite 21 section 115129 "Open Access" (Journals 115130, People 115131, Requests 115132, Publication charges 117721, Checklists 117722 — 12 Smoke cases, created 2026-06, full steps read for C1373188, C1373195, C1373196, C1373197, C1373198, C1373199, C1348712, C1348717); GitHub folio-org/ui-oa (translations/ui-oa/en.json — en_US.json identical, 449 keys; package.json; CHANGELOG.md; src/), folio-org/mod-oa (service/src/main/okapi/ModuleDescriptor-template.json, grails-app/domain, HousekeepingService, NEWS.md), folio-org/app-oa (application descriptor); stripes-testing (cypress/e2e/fse/*/oa-*); folio-integration-tests (no OA project); Jira UIOA, MODOA, ERM (OA-related); Confluence "Open Access Requests" (page 5673362).
+> Built: 2026-11-07 · Refreshed: 2026-11-25 · Release: Umbrellaleaf R2 2026 (master: ui-oa 3.2.0 "IN PROGRESS", mod-oa 3.4.0 "IN PROGRESS"; last releases ui-oa 3.1.0 2026-07-08 and mod-oa 3.3.0 2026-07-06 = Trillium-compatible per UIOA-248 / MODOA-85) · Builder: build-app-context method, manual
+> Sources: TestRail suite 21 section 115129 "Open Access" (Journals 115130, People 115131, Requests 115132, Publication charges 117721, Checklists 117722 — 12 Smoke cases, created 2026-06, full steps read for all 12 cases: C1373188, C1373195, C1373196, C1373197, C1373198, C1373199, C1348712, C1348713, C1348715, C1348717, C1348718, C1348719); GitHub folio-org/ui-oa (translations/ui-oa/en.json — en_US.json identical, 449 keys; package.json; CHANGELOG.md; src/), folio-org/mod-oa (service/src/main/okapi/ModuleDescriptor-template.json, grails-app/domain, HousekeepingService, NEWS.md), folio-org/app-oa (application descriptor); stripes-testing (cypress/e2e/fse/*/oa-*); folio-integration-tests (no OA project); Jira UIOA, MODOA, ERM (OA-related); Confluence "Open Access Requests" (page 5673362).
 > Fix versions are not set on UIOA/MODOA issues — releases are tracked by release tasks (UIOA-248 = 3.1.0 Trillium, UIOA-244 = 3.0.0 Sunflower, UIOA-232 = 2.2.0 Ramsons) and CHANGELOG/NEWS.
 > Tags: [source] = GitHub only (verify in env before strict assertion); [case Cxxx] = from TestRail case; (KEY) = Jira.
 
@@ -69,17 +69,17 @@ Backend permission sets: `oa.<resource>.view` (collection+item get), `.edit` (= 
 
 | UI permission (package.json) | Display name | Visible | Eureka capability set (as used in TestRail) |
 |---|---|---|---|
-| `ui-oa.all-open-access.view` | Open Access Requests: Search & view all | yes | not seen in cases — expected "Data - UI-Oa All-Open-Access - view" (verify) |
-| `ui-oa.all-open-access.edit` | Open Access Requests: Edit all | yes | not seen in cases (verify) |
-| `ui-oa.all-open-access.manage` | Open Access Requests: Manage all | yes | not seen in cases (verify) |
-| `ui-oa.allSettings.manage` | Settings (Open Access): Manage all Open Access settings | yes | not seen in cases (verify) |
-| `ui-oa.publicationRequest.view/.edit/.manage` | Open Access Requests: Search & view / Edit / Manage publication requests | no | Data - UI-Oa Publication Request - view / edit (C1373196, C1373188) |
-| `ui-oa.party.view/.edit/.manage` | … people | no | Data - UI-Oa Party - view / edit (C1373188, C1348717) |
-| `ui-oa.journal.view/.edit` (no manage) | … journals | no | Data - UI-Oa Journal - view / edit (C1373188, C1348712) |
-| `ui-oa.charge.view/.edit/.manage` | View / Edit / Manage charges | no | Data - UI-Oa Charge - view / edit (C1373195, C1373197) |
-| `ui-oa.checklist.view` | Open Access Requests: View checklists | no | Data - UI-Oa Checklist - view (C1373199) |
+| `ui-oa.all-open-access.view` | Open Access Requests: Search & view all | yes | (capability set name not confirmed — verify) |
+| `ui-oa.all-open-access.edit` | Open Access Requests: Edit all | yes | (capability set name not confirmed — verify) |
+| `ui-oa.all-open-access.manage` | Open Access Requests: Manage all | yes | (capability set name not confirmed — verify) |
+| `ui-oa.allSettings.manage` | Settings (Open Access): Manage all Open Access settings | yes | (capability set name not confirmed — verify) |
+| `ui-oa.publicationRequest.view/.edit/.manage` | Open Access Requests: Search & view / Edit / Manage publication requests | no | Data - UI-Oa Publication Request - View / Edit (C1373196, C1373188; TestRail spells lowercase `view`/`edit`; Cypress dictionary has no OA entries) |
+| `ui-oa.party.view/.edit/.manage` | … people | no | Data - UI-Oa Party - View / Edit (C1373188, C1348717, C1348718; C1348719 precondition spells "Data - UI-Oa Parties - view" — see Known Gaps) |
+| `ui-oa.journal.view/.edit` (no manage) | … journals | no | Data - UI-Oa Journal - View / Edit (C1373188, C1348712, C1348713, C1348715) |
+| `ui-oa.charge.view/.edit/.manage` | View / Edit / Manage charges | no | Data - UI-Oa Charge - View / Edit (C1373195, C1373197) |
+| `ui-oa.checklist.view` | Open Access Requests: View checklists | no | Data - UI-Oa Checklist - View (C1373199) |
 
-Cross-app capability sets used in cases: Data - UI-Agreements Agreements - view (C1373195, C1373197), Data - UI-Invoice Invoice - create (C1373198).
+Cross-app capability sets used in cases: Data - UI-Agreements Agreements - View (C1373195, C1373197), Data - UI-Invoice Invoice - Create (C1373198) (names as written in those TestRail preconditions; not in the Cypress dictionary check for OA, verify casing in env).
 Eureka application: `app-oa` (folio-org/app-oa application.template.json) contains mod-oa + folio_oa, depends only on app-platform-minimal ^2.1.0 — Agreements/Invoices/Organizations are separate applications that must also be entitled for the cross-app flows.
 
 ## Status Values (mod-oa @Defaults; tenant-editable unless "internal")
@@ -125,7 +125,7 @@ Request status has no enforced transition rules in mod-oa; status changes are fr
 ## Key Business Rules for Test Cases
 
 ### Publication requests
-1. Creating a publication request shows the callout "Publication request {requestNumber} successfully created" (`publicationRequest.success.callout`) [source].
+1. Creating a publication request shows the callout "Publication request {requestNumber} successfully created" (`publicationRequest.success.callout`, ui-oa translations/ui-oa/en.json) [source].
 2. Request date and Status are required on the request form (ui-oa RequestInfoForm.js `requiredValidator`; C1373188).
 3. "Reason for closure" is disabled unless Status = Closed (RequestInfoForm.js `disabled={requestStatus !== 'closed'}`; C1373188 "greyed out/inactive"); default closure reason value is "Rejected" (mod-oa PublicationRequest.groovy).
 4. Request number is taken from number generator `openAccess`/`requestSequence` on submit (UIOA-224); if none is sent, mod-oa generates `hrid_prefix` + next value of `pubreq_hrid_seq` (PublicationRequest.groovy `generateHrid`).
@@ -146,8 +146,8 @@ Request status has no enforced transition rules in mod-oa; status changes are fr
 17. Request filters: Status, Charge status, Publication type, OA status, Publisher, Charge Payers, Institution level 1, Retrospective OA, Correspondence status, Request date range, plus checklist filter builder (PublicationRequestsRoute.js filterKeys; UIOA-164, UIOA-195; en.json `checklistFilter.*`).
 18. Selected filter checkboxes must display as selected after the filtered search (UIOA-260 — regression candidate).
 19. Request results: 25 per page with Previous/Next; default sort by request date descending; Request number column sortable asc/desc (C1373196). Count label "{number} records found" (`publicationRequests.recordsFound`).
-20. People search covers mainEmail, givenNames, familyName, orcidId; filter Institution level 1; default sort familyName, givenNames (PartiesRoute.js). Count label "Found {total} people" (`parties.found#People`; UIOA-182).
-21. Journal search covers title and identifier values; filters OA status, In DOAJ; only Title is sortable — ISSN columns are not (JournalsRoute.js; UIOA-238).
+20. People search covers mainEmail, givenNames, familyName, orcidId (C1348718: searching a word from each of family name, given name, ORCiD and main email must return the known person); filter Institution level 1; default sort familyName, givenNames (PartiesRoute.js). Count label "Found {total} people" (`parties.found#People`; UIOA-182).
+21. Journal search covers title and identifier values; filters OA status, In DOAJ; only Title is sortable — ISSN columns are not (JournalsRoute.js; UIOA-238; C1348713). Same Search & filter pattern as requests/people: "%" returns all, 25 per page with Previous/Next "1-25"/"26-50", "Reset all" clears search box and filters and leaves an empty results pane (C1348713, C1348718; TestRail shared step 39).
 22. Saving a request/person/journal/correspondence must not reset the current search and filters (UIOA-197).
 23. Known open defect: names starting with an uppercase umlaut (e.g. "Özdemir") may not be found on DBs with C collation (UIOA-253, Draft) — do not assert as pass/fail without checking the env collation.
 
@@ -156,11 +156,12 @@ Request status has no enforced transition rules in mod-oa; status changes are fr
 25. Person full name is built as "{givenNames} {familyName}" on save; lists show "{familyName}, {givenNames}" (Party.groovy; `party.familyNameOrdered`; C1373196).
 26. Main and other email fields accept up to 255 characters (UIOA-205/206, MODOA-44); an added "Email address" field is required (C1348717).
 27. Journal instance: EZB namespace only valid for Subtype "Electronic" (`journal.validate.notElectronicSubtype`); an ID+namespace combination must be unique across instances (`journal.validate.duplicateNamespaceID`; MODOA-35).
+27a. Journal view pane: heading = journal title; shows title, In DOAJ, OA status and each instance with material type and identifier (C1348715; UIOA-73, UIOA-104, UIOA-119). Person view pane: heading "{family name}, {first name}", Name property "{title} {given name} {family name}", ORCiD ID, phone and mobile, Institution level 1 and 2, main email, other emails as bullet list, full street address (C1348719; UIOA-40/41/42/67/92/95).
 28. Journals cannot be deleted — there is no `ui-oa.journal.manage` and no DELETE on `/oa/works` (UIOA-229; ModuleDescriptor).
 
 ### Charges
 29. Charge form defaults: Charge currency = tenant primary currency, Exchange rate inactive and = 1 for the same currency, Tax (%) = Settings "Default tax" (C1373197; UIOA-243).
-30. If no primary currency is set, charge creation is blocked with `publicationRequest.noCurrencySet` [source].
+30. If no primary currency is set, charge creation is blocked with `publicationRequest.noCurrencySet` (en.json; trigger condition not checked in src/ — unverified) [source].
 31. Amount to pay = (Net − Net×discount/100) × (1 + tax/100) for "%" and (Net − discount) × (1 + tax/100) for the currency-amount discount (mod-oa Charge.groovy `getEstimatedInvoicePrice`; UIOA-250 fixed the UI formula). Example: Net 110, Tax 10 → 121.00; +10% → 108.90; 10 currency → 110.00 (C1373197).
 32. Changing Discount type on edit must be saved and recalculated (UIOA-251 — regression candidate).
 33. Number fields (Net amount, Exchange rate, Discount, Tax %) accept a zero after the decimal point, e.g. 1.05 (UIOA-258); max 10 digits either side ("Maximum 10 digits either side" — `charge.validate.maxDigits`); negative values rejected ("Cannot be negative"/"Cannot be less than zero").
@@ -168,28 +169,28 @@ Request status has no enforced transition rules in mod-oa; status changes are fr
 35. Payment period must be a 4-digit year ("Must be a 4 digit number" — `charge.validate.fourDigits`; Charge.groovy regex `^([0-9]{4})?$`).
 36. Payers: each has Payer, note, amount; the sum of payer amounts must not exceed the charge total ("The amount(s) should be equal to or less than the charge total amount" — `charge.payers.amountsMoreThanChargeTotal`); the remaining amount is pre-filled and must be rounded to 2 decimals (UIOA-215; MODOA-25).
 37. Charge view header reads "Charge: request {requestNumber}" (`charge.publicationRequestCharge`; C1373198); Charges MCL in the request shows Description, Net amount, Calculated amount, Invoice line (C1373195).
-38. Delete charge confirmation: "This charge will be permanently deleted." (`charge.deleteChargeMessage`).
+38. Delete charge confirmation: "This charge will be permanently deleted." (`charge.deleteChargeMessage`, en.json).
 
 ### Invoices link
 39. Action "Link invoice line" opens "Link invoice line to charge"; an invoice can be selected or created ("New Invoice" — Invoice number, Invoice date, Vendor organisation, Payment method, Batch group, Currency, "Use current exchange rate"/"Use charge exchange rate") (C1373198).
 40. "New invoice line" asks for confirmation ("Select 'Submit' to go ahead."); the invoice line is created with status Open in the Invoices app (`charge.invoiceLine.newInvoiceLineConfirmMessage`, `charge.invoiceLine.status.open`; C1373198) — verify the invoice/line in the Invoices app, not only in OA.
-41. New invoice lines cannot be generated for approved, cancelled or paid invoices (`charge.invoiceLine.noNewInvoiceLine`) [source].
-42. If charge and invoice currencies differ, a "Conflicting currencies" warning shows and the line uses the invoice currency (`charge.invoiceLine.currencyDifferenceMessage`) [source].
-43. Unlinking removes only the link — it does not delete the invoice or invoice line (`charge.invoice.unlinkInvoiceLineMessage`, `charge.invoice.invoiceHelperMessage`).
+41. New invoice lines cannot be generated for approved, cancelled or paid invoices (`charge.invoiceLine.noNewInvoiceLine`, en.json; enforcement logic not checked — unverified) [source].
+42. If charge and invoice currencies differ, a "Conflicting currencies" warning shows and the line uses the invoice currency (`charge.invoiceLine.currencyDifferenceMessage`, en.json; unverified beyond the message text) [source].
+43. Unlinking removes only the link — it does not delete the invoice or invoice line (`charge.invoice.unlinkInvoiceLineMessage`, `charge.invoice.invoiceHelperMessage`, en.json; UI buttons "Link/Unlink invoice line" in ChargeView.js).
 44. Tax is not included in the created invoice line amount (UIOA-193, open documentation task) — check before asserting the invoice line total.
 
 ### Correspondence and checklists
-45. Correspondence requires Correspondent, Date, Mode, Status and content (mod-oa Correspondence.groovy `nullable: false`); delete confirmation "This correspondence will be permanently deleted." (`correspondence.deleteCorrespondenceMessage`).
+45. Correspondence requires Correspondent, Date, Mode, Status and content (mod-oa Correspondence.groovy `nullable: false`); delete confirmation "This correspondence will be permanently deleted." (`correspondence.deleteCorrespondenceMessage`, en.json).
 46. Checklist items are ordered by weight (higher sinks), then label (C1373199; `weightPopover`).
 47. Checklist outcomes: Not set, Yes, No, Other; setting an outcome changes "Created: …" to "Updated: {date} {time}" (C1373199; `checklist.updated`).
 48. Notes per checklist item: Save/Cancel active only after text entry; the counter increments (C1373199).
 49. Hiding an item moves it to a "Hidden" accordion with a count; showing it again removes the accordion when empty (C1373199).
-50. With no checklist item definitions the pane shows "The checklist can be used to manage individual publication requests" + link to Settings (`checklist.emptyMessage*`) [source].
+50. With no checklist item definitions the pane shows "The checklist can be used to manage individual publication requests" + link to Settings (`checklist.emptyMessage*`, en.json) [source].
 51. Checklist item definition Name is a unique normalized slug (diacritics removed, special chars → "_"); Label may contain special/national characters (ChecklistItemDefinition.groovy; UIOA-211).
 
 ### Permissions (UI)
-52. Charge "Edit" and "Link invoice line" need `ui-oa.charge.edit`; charge "Delete" needs `ui-oa.charge.manage`; correspondence "Delete" needs `ui-oa.publicationRequest.manage`; an Actions menu with no allowed entries is not shown (UIOA-242).
-53. "New"/Edit on requests, people, journals are wrapped in `ui-oa.publicationRequest.edit`, `ui-oa.party.edit`, `ui-oa.journal.edit` checks (ui-oa src IfPermission usage).
+52. Charge "Edit" and "Link/Unlink invoice line" need `ui-oa.charge.edit`; charge "Delete" needs `ui-oa.charge.manage` (ui-oa ChargeView.js hasPerm); correspondence "Edit" needs `ui-oa.publicationRequest.edit` and "Delete" needs `ui-oa.publicationRequest.manage` (CorrespondenceView.js); an Actions menu with no allowed entries is not shown (UIOA-242).
+53. "New"/Edit on requests, people, journals are wrapped in `ui-oa.publicationRequest.edit`, `ui-oa.party.edit`, `ui-oa.journal.edit` checks (ui-oa PublicationRequestsRoute.js, PartiesRoute.js, JournalsRoute.js `IfPermission`; also "Add charge"/"Add correspondence" in Charges.js/Correspondence.js and checklist edit/notes controls in Checklist/*.js need `ui-oa.publicationRequest.edit`).
 54. Every user of the app needs settings read (default tax / HRID) via `module.oa.enabled` (UIOA-229, UIOA-249).
 
 ### Reports
@@ -215,7 +216,9 @@ Request status has no enforced transition rules in mod-oa; status changes are fr
 - [ ] UIOA-258 note: German locale view mode shows "." instead of "," as decimal separator.
 - [ ] Request/charge pick lists are tenant-configurable — values beyond defaults are env-specific.
 - [ ] No negative, permission-boundary, correspondence, book-request, OpenAPC or settings cases exist yet (UIOA-257 Draft).
-- [ ] C1348713, C1348715, C1348718, C1348719 — only titles reviewed, steps not read.
+- [x] C1348713, C1348715, C1348718, C1348719 — steps read 2026-11-25 (rules added; see rules 20, 21, 27a). All 12 Smoke cases are now read in full.
+- [ ] C1348719 precondition spells the capability set "Data - UI-Oa Parties - view" while C1348718/C1373188/C1348717 use "Data - UI-Oa Party - view" — confirm the real name in the env.
+- [ ] Capability set casing: TestRail OA cases spell `view`/`edit` lowercase; the file shows `View`/`Edit` (house style) — confirm exact casing in the env.
 
 ---
 
