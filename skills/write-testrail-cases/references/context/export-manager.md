@@ -7,7 +7,7 @@ jira_status: ok
 
 # FOLIO Export Manager (+ EDIFACT / CSV order and claim export) — Business Logic Context
 
-> Built: 2026-11-07 · Refreshed: 2026-11-24 · Release: Umbrellaleaf R2 2026 (master: ui-export-manager 5.1.0 in progress, mod-data-export-spring 3.7.0 unreleased, mod-data-export-worker 3.6.0 unreleased; Trillium R1 2026 = ui-export-manager 5.0.0, UIEXPMGR-138) · Builder: build-app-context method, manual
+> Built: 2026-11-07 · Refreshed: 2026-11-24 · Release: Umbrellaleaf R2 2026 (master: ui-export-manager 5.1.0 in progress [package.json], mod-data-export-spring 3.7.0 unreleased, mod-data-export-worker 3.6.0 unreleased; Trillium R1 2026 = ui-export-manager 5.0.0, UIEXPMGR-138) · Builder: build-app-context method, manual
 > Sources:
 > - TestRail suite 21: section 11061 "Export Manager" (18 cases), 17492 "Export Orders in EDIFACT format" (2), 17493 "Orders Export to a Vendor" (45), 72797 "Settings (Export manager)" (1); details read for C405555, C813000, C784505, C1263891.
 > - GitHub (HEAD 2026-11): `ui-export-manager` (src/, en.json 60 keys = en_US.json, package.json, CHANGELOG); `mod-data-export-spring` (descriptors/ModuleDescriptor-template.json, swagger.api/, JobServiceImpl, validators, Liquibase changelog, NEWS.md); `mod-data-export-worker` (acquisitions tasklets, NEWS.md); `folio-export-common` (schemas); `stripes-acq-components` (lib/constants/export.js); `folio-integration-tests` (acquisitions/thunderjet/mod-data-export-spring); `stripes-testing` (cypress/e2e/export-manager, fragments).
@@ -61,7 +61,7 @@ Scheduled → In progress → Successful | Failed. New jobs default to `SCHEDULE
 - Filters: Status, Integration type (Claims / Orders), Export method (integration names; options narrowed to the vendor selected in Organization), Organization, System, Source, Start time, End time (ExportEdiJobsFilters.js; UIEXPMGR-115; C350596, C359175).
 - Columns: Job ID, Status, Description, Source, Start time, End time, Export method (ExportEdiJobsList.js).
 - Third pane: Job ID, Status, Start time, End time, Source, Organization, Export method, Sent to, File name, Description, Error details (ExportEdiJobDetails.js; UIEXPMGR-116; C405555).
-  - "Sent to" = "Download" when transmission method is File download, else `<serverAddress><orderDirectory>` [source].
+  - "Sent to" = "Download" when transmission method is File download, else `<ediFtp.serverAddress><ediFtp.orderDirectory>` (ExportEdiJobDetails.js getSentToValue) [source].
   - Actions menu (only with `ui-export-manager.export-manager.all`): **Rerun** (needs `data-export.job.item.post`; disabled if the integration no longer exists), **Download** and **Resend** (only if the job has file names; need `.download` / `.resend`) (ExportEdiJobDetailsActionMenu.js; C359196).
 
 ### Settings > Export manager > Jobs
@@ -89,13 +89,13 @@ Source: descriptors/ModuleDescriptor-template.json, JobServiceImpl, JobDeletionI
 
 ## Permissions and Capability Sets
 
-| Okapi permission (package.json) | displayName (en.json) | Sub-permissions (key) | Eureka capability set (from cases) |
+| Okapi permission (package.json) | displayName (en.json) | Sub-permissions (key) | Eureka capability set (name source) |
 |---|---|---|---|
-| ui-export-manager.export-manager.view | Export manager: View | data-export.job.collection.get/.item.get, data-export.config.*.get, organizations, users, tags | data - UI-Export-Manager Export-Manager - view (C1263891) |
-| ui-export-manager.jobs.downloadAndResend.execute | Export manager: Download and resend files | data-export.job.item.post, .item.download, .item.resend | procedural - UI-Export-Manager Jobs DownloadAndResend - execute (C1263891) |
-| ui-export-manager.export-manager.all | Export manager: All | view + downloadAndResend + data-export.edifact.orders.create | data - UI-Export-Manager Export-Manager - manage (C784505) |
-| ui-export-manager.settings.view | Settings (Export manager): Can view only settings | job-deletion-intervals.collection.get | settings - UI-Export-Manager Settings - view (C813000) |
-| ui-export-manager.settings.edit | Settings (Export manager): Can view and edit settings | settings.view + job-deletion-intervals.item.put | settings - UI-Export-Manager Settings - edit (C784505) |
+| ui-export-manager.export-manager.view | Export manager: View | data-export.job.collection.get/.item.get, data-export.config.*.get, organizations, users, tags | Data - UI-Export-Manager Export-Manager - View (cypress dictionary `uiExportManagerExportManagerView`; C1263891) |
+| ui-export-manager.jobs.downloadAndResend.execute | Export manager: Download and resend files | data-export.job.item.post, .item.download, .item.resend | Procedural - UI-Export-Manager Jobs DownloadAndResend - Execute (cypress dictionary `uiExportManagerJobsDownloadAndResendExecute`; C1263891) |
+| ui-export-manager.export-manager.all | Export manager: All | view + downloadAndResend + data-export.edifact.orders.create | Data - UI-Export-Manager Export-Manager - Manage (cypress dictionary `uiExportManagerExportManagerManage`; C784505 precondition 10) |
+| ui-export-manager.settings.view | Settings (Export manager): Can view only settings | job-deletion-intervals.collection.get | Settings - UI-Export-Manager Settings - View (C813000 precondition 2; not in cypress capabilitySets.js, which only has the Okapi permission) |
+| ui-export-manager.settings.edit | Settings (Export manager): Can view and edit settings | settings.view + job-deletion-intervals.item.put | Settings - UI-Export-Manager Settings - Edit (C784505 precondition 10, written there as "setting - ..."; not in cypress capabilitySets.js) |
 
 ## ECS / Multi-Tenant Notes
 
@@ -147,7 +147,7 @@ Source: descriptors/ModuleDescriptor-template.json, JobServiceImpl, JobDeletionI
 23. Saving shows one success toast for all changed rows: "Deletion interval for <b>{entities}</b> was successfully updated." / plural "Deletion intervals for … were successfully updated."; failed rows get a separate error toast; only changed rows are sent (PUT per type) (JobsSettings.js; en.json `settings.jobs.update.*`).
 24. View-only settings users see read-only fields and an inactive Save button (C813000).
 25. Default Ordering integration can be saved without vendor account numbers (MODEXPS-322; C402381).
-26. Claims jobs appear on the Organizations tab with Integration type = Claims and support Rerun / Download / Resend like orders (UIEXPMGR-116; see `claiming.md`).
+26. Claims jobs appear on the Organizations tab with Integration type = Claims and support Rerun / Download / Resend like orders (UIEXPMGR-116; C784505 step 5 reruns a claims job; see `claiming.md`).
 27. A download-only (File download) claims job ends Successful, not Failed (MODEXPW-555).
 28. An export job whose delivery failed is Failed, and its POLs are exported again by the next run (MODEXPW-660).
 29. Authority control CSV reports export with any tenant language (outputFormat ≤ 50 chars) (MODEXPS-291).
@@ -223,5 +223,6 @@ Runner `data-export-spring.feature` (Java: `DataExportSpringApiTest`, `DataExpor
 - [ ] Job type column for CLAIMS jobs on the All tab: no `exportJob.details.type.CLAIMS` key, so the raw value "CLAIMS" is expected to show — verify in env.
 - [ ] UI for manual "export now" of selected POLs (`/configs/{id}/execute`, MODEXPS-316) and effective-configs (MODEXPS-323) lives in ui-orders (UIOR-1556) — not in ui-export-manager; see `orders.md`.
 - [ ] Email transmission (MODEXPW-625/642) and CSV ordering format (MODEXPW-628) have no TestRail cases in the Export Manager sections; "Sent to" for Email integrations is not handled specially in ExportEdiJobDetails.js (shows FTP fields) — verify.
+- [ ] C813000 precondition 1 says deletion intervals are "NOT yet configured" while expecting default values 7/730 (and the title says "view-only capabilities"); C784505 precondition 10 spells the type "setting -" (typo). Capability set casing in this file follows the Cypress dictionary form ("Data - ... - View"); the Settings sets are confirmed only by these two case preconditions (read 2026-11-26).
 - [ ] MODEXPW-640 (jobs Failed with "null (UnresolvedAddressException)" on snapshot) closed as not reproducible — environment issue, not a rule.
 - [ ] TestRail cases updated after 2026-11-07 were not filtered separately; all titles in the four sections were reviewed.
