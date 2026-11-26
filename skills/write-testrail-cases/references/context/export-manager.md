@@ -2,6 +2,7 @@
 area: export-manager
 generated_on: 2026-11-24
 generator_version: manual (build-app-context method, full refresh)
+Release: Umbrellaleaf R2 2026
 jira_status: ok
 ---
 
