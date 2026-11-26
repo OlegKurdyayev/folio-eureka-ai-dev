@@ -1,19 +1,19 @@
 ---
 area: claiming
-generated_on: 2026-11-24
+generated_on: 2026-11-25
 generator_version: manual (build-app-context method, refresh)
 jira_status: ok
 ---
 
 # FOLIO Claiming — Business Logic Context
 
-> Built: 2026-11-24 · Release: Umbrellaleaf R2 2026 (ui-claims v3.0.0 in progress at HEAD; v2.0.x = Trillium R1 2026, v1.0.0 = Sunflower R1 2025) · Builder: build-app-context method, manual refresh
-> Sources: TestRail suite 21 section 57331 "Claiming" (15 cases; full steps read for C692111, C1322904, C1602437, C1602554, C692167); GitHub folio-org/ui-claims (translations/ui-claims/en.json — 55 keys, identical to en_US.json; package.json; src/views/Claiming/*), folio-org/stripes-acq-components (lib/claiming/*, translations/stripes-acq-components/en.json), folio-org/mod-orders (descriptors/ModuleDescriptor-template.json, PiecesClaimingService.java, PieceUpdateFlowManager.java, ExportConfigsCache.java, ErrorCodes.java), folio-org/mod-orders-storage (PieceClaimingRepository.java, views/wrapper_pieces_view.sql, ModuleDescriptor), folio-org/acq-models (claimingCollection.json, pieceStatusBatchCollection.json), folio-org/ui-receiving package.json; Jira UICLAIM (all 25 issues), MODORDERS / MODORDSTOR / UIREC / UIEXPMGR / UIORGS / MODEXPS claiming issues (~50); folio-integration-tests, stripes-testing; docs.folio.org/docs/acquisitions/claiming.
+> Built: 2026-11-25 · Release: Umbrellaleaf R2 2026 (ui-claims v3.0.0 in progress at HEAD; v2.0.x = Trillium R1 2026, v1.0.0 = Sunflower R1 2025) · Builder: build-app-context method, manual refresh
+> Sources: TestRail suite 21 section 57331 "Claiming" (15 cases; full steps read for C692111, C1322904, C1602437, C1602554, C692167, C692165, C1602553, C1621373, C692233, C648508; C692126, C1322902, C692237, C663254, C1045993 judged by title/refs only); GitHub folio-org/ui-claims (translations/ui-claims/en.json — 55 keys, identical to en_US.json; package.json; src/views/Claiming/*), folio-org/stripes-acq-components (lib/claiming/*, translations/stripes-acq-components/en.json), folio-org/mod-orders (descriptors/ModuleDescriptor-template.json, PiecesClaimingService.java, PieceUpdateFlowManager.java, ExportConfigsCache.java, ErrorCodes.java), folio-org/mod-orders-storage (PieceClaimingRepository.java, views/wrapper_pieces_view.sql, ModuleDescriptor), folio-org/acq-models (claimingCollection.json, pieceStatusBatchCollection.json), folio-org/ui-receiving package.json; Jira UICLAIM (all 25 issues), MODORDERS / MODORDSTOR / UIREC / UIEXPMGR / UIORGS / MODEXPS claiming issues (~50); folio-integration-tests, stripes-testing; docs.folio.org/docs/acquisitions/claiming.
 > `[source]` = GitHub source file named in the row; `[cases]` = TestRail cases. Related contexts: `receiving.md` (pieces, statuses, Edit piece form), `organizations.md` (claim integrations), `export-manager.md` (claim jobs), `orders.md` (POL Claiming active / interval).
 
 ## What is Claiming
 
-The **Claiming** app lists receiving **pieces** of PO lines with **Claiming active** (default filter: Receiving status = **Late**) across POs and lets staff act on them in bulk: **Send claim** (sets the pieces to Claim sent and creates one claim export job per applicable claim integration, visible in Export manager), **Delay claim**, **Unreceivable**, and **Group by organization**. Claims go out through the organization's **claim integration** (Organizations > Integration details, Integration type Claiming). The app has no detail pane and no settings; pieces are edited in Receiving.
+The **Claiming** app lists receiving **pieces** of PO lines with **Claiming active** (default filter: Receiving status = **Late**) across POs and lets staff act on them in bulk: **Send claim** (sets the pieces to Claim sent and creates one claim export job per applicable claim integration, visible in Export manager), **Delay claim**, **Unreceivable**, and **Group by organization**. Claims go out through the organization's **claim integration** (Organizations > Integration details, Integration type Claiming). The app has no detail pane and no settings; pieces are edited in Receiving [ui-claims translations/ui-claims/en.json; ui-claims package.json; C692111; C1322904].
 
 ## Record model / data source
 
@@ -34,7 +34,7 @@ Values: Expected, Received, Late, Claim delayed, Claim sent, Unreceivable [strip
 | Late (any selected) | Claim delayed | Delay claim | useClaimsDelay.js |
 | Late (any selected) | Unreceivable | Unreceivable | Claiming.tsx |
 
-Job: `_timer` POST `/orders-storage/claiming/process` (descriptor: unit hour, delay 6); testers trigger it manually with an empty-body POST [mod-orders-storage ModuleDescriptor; MODORDSTOR-374]. Job updates are audited as Piece Edit events (Status log) by a system user [PieceClaimingRepository.java].
+Job: `_timer` POST `/orders-storage/claiming/process` — **every 6 hours** (descriptor `unit: hour, delay: 6` at master; it was `delay: 1` in v13.7.0–v13.9.0 after MODORDSTOR-378 moved it from daily to hourly, later raised to 6); testers trigger it manually with an empty-body POST [mod-orders-storage descriptors/ModuleDescriptor-template.json; MODORDSTOR-378; MODORDSTOR-374]. Job updates are audited as Piece Edit events (Status log) by a system user [PieceClaimingRepository.java].
 
 ## UI structure
 
@@ -62,12 +62,12 @@ Error codes: `cannotSendClaimsPieceIdsAreEmpty` (400), `cannotFindPiecesWithLate
 
 | Okapi permission | Eureka capability set | Gives |
 |---|---|---|
-| Claims: View claims (`ui-claims.claiming.view`; only sub-permission `module.claims.enabled` → `stripes-core.settings.read`) | `data - UI-Claims Claiming - view` [cases] | App visible; **no backend data by itself** [ui-claims package.json] |
-| Receiving: View (`ui-receiving.view`) | `data - UI-Receiving - view` [cases] | `orders.wrapper-pieces.collection.get` → list + Group by organization [ui-receiving package.json] |
-| Receiving: View, edit (`ui-receiving.edit`, also create/delete sets) | `data - UI-Receiving - edit` [cases] | + `pieces.send-claims.collection.post`, `orders.pieces.collection.put` → Send / Delay / Unreceivable [ui-receiving package.json] |
-| Export manager | `data - UI-Export-Manager Export-Manager - manage` [cases] | Verify claim jobs (C692111, C1602437) |
+| Claims: View claims (`ui-claims.claiming.view`; only sub-permission `module.claims.enabled` → `stripes-core.settings.read`) | `Data - UI-Claims Claiming - View` [stripes-testing capabilitySets.js `uiClaimsClaimingView`; C692165 spells it `data - UI-Claims Claiming - view`] | App visible; **no backend data by itself** [ui-claims package.json] |
+| Receiving: View (`ui-receiving.view`) | `Data - UI-Receiving - View` [stripes-testing capabilitySets.js `uiReceivingView`; C692165] | `orders.wrapper-pieces.collection.get` → list + Group by organization [ui-receiving package.json] |
+| Receiving: View, edit (`ui-receiving.edit`, also create/delete sets) | `Data - UI-Receiving - Edit` [stripes-testing capabilitySets.js `uiReceivingEdit`; C648508, C1621373] | + `pieces.send-claims.collection.post`, `orders.pieces.collection.put` → Send / Delay / Unreceivable [ui-receiving package.json] |
+| Export manager | `Data - UI-Export-Manager Export-Manager - Manage` [stripes-testing capabilitySets.js `uiExportManagerExportManagerManage`; C648508] | Verify claim jobs (C692111, C1602437, C648508) |
 
-Actions are hidden (not just disabled) when the permission is missing: `IfPermission` wraps each item [Claiming.tsx; C692167]. docs.folio.org lists "Claims: View claiming" → capability `orders-storage.claiming.all` — differs from package.json (see Known Gaps).
+Actions are hidden (not just disabled) when the permission is missing: `IfPermission` wraps each item [Claiming.tsx; C692167]. The TestRail cases spell capability sets in lower case (`data - UI-… - view`); the Cypress dictionary builds the same names from type `DATA` + resource + action. docs.folio.org lists "Claims: View claiming" → capability `orders-storage.claiming.all` — differs from package.json (see Known Gaps).
 
 ## Key Business Rules for Test Cases
 
@@ -83,7 +83,7 @@ Actions are hidden (not just disabled) when the permission is missing: `IfPermis
 9. Material type filter is multi-select and, combined with Order format, matches the format-specific material type (P/E mix checks both eresource and physical) [search.ts; UICLAIM-25].
 10. Location filter matches POL locations or `searchLocationIds` [search.ts].
 11. Pieces without "Expected receipt date" never become Late via the job (still can be marked Late manually) [folio-integration-tests piece-status-transitions-claiming.feature; UIREC-413].
-12. An acquisition unit assigned to the **organization** does not hide or block its pieces; Vendor shows "-" where the org is restricted [UICLAIM-36; C1621373].
+12. An acquisition unit assigned to the **organization** does not hide or block its pieces; Vendor shows "-" where the org is restricted; the restricted org is not found in the Vendor filter Organization look-up, other orgs' pieces stay listed and claimable, and Send claim still creates one export job per integration (Export job details "Organization" = "-") [UICLAIM-36; C1621373].
 
 ### Actions — common
 13. Send claim, Delay claim and Unreceivable are disabled until at least one piece is checked; Group by organization is always enabled [Claiming.tsx; UICLAIM-3/4/5; C1322904].
@@ -107,7 +107,7 @@ Actions are hidden (not just disabled) when the permission is missing: `IfPermis
 
 ### Delay claim
 29. Modal "Delay claim(s)" with required "Delay to" date (future only), "Cancel", "Save & close"; success toast "Claims are successfully delayed."; status → Claim delayed with interval = days until "Delay to" [DelayClaimsModal.js; useClaimsDelay.js; en.json; C1322904].
-30. Re-delaying a piece already in Claim delayed saves the new interval and resets statusUpdatedDate (new Status log record) so Late happens on the new date [MODORDERS-1494 (13.1.7); C1602553].
+30. Re-delaying a piece already in Claim delayed saves the new interval and resets statusUpdatedDate (new Status log record) so Late happens on the new date; each delay adds a Status log row ("Claim delayed" + new interval; earlier rows stay), including from Receiving Edit piece (toast "The piece was successfully saved") [MODORDERS-1494 (13.1.7); C1602553].
 31. Delay claim is not restricted to Late pieces (any selected piece is updated) — Late check exists only for Send claim [useClaimsDelay.js; PieceUpdateFlowManager.java].
 
 ### Unreceivable
@@ -117,8 +117,9 @@ Actions are hidden (not just disabled) when the permission is missing: `IfPermis
 
 ### Permissions, ECS, organizations
 35. Without Receiving view no pieces load; without Receiving edit only "Group by organization" is shown in Actions (C692165, C692167; UICLAIM-8).
-36. ECS: central-tenant POL with member-tenant location can be claimed from the central tenant; wrapper-pieces results are limited to the tenants the user is affiliated with (central ordering) [WrapperPieceStorageService.java; C692233].
+36. ECS: for a central-tenant POL with a member-tenant location, the piece is NOT listed in the Claiming app of the member tenant; it is claimed from Receiving (Edit piece > Send claim, popup text "This will generate a claim job which can be viewed in Export manager. Continue?") and the job appears in Export manager in the Central tenant; wrapper-pieces results are limited to the tenants the user is affiliated with (central ordering) [WrapperPieceStorageService.java; C692233].
 37. Claim integration = Organization integration with Integration type "Claiming", Transmission method FTP or File download, File format CSV or EDI; no Scheduling accordion for Claiming [UIORGS-442; ui-organizations en.json `integration.info.integrationType.claiming`].
+38. Claim file formats: CSV (name above) or EDI (`edi_claims_<Vendor code>_<Export method>_YYYY-MM-DD_HH-MM-SS`; segments UNB/UNH/NAD+BY/NAD+SU/DOC+220/LIN/PIA/IMD+L+080 (Display summary:Chronology:Enumeration)/IMD+L+109 (Publisher)/STS+UP1::9+CSD::9+55/RFF+LI/RFF+SNA/RFF+ACT:::1); CUX, PRI+AAF, PRI+AAB, RFF+BFN and LOC+7 segments are NOT present; FTP integration also writes the file to the Order directory [C648508; MODEXPW-584].
 
 ## Exact UI Texts
 
@@ -185,5 +186,6 @@ Not covered yet: acquisition-method routing of claim integrations (MODORDERS-149
 - MODORDERS-1495 and MODORDERS-1492 are "In bugfix review" in Jira but released in mod-orders 13.1.7 and verified on Trillium Bugfest.
 - UIREC-518 (same-interval re-delay from Receiving Edit piece) and UIREC-519 (rejected Send claim from Receiving still saves date/notes) are open Receiving defects.
 - docs.folio.org Claiming page is outdated: still lists "POL claim active (default)" filter and says unchecking it shows non-claim-active pieces; permission table maps to `orders-storage.claiming.all` instead of package.json sets.
-- Timer frequency: MODORDSTOR-378 says hourly; current descriptor `_timer` shows unit hour, delay 6 — exact schedule on environments not verified.
+- Timer frequency: resolved from the module descriptor — MODORDSTOR-378 (13.7.0) set hourly (`delay: 1`, still in v13.9.0); master descriptor now has `delay: 6` (6 hours). The commit/Jira that changed it to 6 was not identified, and the effective schedule on environments (tenant override of `_timer`) is not verified.
+- Capability set names are confirmed only for Claiming view, Receiving view/edit and Export-Manager manage (Cypress dictionary); `UI-Orders Orders - view` and the ECS `settings - UI-Consortia-Settings Settings NetworkOrdering - view` seen in C1602553/C692233 preconditions were not checked in the dictionary.
 - `Pieces to claim` column (UICLAIM-1) has a translation key but no column; Organization code/name sorting not supported.
