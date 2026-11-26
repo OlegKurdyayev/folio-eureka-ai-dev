@@ -1,6 +1,6 @@
 # FOLIO Course Reserves — Business Logic Context
 
-> Built: 2026-07-21 · Refreshed: 2026-11-24 · Release: Umbrellaleaf (R2 2026) master — ui-courses master (v7.1.1 released for Trillium R1 2026, v7.1.2 in progress), mod-courses master (v1.4.14 released 2026-11-20, 1.4.15-SNAPSHOT) · Builder: build-app-context (full refresh, manual merge)
+> Built: 2026-07-21 · Refreshed: 2026-11-25 · Release: Umbrellaleaf R2 2026 (ui-courses master: v7.1.1 released for Trillium R1 2026, v7.1.2 in progress; mod-courses master: v1.4.14 released 2026-11-20, 1.4.15-SNAPSHOT) · Builder: build-app-context (full refresh, manual merge)
 
 > Sources (2026-11-24 refresh): GitHub `folio-org/ui-courses` (translations/ui-courses/en.json + en_US.json, package.json, src/, CHANGELOG.md), `folio-org/mod-courses` (descriptors/ModuleDescriptor-template.json, ramls/*.json, src/main/resources/templates/db_scripts/schema.json, CourseAPI.java, CRUtil.java, NEWS.md), `folio-org/stripes-testing` (cypress/e2e, support/fragments/courses, support/dictionary), `folio-org/folio-integration-tests` (no Course Reserves Karate project), `folio-org/docs` (content/en/docs/Access/Courses/courses.md, Settings/Settings_courses/settings_courses.md); Jira UICR + MODCR (98 issues updated since 2024-06, ~35 read in detail: Ramsons R2 2024 → Trillium R1 2026 fixVersions); TestRail suite 21 section 1116 "Course Reserves" (subsections 1117 Courses — 8 cases, 1118 Reserve Items — 6, 1119 Settings — 3, 1125 Permissions — 1, 1126 "Courses : Read only" — 0 cases; 18 cases total, none created/updated since 2025-08).
 > Exact UI texts below are from `translations/ui-courses/en.json` (key named) or a TestRail case (C-ID). `en_US.json` lags by one key (`editCourse.warning`, UICR-244) — otherwise identical.
@@ -20,10 +20,10 @@ The Courses app (route `/cr`) lets library staff link Inventory items to an acad
 |---|---|
 | Course | Organizing record: name, description, department, course code (`courseNumber`), section, number of students; required `name`, `departmentId`, `courseListingId` (mod-courses `ramls/course.json`) |
 | Course listing | Shared container: term (required), course type, registrar ID, external ID, location, service point, instructors, reserves (`ramls/courselisting.json`). Not visible as its own record in the UI |
-| Cross-listed course | Another course on the same course listing ("Crosslist" action) — shares reserve items, instructors and listing info |
+| Cross-listed course | Another course on the same course listing ("Crosslist" action) — shares reserve items, instructors and listing info (docs courses.md "Adding a cross-listed course") |
 | Reserve item | An Inventory item added to a course listing by barcode (or Fast Add); stores a `copiedItem` snapshot of Inventory data (`ramls/reserve.json`) |
 | Term | Configured name + start/end date (all required, `ramls/term.json`); course Status is derived from it |
-| Course type / Department / Processing status / Copyright status / Role | Settings vocabularies, `name` required, `description` optional |
+| Course type / Department / Processing status / Copyright status / Role | Settings vocabularies, `name` required, `description` optional (`ramls/coursetype.json`, `department.json`, `processingstatus.json`, `copyrightstatus.json`, `role.json`) |
 | Instructor | Person on a course listing: `name` required; optional `userId` (linked FOLIO user), `barcode`, `patronGroup` (`ramls/instructor.json`) |
 
 ---
@@ -147,8 +147,23 @@ Behaviour notes (CourseAPI.java / CRUtil.java):
 
 ## Capability Sets (Eureka) [docs courses.md / settings_courses.md + ui-courses package.json]
 
-| Okapi display name (en.json `permission.*`) | Permission | Eureka resource / type / action (docs) |
+Display names: ui-courses `package.json` stripes.permissionSets and `translations/ui-courses/en.json` `permission.*`. Eureka names: docs.folio.org `Access/Courses/courses.md` "Permissions" table (Resource / Type / Action), spelled in the skill form `Type - Resource - Action`. Only `Data - UI-Courses - Manage` is additionally confirmed in stripes-testing (`capabilitySets.uiCourses`); the rest rely on docs alone, not a live env.
+
+| Okapi display name (package.json / en.json `permission.*`) | Permission | Eureka capability set (docs courses.md) |
 |---|---|---|
+| `Courses: All permissions` | `ui-courses.all` (includes maintain-settings) | `Data - UI-Courses - Manage` (also stripes-testing `capabilitySets.uiCourses`) |
+| `Courses: Read all` | `ui-courses.read-all` | `Data - UI-Courses - View` |
+| `Courses: Read, add, and edit courses` | `ui-courses.read-add-edit` (+ instructors CRUD, no course delete) | `Data - UI-Courses Courses - Manage` |
+| `Courses: Read, add, edit, and delete courses` | `ui-courses.maintain-courses` | (capability set name not confirmed — verify): absent from docs table, lost in Eureka mapping (UICR-239, open) |
+| `Courses: Add and edit courses' reserved items` (docs spell it "a courses’ reserved items") | `ui-courses.add-edit-items` (no remove; includes inventory item put, loan types, `users.collection.get` — UICR-235) | `Data - UI-Courses Add-Edit-Items - Manage` |
+| `Courses: Add, edit, and remove courses' reserved items` | `ui-courses.maintain-items` | `Data - UI-Courses Items - Manage` |
+| `Settings (Courses): Can view course settings` | `ui-courses.view-settings` | `Settings - UI-Courses Settings View - View` (docs settings_courses.md) |
+| `Settings (Courses): Can create, edit and delete course settings` | `ui-courses.maintain-settings` | `Data - UI-Courses Settings - Manage` (docs settings_courses.md) |
+| `Fast add: Create` | plugin-create-inventory-records | `Data - UI-Plugin-Create-Inventory-Records - Create` |
+
+Notes need separate Notes capabilities (docs; C421983 preconditions). TestRail C9185/C9186/C605979 preconditions list the Okapi display names above (incl. `Courses: Read, add, edit, and delete courses`). For new cases use the Eureka names above and confirm in env.
+
+---|---|---|
 | `Courses: All permissions` | `ui-courses.all` (includes maintain-settings) | UI-Courses · Data · Manage |
 | `Courses: Read all` | `ui-courses.read-all` | UI-Courses · Data · View |
 | `Courses: Read, add, and edit courses` | `ui-courses.read-add-edit` (+ instructors CRUD, no course delete) | UI-Courses Courses · Data · Manage |
@@ -279,7 +294,7 @@ Course Reserves: **`Other` ~61%** / Func ~39%, median **~3 steps** (short), `Use
 
 - [ ] **Course create required fields conflict**: C9171 lists "Course Name, Term, and Service Desk"; docs courses.md says only Course Name + Term; code (CourseFormInfo.js, UICR-93) and `course.json` require Department as well, and there is no Service desk field in v7.1.x. Update C9171 when touched.
 - [ ] **`Courses: Read, add, edit, and delete courses` in Eureka** — missing from the docs capability table; UICR-239 (open) says it was lost in the Okapi→Eureka mapping and deleting courses currently needs `Courses: All permissions` (which also grants settings). Confirm capability set names in env.
-- [ ] Eureka capability names come from docs (resource/type/action), not from a live env — verify exact display in Settings > Authorization roles.
+- [ ] Eureka capability names come from docs (resource/type/action), not from a live env; only `Data - UI-Courses - Manage` is also in stripes-testing — verify exact display in Settings > Authorization roles. Docs spell the add-edit-items display name "Add and edit a courses’ reserved items" vs `Courses: Add and edit courses' reserved items` in package.json/en.json — verify in env.
 - [ ] Course type filter (BF-809 note in C9186): no Jira record of a fix; code implements it — re-verify and update C9186.
 - [ ] C605979 expects status for "all 20 or more" items; since UICR-233 only the first 45 get status — case is valid up to 45 items only.
 - [ ] Temporary loan type "inherited from the course" (docs courses.md) — there is no course-level loan type field; reserves only inherit the item's own temp loan type or one set on Edit reserve. Clarify wording.
@@ -291,6 +306,7 @@ Course Reserves: **`Other` ~61%** / Func ~39%, median **~3 steps** (short), `Use
 - [ ] Pending migrations: mod-locations APIs (UICR-243, MODCR-149 drafts); reserve copy vs. live URI (UICR-115 / MODCR-150 open).
 - [ ] Keyboard shortcut table (C350570) only as an attachment image; registered shortcut names listed above, key combos not captured.
 - [ ] Section 1126 "Courses : Read only" has 0 cases — read-only rule 8 has no TestRail case yet.
+- [ ] C9185 (search courses) and C9186 (course filters) sit in section 1118 "Reserve Items" but test the Courses segment; the Reserves segment search/filters have no TestRail case (bodies read 2026-11-25).
 - [ ] `field.serviceDesk` / `column.serviceDesk` translations unused in v7.1.x UI — do not assert a "Service desk" column/field.
 - [x] Copyright/Processing status settings behaviour — confirmed (C9176).
 - [x] Notes accordion — regression guard, not a bug (C421983; UICR-189).
@@ -300,3 +316,4 @@ Course Reserves: **`Other` ~61%** / Func ~39%, median **~3 steps** (short), `Use
 
 ## Change log
 - 2026-11-24 full refresh: merged the 2026-11-07 delta (no Course Reserves changes; its unrelated STCOR/MODROLESKC/MDEXP/ERM bullets dropped). Corrected the results-list columns (no Service desk column; Registrar ID added) and the create-course required fields; added Reserves search segment, API surface, Eureka capabilities, inventory side-effect table, coverage, edge cases, rules 14–30. UI strings changed since 2026-07-21: added `editCourse.warning` (UICR-244); none removed.
+- 2026-11-25 audit remediation: Release header normalized; capability table recast to `Type - Resource - Action` with sources (maintain-courses marked not confirmed); vocabulary/cross-listed rows tagged; read TestRail section 1118 bodies (C9183, C9190, C9184, C9185, C9186, C605979), added misfiled-case gap.
