@@ -1,6 +1,6 @@
 # FOLIO Organizations — Business Logic Context
 
-> Built: 2026-07-21 · Refreshed: 2026-11-24 · Release: Umbrellaleaf R2 2026 (ui-organizations master 7.1.0 in progress; Trillium R1 2026 = ui-organizations 7.0.0) · Builder: build-app-context (refresh)
+> Built: 2026-07-21 · Refreshed: 2026-11-25 · Release: Umbrellaleaf R2 2026 (ui-organizations master 7.1.0 in progress; module versions: Trillium R1 2026 = ui-organizations 7.0.0) · Builder: build-app-context (refresh)
 
 > Sources (refresh 2026-11-24):
 > - GitHub: `folio-org/ui-organizations` master 7.1.0 (`translations/ui-organizations/en.json`, `package.json`, `src/**`, `CHANGELOG.md`); `mod-organizations` (`descriptors/ModuleDescriptor-template.json`, `ErrorCodes.java`, `ProtectionServiceImpl.java`, `NEWS.md`); `mod-organizations-storage` (ModuleDescriptor, `db_scripts/schema.json`, `NEWS.md`); `acq-models` `mod-orgs/schemas/organization.json`.
@@ -132,25 +132,25 @@ The Organizations app holds records for **vendors** and other external parties (
 
 ## Capability Sets (Eureka)
 
-> Resource names from docs.folio.org (Organizations › Capabilities, Settings_organizations) and TestRail preconditions (C423547, C613152, C688767, C663330, C1621423). Use these in new cases; legacy display names (en.json `permission.*`) shown for mapping only.
+> Names confirmed by TestRail preconditions (Eureka block of C423547, C423630, C423502, C367989/C367990) and docs.folio.org (Organizations › Capabilities & capability sets; Settings_organizations), types/resources/actions cross-checked with stripes-testing `cypress/support/dictionary/capabilitySets.js` (`UI-Organizations` view/delete only) and ui-organizations `package.json` permission names. Cases spell them `Data - UI-Organizations - View` (Type - Resource - Action, each capitalised); legacy display names (en.json `permission.*`, `permissions.js` `gui`) shown for mapping only.
 
-| Action | Capability set (type - resource - action) | Legacy display name |
-|---|---|---|
-| View | `data - UI-Organizations - view` | `Organizations: View` |
-| View, edit | `data - UI-Organizations - edit` | `Organizations: View, edit` |
-| View, edit, create | `data - UI-Organizations - create` | `Organizations: View, edit, create` |
-| View, edit, delete | `data - UI-Organizations - delete` | `Organizations: View, edit, delete` |
-| Interface credentials view / manage | `data - UI-Organizations Creds - view` / `- manage` | `Organizations: Interface usernames and passwords: view` / `…: view, edit, create, delete` |
-| Integration credentials view / edit | `data - UI-Organizations Integrations Creds - view` / `- edit` | `Organizations: Integration usernames and passwords: view` / `…: view, edit` |
-| Banking info view / edit / create / delete | `data - UI-Organizations Banking-Information - view` / `edit` / `create` / `delete` | `Organizations: View banking information` … `…View, edit, create and delete banking information` |
-| Privileged donor view / edit | `data - UI-Organizations Privileged-Contacts - view` / `- edit` | `Organizations: can view privileged donor information` / `…can view, create, edit, delete…` |
-| Assign acq units on create | since Trillium `procedural - UI-Organizations Organizations Acquisitions Units Assign - execute` (before: `procedural - UI-Organizations AcqUnits - execute`) | `Organizations: Assign acquisition units to new organization` |
-| Manage acq units on edit | since Trillium `procedural - UI-Organizations Organizations Acquisitions Units Manage - execute` (before: `data - UI-Organizations AcqUnits - manage`) | `Organizations: Manage acquisition units` |
-| Settings view | `settings - UI-Organizations Settings - view` | `Settings (Organizations): View settings` |
-| Settings view and edit | `data - Organizations Settings - manage` | `Settings (Organizations): Can view and edit settings` |
-| Number generator options | `settings - UI-Organizations Settings NumberGenerator - manage` | `Settings (Organizations): Manage number generator options` |
+| Action | Capability set (Type - Resource - Action) | Legacy display name | Confirmed by |
+|---|---|---|---|
+| View | `Data - UI-Organizations - View` | `Organizations: View` | C423547; docs; Cypress `uiOrganizationsView` |
+| View, edit | `Data - UI-Organizations - Edit` | `Organizations: View, edit` | C423547; C423630; docs |
+| View, edit, create | `Data - UI-Organizations - Create` | `Organizations: View, edit, create` | C423547; docs |
+| View, edit, delete | `Data - UI-Organizations - Delete` | `Organizations: View, edit, delete` | C423547; docs; Cypress `uiOrganizationsDelete` |
+| Interface credentials view / manage | `Data - UI-Organizations Creds - View` / `Data - UI-Organizations Creds - Manage` | `Organizations: Interface usernames and passwords: view` / `…: view, edit, create, delete` | C423547; docs |
+| Integration credentials view / edit | `Data - UI-Organizations Integrations Creds - View` / `Data - UI-Organizations Integrations Creds - Edit` | `Organizations: Integration usernames and passwords: view` / `…: view, edit` | C423547; docs |
+| Banking info view / edit / create / delete | `Data - UI-Organizations Banking-Information - View` / `- Edit` / `- Create` / `- Delete` | `Organizations: View banking information` … `…View, edit, create and delete banking information` | C423547; docs |
+| Privileged donor view / edit | `Data - UI-Organizations Privileged-Contacts - View` / `Data - UI-Organizations Privileged-Contacts - Edit` | `Organizations: can view privileged donor information` / `…can view, create, edit, delete…` | C423630 (Edit); docs (View, Edit) |
+| Assign acq units on create | since Trillium `Procedural - UI-Organizations Organizations Acquisitions Units Assign - Execute` (before: `Procedural - UI-Organizations AcqUnits - Execute`) | `Organizations: Assign acquisition units to new organization` | C423547 |
+| Manage acq units on edit | since Trillium `Procedural - UI-Organizations Organizations Acquisitions Units Manage - Execute` (before: `Data - UI-Organizations AcqUnits - Manage`) | `Organizations: Manage acquisition units` | C423547 |
+| Settings view | `Settings - UI-Organizations Settings - View` | `Settings (Organizations): View settings` | C423547; docs Settings_organizations |
+| Settings view and edit | `Data - Organizations Settings - Manage` (no `UI-` prefix) | `Settings (Organizations): Can view and edit settings` | C367989, C367990, C423547; docs |
+| Number generator options | `Settings - UI-Organizations Settings NumberGenerator - Manage` | `Settings (Organizations): Manage number generator options` | docs Settings_organizations + service_interaction; package.json `ui-organizations.settings.numberGenerator.manage` (no TestRail precondition yet) |
 
-Notes: the acq-unit renames come from UIORGS-478 (7.0.0, Trillium; C423547 preconditions). `Organizations: Integration usernames and passwords: view` alone does not give access to organization records (C423502). Interface credential and privileged-donor edit sets must be combined with `UI-Organizations` create or delete (docs.folio.org).
+Notes: the acq-unit renames come from UIORGS-478 (7.0.0, Trillium; C423547 preconditions); docs.folio.org Organizations still lists the pre-Trillium `UI-Organizations AcqUnits` resource (docs lag behind). `Organizations: Integration usernames and passwords: view` alone does not give access to organization records (C423502: only the Finance app shows in the header). Interface credential and privileged-donor edit sets must be combined with `UI-Organizations` create or delete (docs.folio.org).
 
 ---
 
@@ -276,17 +276,17 @@ Settings > Organizations > Account types: delete opens `Delete account type` (`T
 2. **Organization code must be unique** — async check `code=="<code>" and id<>"<id>"` shows `Code is already in use`; DB unique index backs it. (`validateOrgCode.js`; storage `make_organization_code_unique.sql`)
 3. **Account numbers must be unique within an organization** — form error `An organization can not have duplicate account numbers`; API POST/PUT returns 422 `accountNumberMustBeUnique`; a record already holding duplicates shows the `view.duplicateAccounts` banner. (`FieldAccountNumber.js`; Karate `acquisitions-api-tests.feature`; C350761)
 4. Unchecking `Vendor` on an existing organization in Edit triggers `Confirm vendor data deletion`; Confirm removes vendor info, vendor terms, EDI info and accounts; deleting the whole organization uses the separate `Delete {organizationName}?` modal. (`OrganizationSummaryForm.js`; C358965, C613152)
-5. Interface and integration **credentials are separately permissioned**; integration-creds view alone gives no access to organization records. (github; C423502)
-6. The vendor's `Claiming interval` seeds the Receiving title's claiming interval; expected receipt/invoice/activation intervals drive acquisitions expectations. (github + receiving.md/orders.md)
-7. Integration config (type Ordering/Claiming, FTP, schedule) drives automated EDIFACT order export and claims export via Export Manager. (github; UIORGS-442)
+5. Interface and integration **credentials are separately permissioned**; integration-creds view alone gives no access to organization records. (`package.json` permissionSets `ui-organizations.creds.*` / `ui-organizations.integrations.creds.*`; docs.folio.org Organizations capabilities; C423502)
+6. The vendor's `Claiming interval` (days) is the default claiming interval on purchase order lines for that vendor (overridable on the POL and on the Receiving title; the POL value is inherited by the title); it defines how long after a piece's expected receipt date it becomes `Late`. Other vendor intervals (expected receipt / invoice / activation) are stored on the vendor only (not verified how Orders/Invoices use them). (docs.folio.org Organizations › Vendor information, Receiving › Claiming; Karate `thunderjet/mod-orders/features/poline-claiming-interval-checks.feature` for the POL → title inheritance)
+7. Integration config (type Ordering/Claiming, FTP, schedule) drives automated EDIFACT order export and claims export via Export Manager. (UIORGS-442; `OrganizationIntegration/constants.js`; Cypress `integration-claiming`)
 8. Contacts and interfaces can be **unassigned** (link removed, record kept) or **deleted** (record removed). (en.json `contacts.confirmUnassign.*`, `contacts.confirmDelete.*`)
 9. Acquisition units gate org access like other acq records; assign-on-create and manage-on-edit are distinct capabilities; changing `acqUnitIds` on update without manage permission returns 403 `userHasNoAcqUnitsPermission`; GET of a read-protected org by a non-member returns 403. (`ProtectionServiceImpl.java`; Karate `acquisitions-api-tests.feature`)
-10. `Donor` organizations feed donor fields on funds and order lines; privileged donor info is separately permissioned. (github + docs.folio.org)
+10. `Donor` organizations feed donor fields on funds and order lines; privileged donor info is separately permissioned. (docs.folio.org Finance › Donor information: a fund's donors are copied to the PO line when the fund is applied; Organizations › Privileged donor information)
 11. **EDI `Schedule EDI` Time is shown in tenant timezone but stored as UTC** (`scheduleParameters.timeZone: "UTC"` in `/data-export-spring/configs/`); check both UI value and API value. (C965832; `utils.js` `getTenantTime`)
 12. A scheduled export's real effect is a `Successful` job row in **Export Manager** (`Organizations` toggle, `Integration type` filter), not the saved config. (C965832, C1621423)
 13. Integration requiredness is driven independently by File format (EDI vs CSV → EDI codes + account numbers) and Transmission method (FTP vs File download → Server address + FTP port); Ordering only locks both to EDI/FTP and shows Scheduling. (C688767; `utils.js`)
 14. Duplicating an integration copies every field including FTP credentials, schedule and account numbers into `Copy of <name> (<date, time>)`; since UIORGS-481 both copies show their account numbers in Edit with the in-use warning. (`OrganizationIntegrationView.js`; UIORGS-441, UIORGS-481)
-15. Privileged donor contacts are excluded from the Contact-people `Add contact` lookup for every user. (C423630)
+15. Privileged donor contacts are excluded from the Contact-people `Add contact` lookup; verified for a user with full privileged-donor rights, other roles not tested. (C423630, UIORGS-397)
 16. Tenant setting `Enable banking information` off ⇒ Banking information accordion absent for all users regardless of permissions. (C423547)
 17. Bank account types in use by any organization cannot be deleted — second popup `Cannot delete account type`. (C590820; UIORGS-435, MODORGSTOR-163)
 18. Version History never shows Privileged donor information or Agreements, and shows each version's point-in-time accordion contents. (C663330)
@@ -307,11 +307,11 @@ Settings > Organizations > Account types: delete opens `Delete account type` (`T
 33. Scheduling validation: period must be chosen, frequency positive, Time required, Monthly `Day` 1–31. (`SchedulingForm.js`; C434063, C434064)
 34. `Server address` must be a valid URL when Transmission method = FTP. (`utils.js` `validateFTPServerAddress`)
 35. `EDI naming convention` cannot be set or edited (static token value). (C350758; `EdiForm.js`)
-36. Integrations created before Sunflower without a type are migrated to `Ordering`. (UIORGS-442 migration AC; MODORGSTOR-181)
+36. Integrations that existed before the type field (Ramsons → Sunflower upgrade) are migrated to `Ordering`; the first migration failed and was fixed in mod-organizations-storage 4.9.1. (UIORGS-442 closed 6.0.0; MODORGSTOR-181)
 37. Version History does not list metadata fields as changes; metadata-only saves appear as "System maintenance update" cards. (UIORGS-482 + QA comment; C663330)
 38. Number generator `Off` hides `Generate vendor code`; `On, field not editable` locks Code after generation; `On, field editable` keeps it editable. (C700855; UIORGS-337, UIORGS-462)
-39. `Settings (Organizations): View settings` gives read-only settings; Banking information settings are hidden without banking view permission. (C407766; UIORGS-436)
-40. Categories and organization types in use cannot be deleted (`This category cannot be deleted, as it is in use by one or more records.`). (en.json; C367989, C367990)
+39. `Settings (Organizations): View settings` gives read-only settings; Banking information settings are hidden without banking view permission. (C407766: Categories/Types `New` inactive and Actions column empty; UIORGS-436)
+40. Categories and organization types in use cannot be deleted (`This category cannot be deleted, as it is in use by one or more records.`). (en.json `settings.*` delete-guard strings; C367990 for the type guard step; C367989 covers only the successful delete of an unused category, not the guard)
 41. Alternative names, vendor terms and accounts rows, once added, must be completed (Alias / Name / required account fields) or removed before save. (docs.folio.org; `OrganizationSummaryForm.js` Alias `validateRequired`)
 42. Edit audit events for an organization carry both the original and the updated snapshot; create events only the new one. (MODORGSTOR-201; Karate `audit-event-organization.feature`)
 43. Organizations are tenant-local in ECS; there is no share/central update for organizations yet. (MODORG-78..81 In Refinement; MODORGSTOR-197)
@@ -333,10 +333,14 @@ Organizations: **`Func` ~85%** / Other ~15%, median ~8 steps, `User Journey` ~15
 - [ ] `organizationCodeWhitespace` has no ui-organizations translation key: expected UI = `Organization could not be saved` plus a second callout with the backend message (`Organization code must not start or end with whitespace`) per `handleSaveErrorResponse.js` — verify; no TestRail or Karate case yet (MODORG-99).
 - [ ] `Required!` vs `Required`: C688767 uses `Required!`, C434063 uses `Required` for the Day field — the text comes from stripes-acq-components, check in env.
 - [ ] docs.folio.org says a vendor can be deleted even with linked orders/invoices; no TestRail case found for that path.
-- [ ] Number generator settings capability `settings - UI-Organizations Settings NumberGenerator - manage` is from docs.folio.org only; no TestRail precondition uses it yet.
+- [ ] Number generator settings capability `Settings - UI-Organizations Settings NumberGenerator - Manage` is confirmed by docs.folio.org and `package.json` only; no TestRail precondition uses it yet.
+- [ ] C423502 Eureka precondition lists `Data - UI-Organizations Integrations Creds - Edit` although the case is about the `view` permission (legacy line says `…: view`) — likely a typo in the case; check before reusing.
+- [ ] Rule 6: how Orders/Invoices use the vendor's expected receipt / invoice / activation / renewal / subscription intervals is not verified from a source.
+- [ ] Rule 15 / C423630 verified only for a user holding `Privileged-Contacts - Edit` + `UI-Organizations - Edit`; behaviour for view-only users is not tested.
+- [ ] Category delete guard (`This category cannot be deleted…`) has no TestRail step (C367989 covers only a successful delete); only en.json confirms the text.
 - [ ] Integration details are stored in mod-data-export-spring, so whether integration add/remove shows in organization Version History (UIORGS-362, closed without fix version) is unconfirmed.
 - [x] Eureka capability-set strings — now taken from TestRail preconditions and docs.folio.org (table above).
 - [x] Interface flow labels — `Add interface` opens the find-interface lookup, `New` creates (en.json `interface.addInterface`, `interface.newInterface`).
 - [x] "Save & keep editing" on Edit — covered by C656335 and UIORGS-449 (Create/Clone/Edit).
 
-> Refresh log: 2026-07-22 N≥10 audit (14 cases from section 107); 2026-07-23 spot-check (C466130); 2026-11-07 delta (UIORGS-481, UIORGS-482, MODORGSTOR-201 — folded into the sections above on 2026-11-24); 2026-11-24 full refresh against GitHub master, Jira, TestRail (93 cases listed, 8 read in full), Karate, Cypress, docs.folio.org.
+> Refresh log: 2026-07-22 N≥10 audit (14 cases from section 107); 2026-07-23 spot-check (C466130); 2026-11-07 delta (UIORGS-481, UIORGS-482, MODORGSTOR-201 — folded into the sections above on 2026-11-24); 2026-11-24 full refresh against GitHub master, Jira, TestRail (93 cases listed, 8 read in full; remediation 2026-11-25 read C423547, C423502, C423630, C407766, C367989, C367990 in full), Karate, Cypress, docs.folio.org.
