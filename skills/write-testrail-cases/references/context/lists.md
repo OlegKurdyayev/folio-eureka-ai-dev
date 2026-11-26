@@ -1,6 +1,6 @@
 # FOLIO Lists App (FQM) — Business Logic Context
 
-> Built: 2026-11-24 (full refresh of the 2026-11-07 file; 2026-06-17 build + 2026-11-07 delta folded in) · Release: Umbrellaleaf (R2 2026) — ui-lists master (after v5.0.2), ui-plugin-query-builder 3.0.3 (in progress), mod-lists 4.1.0 (Umbrellaleaf), mod-fqm-manager 4.2.0 (Umbrellaleaf) · Builder: build-app-context/manual
+> Built: 2026-11-24 (full refresh of the 2026-11-07 file; 2026-06-17 build + 2026-11-07 delta folded in; remediated 2026-11-25) · Release: Umbrellaleaf R2 2026 (ui-lists master after v5.0.2, ui-plugin-query-builder 3.0.3 in progress, mod-lists 4.1.0, mod-fqm-manager 4.2.0) · Builder: build-app-context/manual
 
 > Sources (2026-11-24 refresh):
 > - GitHub (master): folio-org/ui-lists (`translations/ui-lists/en.json`, `package.json`, `CHANGELOG.md`, `src/`), folio-org/ui-plugin-query-builder (`translations/ui-plugin-query-builder/en.json`, `CHANGELOG.md`), folio-org/mod-lists (`descriptors/ModuleDescriptor-template.json`, `src/main/resources/swagger.api/list.yaml` + `schemas/`, `src/main/java/org/folio/list/services/ListValidationService.java`, `exception/`, `README.md`, `NEWS.md`), folio-org/mod-fqm-manager (`descriptors/ModuleDescriptor-template.json`, `NEWS.md`)
@@ -8,7 +8,7 @@
 > - folio-integration-tests: `mod-lists/`, `mod-fqm-manager/`, `edge-fqm/` Karate projects · stripes-testing: `cypress/e2e/lists/`, `cypress/e2e/consortia/lists/`, `cypress/support/fragments/lists/`
 > - Confluence: "Lists App permissions" (572948576), "Lists App: Cross-tenant Queries [ECS only]" (599916623), "Returning null/empty values in Lists / FQM" (932380775), "Lists app - Trillium - Notes on functionality" (2073591809), "Lists app - Umbrellaleaf - Notes on functionality" (2391769089), "Umbrellaleaf - MARC Querying in Lists app" (2344353798)
 > - docs.folio.org source: `content/en/docs/Lists/_index.md`
-> - TestRail section 29149 (suite 21): NOT reachable during this refresh (MCP bridge offline) — case IDs below come from the earlier builds and from C-ids in stripes-testing spec titles. See Known Gaps.
+> - TestRail project 14 / suite 21: PARTIAL. Section 29149 had no MCP access on 2026-11-24; on 2026-11-25 the MCP was reachable and these case bodies were read: C1045968, C1632042, C1505043 (section lists: 29149, 29154, 34769 listed by title only). Other case IDs come from earlier builds and stripes-testing spec titles. See Known Gaps.
 > Strings marked [en.json `key`] are verbatim from `translations/<module>/en.json` on master. Strings marked [from cases] come from TestRail cases (earlier builds).
 
 ---
@@ -223,7 +223,7 @@ Actions: `New`, `Actions`, `Refresh list`, `Cancel refresh`, `Delete list`, `Edi
 
 ## Queryable vs. Displayable Fields (C451499, docs `Lists/_index.md`)
 
-Some array-type fields cannot be used in the Query Builder but ARE available in `Show columns` and in CSV export (e.g. `User — Department UUIDs`; per-ET companions for POL, Items, Holdings, Instances — Cypress `verify-non-queryable-array-fields-in-export-and-columns*.cy.js`). The docs table per record type has columns "Can use to build query in UI?" / "Option to show as column heading in UI?" — use it as the reference for a given field. `User — Address` was made queryable in Trillium (MODFQMMGR-1043) although C451499 and docs.folio.org still list it as not queryable — see Known Gaps.
+Some array-type fields cannot be used in the Query Builder but ARE available in `Show columns` and in CSV export (e.g. `User — Department UUIDs`; per-ET companions for POL, Items, Holdings, Instances — Cypress `verify-non-queryable-array-fields-in-export-and-columns*.cy.js`). The docs table per record type has columns "Can use to build query in UI?" / "Option to show as column heading in UI?" — use it as the reference for a given field. `User — Address` was made queryable in Trillium (MODFQMMGR-1043; C1045968 confirms sub-fields `Address — City/Country/Line 1/Line 2/Postal code/Primary address/Region/Type`, and `Show columns` → `User — Address`) although C451499 and docs.folio.org still list it as not queryable — see Known Gaps.
 
 ## Query Builder — Operator/Value Interaction Rules
 
@@ -238,7 +238,7 @@ Some array-type fields cannot be used in the Query Builder but ARE available in 
 - **Negation operators include null/empty**: `not equal to` (string, integer, date, boolean, array of strings) and `not in` (string, UUID, arrays) return records whose field is null or empty (MODFQMMGR-753/754, Confluence 932380775; C740199, C740217/C740218/C740220).
 - **`is null/empty` on arrays**: `True` matches if any element is empty; `False` matches only if all elements are non-empty (Confluence 932380775).
 - **Values are shown exactly as stored** — extra spaces are not collapsed in the results table, and a copied value finds the record (UIPQB-303, C1574533).
-- **Dates** are converted using the tenant time zone, not the user's (UIPQB-126, UIPQB-205).
+- **Dates** are converted using the tenant time zone, not the user's (UIPQB-126, UIPQB-205). C1632042 (UIPQB-304): with tenant time zone e.g. Europe/Minsk (UTC+3), a user with `expirationDate` `2026-05-01T23:59:59.999+00:00` is found by `User — Expiration date equals 5/2/2026` and shown as 5/2/2026 in the plugin, the list details and the CSV (`2026-05-02`); after changing the tenant time zone to America/Phoenix the same user is found with 5/1/2026 (clear local storage after changing the zone). Query area shows `(users.expiration_date == 05/02/2026)`.
 
 ## Query Builder — MARC field querying (Umbrellaleaf; UIPQB-278/287/277, MODFQMMGR-1141/1142/1143/1188/1190/1191/1211/1224)
 
@@ -295,13 +295,13 @@ Lists created before Sunflower stored `starts with`/`contains` as `$regex`. Thes
 
 > Source: docs.folio.org `Lists/_index.md` (Capabilities table), Confluence "Lists App permissions" (572948576), ui-lists `package.json` permissionSets, stripes-testing `support/dictionary/capabilitySets.js`. Type for all Lists capability sets: `Settings`.
 
-| Functionality | Capability set (Type Settings) | Legacy permission (reference only) |
-|---|---|---|
-| View lists | `Settings - Module Lists Enabled - View` | `module.lists.enabled` — Lists (Enable): Can view lists |
-| Create, edit, refresh | `Settings - Module Lists Refresh - View` | `module.lists.refresh` — Lists (Edit) |
-| Create, edit, refresh, export | `Settings - Module Lists Export - View` | `module.lists.export` — Lists (Export) |
-| Create, edit, refresh, delete | `Settings - Module Lists - Delete` | `module.lists.delete` — Lists (Delete) |
-| All (Admin) | `Settings - Module Lists - Manage` | `module.lists.all` — Lists (Admin) |
+| Functionality | Capability set (Type Settings) | Legacy permission (reference only) | Name confirmed by |
+|---|---|---|---|
+| View lists | `Settings - Module Lists Enabled - View` | `module.lists.enabled` — Lists (Enable): Can view lists | docs.folio.org `Lists/_index.md` (resource `Module Lists Enabled`, view); not in the Cypress dictionary |
+| Create, edit, refresh | `Settings - Module Lists Refresh - View` | `module.lists.refresh` — Lists (Edit) | Cypress `capabilitySets.js` `moduleListsRefreshView`; docs |
+| Create, edit, refresh, export | `Settings - Module Lists Export - View` | `module.lists.export` — Lists (Export) | Cypress `moduleListsExportView`; docs |
+| Create, edit, refresh, delete | `Settings - Module Lists - Delete` | `module.lists.delete` — Lists (Delete) | docs.folio.org only (resource `Module Lists`, delete); not in the Cypress dictionary |
+| All (Admin) | `Settings - Module Lists - Manage` | `module.lists.all` — Lists (Admin) | Cypress `moduleListsManage`; C1632042 precondition `Module Lists - Manage` |
 
 What each level shows in `Actions` (Cypress `cypress/e2e/lists/permissions/*.cy.js`):
 - View: no `New` button; `Actions` has no Refresh/Edit/Duplicate/Delete/Export (`lists-view-permissions.cy.js`).
@@ -310,7 +310,7 @@ What each level shows in `Actions` (Cypress `cypress/e2e/lists/permissions/*.cy.
 - Export: Refresh, Edit, Duplicate, both Export actions; no Delete (`lists-export-permissions.cy.js`).
 - Admin: all actions (`lists-all-permissions.cy.js`, C411693/C411694).
 
-Content permissions: add the record-type's view capability sets (e.g. `Users: Can view user profile`) — the user needs all of them for the chosen ET (Confluence 572948576; C476848).
+Content permissions: add the record-type's view capability sets (e.g. `UI-Users - View`, as used in C1632042 preconditions; exact capability set names per ET: capability set name not confirmed — verify) — the user needs all of them for the chosen ET (Confluence 572948576; C476848).
 
 ---
 
@@ -365,47 +365,47 @@ Expected: matching lists only (name or description, case-insensitive partial mat
 1. List record sets are snapshots; they change only on refresh or on saving a new query, while values of records already in the set are read at view time. (cases; docs `Lists/_index.md`)
 2. Inactive lists cannot be refreshed or exported; refresh returns `refresh-list.is.inactive`, export `export-list.is.inactive`; refresh and export actions are disabled in the UI. (`ListValidationService.java`; C411840, C411811; Karate `refresh.feature`)
 3. Duplicate list prepopulates name `<name> - copy`, description, status, visibility and query, and saving creates an independent list. (`useCopyListState.ts`; Cypress `duplicate-list/*`)
-4. Refresh updates `Last updated` and the record count; while it runs `List refresh in progress` and `Cancel refresh` are shown. (cases; en.json `refresh.status.in-progress`)
-5. Export uses the latest successful refresh, not live data. (cases; mod-lists export reads list contents)
+4. Refresh updates `Last updated` and the record count; while it runs `List refresh in progress` and `Cancel refresh` are shown. (Karate `refresh.feature` add/remove record scenario; en.json `refresh.status.in-progress`)
+5. Export uses the latest successful refresh, not live data. (mod-lists `ListIdsProvider.java` reads contents by `getSuccessRefresh().getId()`)
 6. `Actions` options depend on the capability set: View has none, Edit adds Refresh/Edit/Duplicate, Delete adds Delete, Export adds both export actions, Admin has all. (Cypress `permissions/*.cy.js`)
 7. Lists app access needs a Lists capability set; ET permissions alone never unlock the app. (C476848)
-8. The Query Builder must keep queries editable across edit/duplicate flows, with values shown as labels. (cases; UIPQB-260)
+8. The Query Builder must keep queries editable across edit/duplicate flows; the user-friendly query never shows `undefined` and values show labels, not codes. (UIPQB-242, UIPQB-260; C1259783)
 9. Some array fields are not queryable but can be shown as columns and exported; check per ET in docs. (C451499; docs)
 10. Concurrent edits are guarded by `version`: the second save fails with `update-optimistic.lock.exception` (409). (C411739; `OptimisticLockException.java`)
 11. ET permissions are re-checked on every read/refresh/export/delete; removing one after creation blocks the list. (C476851; `ListValidationService.java`)
-12. Value is kept when switching among `equals`/`not equal to`/`starts with`/`contains`, and `in`↔`not in`; switching to or from `is null/empty` resets it. (UIPQB-250, UIPQB-180; C651429, C651430)
+12. Value is kept when switching among `equals`/`not equal to`/`starts with`/`contains`, and `in`↔`not in`; switching to or from `is null/empty` resets it. `contains`/`starts with` are case-insensitive. (UIPQB-250, UIPQB-180, MODFQMMGR-994; C651429, C651430)
 13. `not equal to` and `not in` return records with null/empty values for string, UUID, date, integer, boolean and array fields. (MODFQMMGR-753/754; C740199, C740217/C740218/C740220)
-14. The user-friendly query never shows `undefined`; re-editing shows labels, not codes. (UIPQB-242, UIPQB-260; C1259783)
-15. `Authority` is a supported record type with its own field vocabulary. (C1322605)
-16. New record types since 2026-06: Agreements + Lines, Agreements-Invoices-Orders (MODFQMMGR-1133/1134), Payment terms on PO Line (MODLISTS-248), Request aggregates (MODFQMMGR-1231); custom ETs can join other ETs (MODFQMMGR-896, C1464107).
-17. UUID fields show the UUID (not a name) after save and use only `equals`, `in`, `not in`, `is null/empty`. (UIPQB-295, MODFQMMGR-1222)
-18. A user holding the list's ET permissions can export it without permission errors. (MODLISTS-276)
-19. Canned (System) lists cannot be edited or deleted (API 400 `list.is.canned`; UI `Edit list` disabled) but can be refreshed, exported and duplicated. (`ListValidationService.java`; C411731, C411769, C411810)
-20. Delete is blocked while the list is refreshing or exporting; delete is soft (`isDeleted`), and versions/contents are no longer returned. (`ListValidationService.java`; C411770, C411771; Karate `delete.feature`, `versions.feature`)
-21. Edit (PUT) is blocked while the list is refreshing or exporting, for every user. (`ListValidationService.validateUpdate`; C411737, C411738, C411766, C411767)
-22. Refresh is blocked while another refresh or an export is running and when the list has no query. (`ListValidationService.validateRefresh`; Karate `refresh.feature`)
-23. The same user cannot start a second export of a list while theirs is running; a different user can. (`assertUserNotExporting`)
-24. Private lists are accessible only to the current owner (`updatedBy`, else `createdBy`); others get 401 `list.is.private`. (`assertSharedOrOwnedByUser`; Karate `access-control.feature`; C411710)
-25. Setting a list Inactive deletes its contents and clears the last successful refresh; reactivating requires a manual refresh. (`ListService.java`; en.json `warning.inactive-status`, `callout.list.active`)
-26. Each create/update stores a historic version readable via `GET /lists/{id}/versions`; versions follow the list's access control. (Karate `versions.feature`)
-27. `GET /lists` returns only lists of permitted ETs; the `Record type` dropdown shows only permitted ETs. (MODLISTS-112; MODFQMMGR-658)
-28. Landing-page search matches list name and description, case-insensitive, partial match, and combines with filters and sorting. (UILISTS-252, MODLISTS-68; C1434637, C1434639, C1434660)
-29. `Source` filter: `System` returns canned lists only, `User generated` excludes them, none selected returns both. (UILISTS-263, MODLISTS-243)
-30. `Created by` / `Updated by` are multi-select dropdowns of users who created/updated lists, sorted alphabetically, and do not need user-view permissions; deleted users are not offered and names are not synced after user edits. (UILISTS-281, MODLISTS-277)
-31. Sort by `List name`, `Last updated`, `Records`; lists without a successful refresh sort first ascending and last descending by `Records`. (UILISTS-254, MODLISTS-68 comments)
-32. Search term, filters and sort persist across view/add/edit/duplicate/delete, reload and app navigation. (UILISTS-279; C1538701)
-33. After saving a changed query, the detail page shows `Query in progress` until the new query finishes and never shows the old count. (UILISTS-276; C1574527)
-34. Export is available only from the details page, not from Edit; `Export selected columns (CSV)` contains only shown columns, ID columns only when selected. (UILISTS-235, MODLISTS-232)
-35. CSV headers use UI labels (Trillium+) and duplicate value labels get the code appended (`German [de]`). (Confluence 2073591809; MODLISTS-249)
-36. A query over `maxListSize` (default 1,250,000) shows `modal.banner.limit` in the Query Builder and the refresh fails with `refresh-max.list.size.exceeded`. (MODFQMMGR-723; mod-lists `README.md`)
-37. Deleted records stay in the list until refresh and show `Deleted` with `—` cells and a tooltip; for composite ETs only the missing source's columns are empty. (UIPQB-72; C957375)
-38. `contains` and `starts with` are case-insensitive. (MODFQMMGR-994)
-39. Legacy array operators (`contains any/all`, `not contains any/all`) no longer exist; saved lists were migrated to `in`/`not in`/`equals`/`not equal to`. (MODFQMMGR-889/898/899/900/901)
-40. `in` on free-text strings is offered only for barcodes and HRIDs, and `not in` is not offered for them. (MODFQMMGR-1081)
-41. Lists with cross-tenant queries (ECS Central; Instances, Holdings, Items, Instances with MARC bibliographic) are always Private and show the multi-tenant indicator. (UILISTS-175, MODLISTS-152, MODLISTS-250)
-42. A custom ET used by a list cannot be deleted (409); a list whose ET is gone is hidden from the landing page and its URL shows `This list's entity type is no longer available`. (MODFQMMGR-959, UILISTS-239)
-43. MARC field conditions require a 3-digit tag; indicators accept a-z, 0-9 or `\`; subfield a-z or 0-9; LDR/006/007/008 support whole/position/range. (en.json UIPQB `marc.validation.*`; MODFQMMGR-1190/1224)
-44. The Query Builder results table shows values exactly as stored (no space trimming). (UIPQB-303; C1574533)
+14. `Authority` is a supported record type with its own field vocabulary. UUID fields show the UUID (not a name) after save and use only `equals`, `in`, `not in`, `is null/empty`. (C1322605; UIPQB-295, MODFQMMGR-1222)
+15. New record types since 2026-06: Agreements + Lines, Agreements-Invoices-Orders (MODFQMMGR-1133/1134), Payment terms on PO Line (MODLISTS-248), Request aggregates (MODFQMMGR-1231); custom ETs can join other ETs (MODFQMMGR-896, C1464107).
+16. A user holding the list's ET permissions can export it without permission errors. (MODLISTS-276)
+17. Canned (System) lists cannot be edited or deleted (API 400 `list.is.canned`; UI `Edit list` disabled) but can be refreshed, exported and duplicated. (`ListValidationService.java`; C411731, C411769, C411810)
+18. Delete is blocked while the list is refreshing or exporting; delete is soft (`isDeleted`), and versions/contents are no longer returned. (`ListValidationService.java`; C411770, C411771; Karate `delete.feature`, `versions.feature`)
+19. Edit (PUT) is blocked while the list is refreshing or exporting, for every user. (`ListValidationService.validateUpdate`; C411737, C411738, C411766, C411767)
+20. Refresh is blocked while another refresh or an export is running and when the list has no query. (`ListValidationService.validateRefresh`; Karate `refresh.feature`)
+21. The same user cannot start a second export of a list while theirs is running; a different user can. (`assertUserNotExporting`)
+22. Private lists are accessible only to the current owner (`updatedBy`, else `createdBy`); others get 401 `list.is.private`. (`assertSharedOrOwnedByUser`; Karate `access-control.feature`; C411710)
+23. Setting a list Inactive deletes its contents and clears the last successful refresh; reactivating requires a manual refresh. (`ListService.java`; en.json `warning.inactive-status`, `callout.list.active`)
+24. Each create/update stores a historic version readable via `GET /lists/{id}/versions`; versions follow the list's access control. (Karate `versions.feature`)
+25. `GET /lists` returns only lists of permitted ETs; the `Record type` dropdown shows only permitted ETs. (MODLISTS-112; MODFQMMGR-658)
+26. Landing-page search matches list name and description, case-insensitive, partial match, and combines with filters and sorting. (UILISTS-252, MODLISTS-68; C1434637, C1434639, C1434660)
+27. `Source` filter: `System` returns canned lists only, `User generated` excludes them, none selected returns both. (UILISTS-263, MODLISTS-243)
+28. `Created by` / `Updated by` are multi-select dropdowns of users who created/updated lists, sorted alphabetically, and do not need user-view permissions; deleted users are not offered and names are not synced after user edits. (UILISTS-281, MODLISTS-277)
+29. Sort by `List name`, `Last updated`, `Records`; lists without a successful refresh sort first ascending and last descending by `Records`. (UILISTS-254, MODLISTS-68 comments)
+30. Search term, filters and sort persist across view/add/edit/duplicate/delete, reload and app navigation. (UILISTS-279; C1538701)
+31. After saving a changed query, the detail page shows `Query in progress` until the new query finishes and never shows the old count. (UILISTS-276; C1574527)
+32. Export is available only from the details page, not from Edit; `Export selected columns (CSV)` contains only shown columns, ID columns only when selected. (UILISTS-235, MODLISTS-232)
+33. CSV headers use UI labels (Trillium+) and duplicate value labels get the code appended (`German [de]`). (Confluence 2073591809; MODLISTS-249)
+34. A query over `maxListSize` (default 1,250,000) shows `modal.banner.limit` in the Query Builder and the refresh fails with `refresh-max.list.size.exceeded`. (MODFQMMGR-723; mod-lists `README.md`)
+35. Deleted records stay in the list until refresh and show `Deleted` with `—` cells and a tooltip; for composite ETs only the missing source's columns are empty. (UIPQB-72; C957375)
+36. Legacy array operators (`contains any/all`, `not contains any/all`) no longer exist; saved lists were migrated to `in`/`not in`/`equals`/`not equal to`. (MODFQMMGR-889/898/899/900/901)
+37. `in` on free-text strings is offered only for barcodes and HRIDs, and `not in` is not offered for them. (MODFQMMGR-1081)
+38. Lists with cross-tenant queries (ECS Central; Instances, Holdings, Items, Instances with MARC bibliographic) are always Private and show the multi-tenant indicator. (UILISTS-175, MODLISTS-152, MODLISTS-250)
+39. A custom ET used by a list cannot be deleted (409); a list whose ET is gone is hidden from the landing page and its URL shows `This list's entity type is no longer available`. (MODFQMMGR-959, UILISTS-239)
+40. MARC field conditions require a 3-digit tag; indicators accept a-z, 0-9 or `\`; subfield a-z or 0-9; LDR/006/007/008 support whole/position/range. (en.json UIPQB `marc.validation.*`; MODFQMMGR-1190/1224)
+41. The Query Builder results table shows values exactly as stored (no space trimming). (UIPQB-303; C1574533)
+42. Date fields (`Birth date`, `Enrollment date`, `Expiration date`) are queried, displayed and exported in the tenant time zone, not UTC. (UIPQB-304; C1632042)
+43. `User — Address` sub-fields are queryable: `Country` and `Type` use dropdown values (`equals`, `not equal to`, `in`, `not in`, `is null/empty`); `Line 1`/`Line 2`/`Postal code`/`Region`/city use free text (`equals`, `not equal to`, `contains`, `starts with`, `is null/empty`); `Primary address` is a True/False dropdown (`equals`, `is null/empty`). (MODFQMMGR-1043; C1045968)
+44. Keyboard/accessibility: `New` is focused exactly once in the Tab order; `View updated list` is reachable by Tab and activated by Enter and Space; the Build query modal has no hidden or zero-size Tab stops (also when reopened via `Edit query`) and the title is not clipped under WCAG 1.4.12 text spacing. (UILISTS-266, UILISTS-267, UIPQB-289, UIPQB-290, STCOM-1552; C1505043)
 
 ---
 
@@ -417,22 +417,23 @@ Lists (FQM): **`Other` ~65%** / Func ~35%, median ~6 steps, `User Journey` ~0%. 
 
 ## Known Gaps / Items to Verify
 
-- [ ] TestRail (project 14, suite 21, section 29149) was not reachable on 2026-11-24 (MCP bridge offline, no API credentials). Cases created/updated after 2026-11-07 were not read; case-based rules come from earlier builds and from C-ids in stripes-testing spec titles. Re-run the TestRail pass.
+- [ ] TestRail (project 14, suite 21) only partially read: on 2026-11-24 the MCP was offline; on 2026-11-25 only C1045968, C1632042, C1505043 were read in full. Sections 29149 (1 case), 29154 (15 cases: C411731–C411741, C411765–C411767, C1574527) and 34769 (8 cases) were listed by title; other Lists subsections (create, refresh, export, delete, permissions, query builder per ET; IDs not listed because the suite section tree is paginated) and all other case bodies remain unread. Re-run the TestRail pass.
 - [ ] Detail page after ET permission removal: C476851 (older) expects the generic `You don't have permission to view this app/record`; current code has [en.json `error-component.read-entity.type.restricted`] `You do not have permission to view this list` (UILISTS-128). Verify which appears.
 - [ ] Export headers and ID columns: C451513 allows snake_case headers (`loans.status_name`) and unselected ID columns; Trillium notes (Confluence 2073591809) and MODLISTS-232 say headers use UI labels and ID columns appear only when selected. Update C451513 or verify in env.
-- [ ] `User — Address`: MODFQMMGR-1043 (Trillium) made it queryable; C451499 and docs.folio.org (`Lists/_index.md`, Users table: "NO") still say not queryable.
+- [ ] `User — Address`: MODFQMMGR-1043 (Trillium) made it queryable and C1045968 (updated 2026) confirms it; C451499 and docs.folio.org (`Lists/_index.md`, Users table: "NO") still say not queryable — update C451499/docs.
 - [ ] Application name for Lists capability sets: docs.folio.org says `app-fqm`; Confluence 572948576 says `app-lists` for Trillium roles. Check the tenant.
 - [ ] `Reset all` and sort: UILISTS-254 refinement says Reset all does not reset the sort, its scenario says results return to the default sort. Verify (Cypress `verify-reset-and-clear-search-box.cy.js`, C1434638).
 - [ ] Default landing-page filter appears to be `Status: Active` (URL `filters=status.Active` in UILISTS-239 comments); confirm before asserting.
 - [ ] `Updated by` semantics: UILISTS-253 asks whether a refresh counts as an update ("Last refreshed(?)"); not confirmed by a source.
 - [ ] docs.folio.org "Duplicate a list" says the toast is `List Original List Name - copy was saved`; en.json has `List <strong>{listName}</strong> saved.` — assert the en.json text.
 - [ ] Whether `Delete list` is hidden or disabled for canned lists in the UI is not shown by a source (Cypress only asserts `Edit list` disabled).
-- [ ] Capability naming variants (`Module Lists + Manage`, `Module Lists Refresh + view`, casing) appear in older case preconditions; use the table above.
+- [ ] Capability naming variants (`Module Lists + Manage`, `Module Lists Refresh + view`, casing) appear in older case preconditions (e.g. C1505043); use the table above. `Module Lists Enabled - View` and `Module Lists - Delete` are confirmed only by docs.folio.org, not by the Cypress dictionary. Content-permission capability set names per entity type are not confirmed.
 
 ---
 
 ## Change log
 
+- 2026-11-25 remediation: source tags added (rules 4, 5, 8), capability table gets confirming sources, rules 45-47 added from C1045968/C1632042/C1505043, 3 duplicate rules merged into rules 8, 12, 15 and 4 new/extended rules added (45-47 equivalents: tenant time zone dates, User Address sub-fields, accessibility; now rules 42-44), release header form fixed. Rules 44.
 - 2026-11-24 full refresh: re-verified all UI strings against en.json (corrected the refresh-complete toast — `Refresh complete` is bold); added API surface, error codes, export/refresh/cancel and private-list errors, ECS cross-tenant rules, custom ET rules, search/filter/sort rules, Karate/Cypress coverage; corrected capability-set table (Delete = `Module Lists - Delete`, View = `Module Lists Enabled - View`); widened value-retention rule per UIPQB-250; moved export header/ID-column and User Address conflicts to Known Gaps. Rules 17 -> 44.
 - 2026-11-07 delta (merged): UILISTS-252/253/254/263/279/280/281/277; UIPQB-278/287/277, MODFQMMGR-1141/1143/1188/1190/1191/1211; MODFQMMGR-1133/1134, MODLISTS-248, MODFQMMGR-1113/1231; UIPQB-295/297/298/299, MODFQMMGR-1208/1215, MODLISTS-276, MODFQMMGR-1150. Reference cases created 2026-06-17…2026-11-07 include C1599856–C1599869 (MARC LDR/control fields), C1574533, C1574527, C1559243/C1559244, C1538701/C1538703, C1505019/C1504486 (localization), C1464107, C1434636–C1434657 (search & filter), C1415950/C1415952 (ECS member ETs), C1405043–C1405046 (linked bib counts).
 - 2026-07-21/23 audits: C476848, C476851, C451499, C451514, C651429, C651430, C740199, C831960, C1259783, C1312673, C411739, C451513, C1322605.
