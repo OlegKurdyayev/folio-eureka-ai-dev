@@ -1,8 +1,8 @@
 # FOLIO Circulation Log — Business Logic Context
 
-> Built: 2026-07-21 · Refreshed: 2026-11-24 · Release: Umbrellaleaf (R2 2026) — ui-circulation-log master 6.2.0 (IN_PROGRESS; last release 6.1.0 = Trillium R1 2026, 2026-04-17), mod-audit master 3.1.0 (in progress; 3.0.0 = Trillium, 2026-04-16) · Builder: build-app-context (full refresh 2026-11-24; previous delta refresh 2026-11-07)
+> Built: 2026-07-21 · Refreshed: 2026-11-25 · Release: Umbrellaleaf R2 2026 (ui-circulation-log master 6.2.0 IN_PROGRESS, last release 6.1.0 = Trillium R1 2026, 2026-04-17; mod-audit master 3.1.0 in progress, 3.0.0 = Trillium, 2026-04-16; source: `package.json`, `CHANGELOG.md`, `NEWS.md`) · Builder: build-app-context (full refresh 2026-11-24, audit remediation 2026-11-25; previous delta refresh 2026-11-07)
 
-> Sources (2026-11-24 refresh): GitHub `folio-org/ui-circulation-log` master (`translations/ui-circulation-log/en.json` — identical to `en_US.json` at refresh time, `package.json`, `src/**`, `CHANGELOG.md`); `folio-org/mod-audit` master (`descriptors/ModuleDescriptor-template.json`, `ramls/circulation-logs.raml`, `ramls/logRecord.json`, `ramls/schemas/{logged_object_type,action_type}.json`, `mod-audit-server/src/main/java/org/folio/builder/description/*`, `NEWS.md`); `folio-org/folio-integration-tests` (`mod-audit/`); `folio-org/stripes-testing` (`cypress/e2e/circulation-log/`, `cypress/support/fragments/circulation-log/`); Jira UICIRCLOG + MODAUD resolved since 2024-06 (31 + 107 issues scanned, ~35 read in detail) plus cross-project issues mentioning "circulation log" (CIRC, MODEXPW, MODTLR, UXPROD …); TestRail project 14 / suite 21, section 1539 "Circulation log" (87 cases) + subsection 25716 "Additional Loan Comments" (2 cases) + C1621493 (Check in section).
+> Sources (2026-11-24 refresh): GitHub `folio-org/ui-circulation-log` master (`translations/ui-circulation-log/en.json` — identical to `en_US.json` at refresh time, `package.json`, `src/**`, `CHANGELOG.md`); `folio-org/mod-audit` master (`descriptors/ModuleDescriptor-template.json`, `ramls/circulation-logs.raml`, `ramls/logRecord.json`, `ramls/schemas/{logged_object_type,action_type}.json`, `mod-audit-server/src/main/java/org/folio/builder/description/*`, `NEWS.md`); `folio-org/folio-integration-tests` (`mod-audit/`); `folio-org/stripes-testing` (`cypress/e2e/circulation-log/`, `cypress/support/fragments/circulation-log/`); Jira UICIRCLOG + MODAUD resolved since 2024-06 (31 + 107 issues scanned, ~35 read in detail) plus cross-project issues mentioning "circulation log" (CIRC, MODEXPW, MODTLR, UXPROD …); TestRail project 14 / suite 21 (case bodies read for C1282809, C1282810, C411752, C380404, C1621493, C402746, C1307995, C825329, C1259771, C449382, C1554373, C353955 in the 2026-11-25 pass), section 1539 "Circulation log" (87 cases) + subsection 25716 "Additional Loan Comments" (2 cases) + C1621493 (Check in section).
 > This is a small, single-purpose read-only audit app: it has no create/edit of its own — every row is produced by an action in another app (Check in, Check out, Requests, Loans, Fees/Fines, Users) and viewed/filtered here. Cases that assert "a notice/action was logged" should read the destination app's context file (check-in.md, check-out.md, requests.md, loans.md, fees-fines.md) for the triggering action, and this file for the exact log row shape and filter behavior.
 
 ---
@@ -130,10 +130,15 @@ The job also appears in Export Manager with job type `Circulation log` (C353955)
 
 ## Capability Sets (Eureka)
 
-| Action | Capability set (from TestRail preconditions) | Legacy equivalent |
-|---|---|---|
-| View / filter the log | `data - UI-Circulation-Log Log-Event - view` (C1282809, C1282810) | `Circulation log: View` |
-| View + row actions + CSV export + Patron look-up | `data - UI-Circulation-Log Log-Event - manage` (C411752, C380404) | `Circulation log: All` |
+Confirmed by TestRail case preconditions only — the Cypress dictionary (`cypress/support/dictionary/permissions.js`) has just the legacy `Circulation log: All|View` entries and no capability-set names for this app. TestRail spells them lower-case (`data - UI-Circulation-Log Log-Event - view`); written here in the skill's `Data - ... - View` form.
+
+| Action | Capability set | Source | Legacy equivalent |
+|---|---|---|---|
+| View / filter the log | `Data - UI-Circulation-Log Log-Event - View` | C1282809, C1282810, C1307995, C1259771, C449382 preconditions | `Circulation log: View` |
+| View + row actions + CSV export + Patron look-up | `Data - UI-Circulation-Log Log-Event - Manage` | C411752, C380404, C825329, C353955, C1554373 preconditions | `Circulation log: All` |
+| Alternative spelling | `Data - UI-Circulation-Log - View` (capability set name not confirmed — verify) | C1621493 precondition only; differs from all other cases | `Circulation log: View` |
+
+Other sets named in this area's preconditions (TestRail, type - resource - action): `Data - UI-Requests - View` (C1282809), `Data - UI-Users Loans - View`, `Data - UI-Users Loans-Renew - Create` (C1259771), `Data - UI-Users Loans-Due-Date - Edit` (C1554373), `Data - UI-Users Feesfines - View`, `Procedural - UI-Users Loans-Anonymize - Execute` (C449382), `Data - UI-Export-Manager Export-Manager - Manage` (C353955), `Data - UI-Checkout - Manage`, `Data - UI-Checkin - Manage`. C402746 gives no capability set ("all permissions"; case not marked capabilities-ready).
 
 Destination links additionally need the other app's capabilities (Users view, Loans view, Fee/fine actions, Requests, Circulation settings notice policies/templates — see Action menu matrix). Item barcode link needs Inventory item **edit** (`ui-inventory.item.edit`).
 
@@ -160,13 +165,17 @@ Don't assert options the matrix excludes for that Object (e.g. no `Loan details`
 
 `From`/`To` date pickers + `Apply`. Team sequence: `From=today` alone → widen `From=yesterday` → narrow `To=yesterday` → clear via the filter chip `x`. With a non-UTC tenant time zone (e.g. America/Vancouver), a same-day filter returns only actions on that date **in tenant time**, and the CSV export has the same rows with tenant-time dates (C411752; UICIRCLOG-125, MODEXPW-613).
 
+### Pagination (C1307995; STCOM-829, UICIRCLOG-104, UICIRCLOG-185)
+
+Needs >200 log rows. First page: 100 rows, counter correct, `Previous` disabled, `Next` enabled, range `1-100`; `Next` -> offset 100, range `101-200`, focus on first row, `Previous` enabled; `Previous` -> back to `1-100`. A result set under 100 rows: offset 0, both buttons disabled, range `1-<last>`. Landing page: `Reset all` inactive, `Service point` shown as a dropdown, `Loan`/`Notice`/`Fee/fine`/`Request` collapsed. (The precondition lists "Requested" as an example action; the displayed value is `Created` — case wording outdated.)
+
 ### Notice row navigation (C17092, C17093)
 
 A Notice row's ellipsis offers `Loan details`, `User details`, `Notice policy`, `Live version of template` (plus `Fee/fine details`/`Request details` when the notice references them). A sent notice is findable both via `Notice` > `Send` and via the recipient's `User barcode`.
 
 ### CSV Export — record-count parity and ECS tenant isolation (C353955, C825329)
 
-- Exported row count (lines minus 1 header) equals the on-screen counter and the API `totalRecords` from `GET /audit-data/circulation/logs?limit=0`, across filter combinations at ~100,000-record scale (UICIRCLOG-179, MODEXPW-607, MODEXPW-617/618). Open the CSV in a proper parser: MODEXPW-617 was closed after "missing" rows turned out to be an Excel display artefact.
+- Exported row count (lines minus 1 header) equals the on-screen counter and the API `totalRecords` from `GET /audit-data/circulation/logs?limit=0`, across filter combinations at ~100,000-record scale (UICIRCLOG-179, MODEXPW-607, MODEXPW-617/618). Repeat counter vs `limit=0` call vs CSV for a Date range, `Checked in` (Loan), a Service point selection, `Billed` (Fee/fine) and `Send` (Notice); the CSV has one header row, so lines = counter + 1 (C825329). Open the CSV in a proper parser: MODEXPW-617 was closed after "missing" rows turned out to be an Excel display artefact.
 - In ECS, an export from Tenant_1 is visible only in Tenant_1's Export Manager (`Circulation log` job type) and contains only Tenant_1 data.
 
 ### Permission tier — `Circulation log: View` (C365625; code)
@@ -175,7 +184,7 @@ Filters work; the whole `Action` column is absent (`CirculationLogList.js` `isAc
 
 ### Anonymization (C449382, C449383, C1543989, C17136)
 
-Before anonymization the `Checked out` / `Closed loan` / `Checked in` rows carry the patron barcode. After "Anonymize all loans" on that closed loan the same rows (now findable by item barcode only) have no patron barcode, and a later check-in of the same item (home or other service point) also logs without a user barcode. `Anonymized` rows show Item barcode, Object, Date, Service point, Source (C17136). Applies to ECS loans too (C1543989).
+Before anonymization the `Checked out` / `Closed loan` / `Checked in` rows carry the patron barcode. After "Anonymize all loans" on that closed loan the same rows (now findable by item barcode only) have no patron barcode, and a later check-in of the same item (home or other service point) also logs without a user barcode. `Anonymized` rows show Item barcode, Object, Date, Service point, Source (C17136). The case builds the closed loan with a check-in at a service point away from the item's home location (item goes `In transit`) and checks the later check-in the same way (C449382). Applies to ECS loans too (C1543989).
 
 ### Source = acting user (C407706, C1259771, C1259786)
 
@@ -183,7 +192,7 @@ User A checks out; User B renews / changes due date → the `Renewed` and the co
 
 ### Shared cancellation reason (C1282808, C1282809, C1282810)
 
-Cancelling with a Consortium-Manager **Shared** reason logs `Request` / `Cancelled` with Description `Reason for cancellation: {Description (internal)}` in the tenant where the request was cancelled. For ECS requests the other tenant's row shows `Reason for cancellation: DCB Cancelled.` (Central request → Member row; Secure mediated request → Central and Member rows) — expected DCB behaviour (MODTLR-312 comment); may change with MODAUD-317.
+Cancelling with a Consortium-Manager **Shared** reason logs `Request` / `Cancelled` in the tenant where the request was cancelled; C1282809/C1282810 expect Description `Reason for cancellation: <shared reason> - <text from Description (internal)>` (code builder: `{Description (internal)}`, see Known Gaps). Test both an Item-level and a Title-level request. For ECS requests the other tenant's row shows `Reason for cancellation: DCB Cancelled.` (Central request → Member row; Secure mediated request → Central and Member rows) — expected DCB behaviour (MODTLR-312 comment; C1282809/C1282810 also expect the request's `Cancellation reason` in the other tenant to read `DCB Cancelled.`); may change with MODAUD-301 / MODAUD-317.
 
 ### In-house use of a checked-out item (C1621493; CIRC-2691)
 
@@ -199,14 +208,14 @@ A logged action whose user has no barcode shows `-` in `User barcode`.
 
 ### Description timestamps follow tenant time zone (C770448–C770456, C1554373/74/83, C1554431)
 
-Dates inside Description (Changed due date, Closed loan, Recall requested, Renewed, Aged to lost) render in the tenant's Language-and-localization time zone, identically in the UI and the CSV (CIRC-2295, MODAUD-264).
+Dates inside Description (Changed due date, Closed loan, Recall requested, Renewed, Aged to lost) render in the tenant's Language-and-localization time zone, identically in the UI and the CSV (CIRC-2295, MODAUD-264). Changed due date format: `New due date: <ISO> (from <ISO>)` with the time-zone-shifted value, not UTC (C1554373). In C1554373 the Data-tenant check for the ECS loan and the Central check for the Secure loan are marked 'Not implemented yet' (MODTLR-286) — do not assert them as expected.
 
 ---
 
 ## ECS / Multi-Tenant Notes
 
 - Each tenant has its own log; there is no cross-tenant view. A cross-tenant request/loan produces rows in every tenant involved (C1282809, C1282810, C1259786, C1554374, C1554431).
-- ECS cases use affiliation switching between Central / Member (College, University) / Secure; give `data - UI-Circulation-Log Log-Event - view` in every tenant checked (C1282809, C1282810).
+- ECS cases use affiliation switching between Central / Member (College, University) / Secure; give `Data - UI-Circulation-Log Log-Event - View` in every tenant checked (C1282809, C1282810).
 - Export is strictly per tenant (C353955).
 - Intermittent missing `Cancelled` rows in Central for ECS TLR cancellations (CIRC-2563) were not reproducible on snapshot and closed — keep as a regression scenario, not as expected behaviour.
 
@@ -222,7 +231,7 @@ Dates inside Description (Changed due date, Closed loan, Recall requested, Renew
 
 ## Key Business Rules for Test Cases
 
-1. Circulation log has no create/edit of its own — a log-verification case's precondition is "perform action X in app Y". (cases)
+1. Circulation log has no create/edit of its own — a log-verification case's precondition is "perform action X in app Y". (`src/CirculationLogList/*` has only list/filter/export; C1282809, C1621493, C380404 preconditions)
 2. The same event must be findable both by free-text identifier and by the circ-action checkbox. (C16978, C16980, C16982)
 3. The ellipsis menu options depend on Object + linked IDs + the viewer's other-app permissions (see Action menu matrix); item navigation is the barcode link, not an ellipsis option. (`CirculationLogEventActions/utils.js`, `CirculationLogEventItem.js`)
 4. Returning via the Circulation log app icon restores the last-applied filters/results (filters are kept in the URL). (C16979, C16981, C16995, C16998; `useLocationFilters.js`)
@@ -248,7 +257,7 @@ Dates inside Description (Changed due date, Closed loan, Recall requested, Renew
 24. Item barcode is not a link for DCB virtual items or when the viewer lacks Inventory item edit permission. (`CirculationLogEventItem.js`, UICIRCLOG-140, MODAUD-177)
 25. `Loan details` appears only when the row has a user and exactly one item with a loan ID. (`getHasLoanDetails`)
 26. `Export results (CSV)` is disabled when the result count is 0. (`CirculationLogListActions.js`)
-27. A check-in of an item not on loan has no user barcode (expected — CIRC-2390); the next check-in after a new loan has it again.
+27. A check-in of an item not on loan has no user barcode (expected — CIRC-2390); the next check-in after a new loan has it again. (CIRC-2390, resolved Won't Do — Jira comments: user barcode on Checked in is the borrower; no loan = no barcode; a transit check-in at another service point also has none)
 28. Checking in a checked-out item with in-house use logs two `Checked in` rows (the second with User barcode `-`) and one `Closed loan`. (C1621493, CIRC-2691)
 29. Check-out + check-in that closes the loan adds 3 log rows (Checked out, Checked in, Closed loan); a renewal adds 2 rows; a failed action (invalid barcode/ID) adds none. (Karate `checkInCheckOutEvent.feature`, `loanEvent.feature`, `requestEvent.feature`)
 30. Description dates (Changed due date, Closed loan, Recall requested, Renewed, Aged to lost) are rendered in tenant time zone in UI and CSV. (C770448–C770456, CIRC-2295, MODAUD-264)
@@ -267,6 +276,9 @@ Circulation Log: **`Other` ~82%** / Func ~18%, median **~5 steps**, `User Journe
 
 - [ ] Eureka capability-set spelling: most cases use `data - UI-Circulation-Log Log-Event - view|manage` (C1282809, C411752, C380404) but C1621493 uses `data - UI-Circulation-Log - View`. Verify in Settings > Authorization roles.
 - [ ] `Item details` (en.json `logEvent.actions.itemDetails`) is still a translation key, but `CirculationLogEventActions.js` doesn't render it. Older cases (C16979) and the previous version of this file listed it as an ellipsis option. Verify in env whether the ellipsis shows it; if not, item navigation is the barcode link only.
+- [ ] Shared-cancellation Description: C1282809/C1282810 expect `Reason for cancellation: <shared reason> - <Description (internal)>`, while the Description formats table (from `RequestDescriptionBuilder.java`) only shows the reason's Description (internal). Not re-verified in the builder or on an env; confirm the exact format before asserting it.
+- [ ] C1621493 uses the capability set name `Data - UI-Circulation-Log - View`; all other cases use `... Log-Event - view` (capability set name not confirmed — verify). TestRail was read-only; no role UI available.
+- [ ] TestRail coverage is still partial: of section 1539 (87 cases) + 25716 (2) only the 12 cases listed in the header were read as bodies; the rest (incl. C15484-C17137 filter/Actions pairs, C350710-C350712, C358981, C360106, C360553-4, C365625, C368490, C407706, C770448-C770456, C958914, C1282808, C1543989, C1259786, C1554374/83/431) were read by title/refs only.
 - [ ] C365625 wording ("Export results (CSV)" absent) vs code/Cypress (present but disabled) — this file follows the code; ask the case owner to align C365625.
 - [ ] Request cancellation Description: today it logs the reason's `Description (internal)` and literally `null` when that field is blank. MODAUD-317 (Open) proposes logging the reason **Name** instead. Re-check C1282808–C1282810 when MODAUD-317 is closed.
 - [ ] `Overdue due date:` part of the check-in Description: in code it is appended when due date is **after** return date (`LoanCheckInDescriptionBuilder.java`), and CIRC-2295 asks to rename it to "Due date". Don't assert its presence/absence without checking in env.
