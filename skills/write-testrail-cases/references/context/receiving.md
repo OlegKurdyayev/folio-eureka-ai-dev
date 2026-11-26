@@ -1,16 +1,15 @@
 # FOLIO Receiving App — Business Logic Context
 
-> Built: 2026-11-24 (refresh; previous build 2026-06-17, delta 2026-11-07) · Release: Umbrellaleaf R2 2026 (master: ui-receiving 9.0.0 IN PROGRESS; Trillium R1 2026 = ui-receiving 8.0.x / mod-orders 13.1.x) · Builder: build-app-context (refresh mode, full source pass)
+> Built: 2026-11-25 (refresh of 2026-11-24, remediated: sources, capability sets, TestRail partial read; previous build 2026-06-17, delta 2026-11-07) · Release: Umbrellaleaf R2 2026 (master: ui-receiving 9.0.0 IN PROGRESS, package.json 9.0.0; Trillium R1 2026 = ui-receiving 8.0.x / mod-orders 13.1.x) · Builder: build-app-context (refresh mode, full source pass)
 
 > Sources:
-> - GitHub folio-org/ui-receiving master: `translations/ui-receiving/en.json` (318 lines; `en_US.json` identical except it lacks `numberGenerator.noPermission`), `package.json` (stripes.permissionSets), `CHANGELOG.md`, `src/Piece/PieceForm/PieceFormActionButtons/constants.js`
-> - GitHub folio-org/stripes-acq-components master: `translations/stripes-acq-components/en.json` (piece statuses, claiming actions, shared Delete Holdings modal, routing lists)
-> - GitHub folio-org/mod-orders master: `descriptors/ModuleDescriptor-template.json`, `src/main/java/org/folio/rest/core/exceptions/ErrorCodes.java`; folio-org/mod-orders-storage `descriptors/ModuleDescriptor-template.json` (claiming timer); folio-org/acq-models `mod-orders-storage/schemas/piece.json`
+> - GitHub folio-org/ui-receiving master: `translations/ui-receiving/en.json` (318 lines; `en_US.json` identical except it lacks `numberGenerator.noPermission`), `package.json` (stripes.permissionSets), `CHANGELOG.md`, `src/Piece/PieceForm/PieceFormActionButtons/constants.js`; folio-org/stripes-acq-components master `translations/stripes-acq-components/en.json` (piece statuses, claiming actions, shared Delete Holdings modal, routing lists)
+> - GitHub folio-org/mod-orders master: `descriptors/ModuleDescriptor-template.json`, `.../rest/core/exceptions/ErrorCodes.java`; mod-orders-storage `descriptors/ModuleDescriptor-template.json` (claiming timer); acq-models `mod-orders-storage/schemas/piece.json`
 > - Jira (anonymous REST): UIREC Done/Closed stories+bugs resolved ≥ 2024-06-01 (75 issues: Ramsons → Umbrellaleaf), MODORDERS receiving-related Done/Closed ≥ 2024-06-01 (~75 issues); ~35 read in detail with comments
 > - folio-integration-tests `acquisitions/src/main/resources/thunderjet/mod-orders/` (Karate); stripes-testing `cypress/e2e/receiving` (113 specs), `cypress/e2e/orders/receiving-and-check-in` (16), `cypress/e2e/claiming` (5), `cypress/e2e/consortia/receiving` (1)
-> - docs.folio.org source `content/en/docs/Acquisitions/Receiving/_index.md`; Confluence "Receiving - Trillium - Notes on functionality"
-> - TestRail section subtree 17995 (suite 21: sections 17995, 17996, 36735; 244 cases at 2026-06-17 build) — **not re-queried this refresh** (bridge disconnected); case IDs below come from the earlier build, Jira comments and stripes-testing spec titles.
-> Tags: [confirmed] = translation key + case/spec; [from source] = translation/code only; [from cases] = TestRail/spec wording only.
+> - docs.folio.org source `Acquisitions/Receiving/_index.md` (also capability table) and `Settings/Settings_service_interaction/settings_service_interaction.md` (number-generator capability sets); Confluence "Receiving - Trillium - Notes on functionality"; stripes-testing `cypress/support/dictionary/capabilitySets.js` + `permissions.js` (capability names)
+> - TestRail suite 21 (project 14), subtree 17995 (114 case titles listed 2026-11-25) + 9459 (`Permissions --> Receiving`, 6 cases) + 123 (`Orders > Receiving and Check-in`, 56 titles); case bodies read 2026-11-25: C721760, C446053, C503266, C986309, C1030045, C553012, C543748, C503040, C1003529, C700856, C1045985, C1045986, C163337. Other case IDs below come from the 2026-06-17 build, Jira comments and stripes-testing spec titles (bodies not re-read).
+> Tags: [confirmed] = translation key + case/spec; [from source] = translation/code only; [from cases] = TestRail/spec wording only; `(unverified)` = no supporting source found.
 
 ---
 
@@ -18,23 +17,17 @@
 
 The Receiving app confirms that materials ordered through the Orders app have been physically delivered to the library. It manages receiving titles and their pieces (individual receiving units) tied to a Purchase Order Line (POL), plus claiming (Late / Claim sent / Claim delayed), binding, routing lists and CSV export. Receiving is possible only for Open or Closed orders (docs `_index.md` → Order status; Closed includes Cancelled orders — UIREC-497, C430249).
 
----
-
 ## Key Terms
 
 | Term | Definition |
 |---|---|
 | Receiving title | The title of ordered material; can have one or more pieces. Created automatically for non-package POLs; for package POLs added from Orders ("Package titles") or Receiving ("New title") (docs) |
 | Piece | A single receivable unit under a receiving title; required fields `format`, `poLineId`, `titleId`, `receivingStatus` (acq-models `piece.json`) |
-| Package | A POL representing multiple titles; titles must be added before receive |
+| Package | A POL representing multiple titles; titles must be added before receive (docs → Creating a receiving title) |
 | Receiving workflow | POL setting: `Synchronized order and receipt quantity` (pieces auto-created on open; adding/removing pieces changes POL quantity) or `Independent order and receipt quantity` (no auto pieces) (en.json `title.receivingWorkflow.*`, docs) |
-| Receive / Quick receive | Confirm piece delivery (batch full-screen or single piece from Edit piece) |
-| Unreceive | Move received piece back to Expected |
-| Unreceivable | Mark a piece that will never arrive; reversible with `Expect` |
+| Unreceivable | Mark a piece that will never arrive; reversible with `Expect` (C423617, C436833) |
 | Sequence | Piece display order, `[n] of N`; auto-assigned, editable (UIREC-465/466) |
-| Bound item | New Inventory item created by Bind pieces from several received pieces |
-
----
+| Bound item | New Inventory item created by Bind pieces from several received pieces (Karate `bind-piece.feature`, C476838) |
 
 ## Piece Statuses and Transitions
 
@@ -55,46 +48,40 @@ Status values (stripes-acq-components `piece.pieceStatus.*`): `Expected`, `Recei
 - Claiming batch job: `POST /orders-storage/claiming/process`, run by a `_timer` every **6 hours** (mod-orders-storage ModuleDescriptor) — a date passing does not flip the status until the job runs.
 - Status changes are logged in the `Status log` accordion (columns `Status change`, `Date`, `Interval`, `Updated by`; Interval only for Send/Delay claim) (en.json `piece.statusChangeLog.*`, docs).
 
----
-
 ## Receiving Workflow
 
 ### Quick receive
-1. Open piece from Expected accordion (Edit piece full-screen form, UIREC-368).
-2. Dropdown next to `Save & close` → `Quick receive`.
-3. Piece moves to Received.
+Open the piece from the Expected accordion (Edit piece form, UIREC-368) → dropdown next to `Save & close` → `Quick receive`; the piece moves to Received (PieceFormActionButtons/constants.js; C358972, C986309).
 
 ### Receive (full screen, batch)
 1. Expected accordion → Actions → `Receive`.
 2. If the title has **more than 50** expected pieces, a `Select expected date range` modal (Start/End date, both required) appears first; ≤ 50 pieces opens the screen directly (UIREC-461, C813585).
-3. Select pieces, edit per-row fields, click `Receive` (or `Receive & load more` per 50-piece batch).
+3. Select pieces, edit per-row fields, click `Receive` (or `Receive & load more` per 50-piece batch) (C813585, C451594). Full-screen rows show `Item status` and a `Request` column (`Yes` when the item has an open request); receiving such a piece shows the `An item has an open request` modal (C986309; `requests.title.*`).
 
 ### Must acknowledge receiving note
 If the POL has `Must acknowledge receiving note`, the `Receiving note` dialog appears on receive; user must click `Continue` (en.json `title.isAcknowledged`, `piece.receivingNoteModal.title`, `piece.actions.confirm`; docs).
 
 ### Receive side effects
-1. Piece status → Received; `Received date` set.
+1. Piece status → Received; `Received date` set (acq-models `piece.json` `receivedDate`).
 2. Connected item with status `On order` or `Order closed` → `In process`; items in other statuses keep their status (en.json `piece.itemStatus.info`; C367971).
-3. POL receipt status recalculates (Partially Received / Fully Received; ongoing orders show `Ongoing`).
-4. PO can auto-close when all POLs are fully received and fully paid.
+3. POL receipt status recalculates (Partially Received / Fully Received; ongoing orders show `Ongoing`) (Karate `pieces-batch-update-status.feature`, `unreceive-piece-and-check-order-line.feature`; C543748).
+4. PO can auto-close when all POLs are fully received and fully paid (MODORDERS-1170; Karate `create-order-payment-not-required-fully-receive.feature`).
 5. Receiving against a Closed (incl. Cancelled) order shows the `Order closed` confirmation first — also for Quick receive since 8.0.2 (UIREC-497).
 
 ### Unreceive side effects
-1. Piece returns to Expected.
-2. Associated item is set to `On order` (en.json `piece.actions.unreceive.message`); the item is **not** deleted.
+1. Piece returns to Expected (en.json `piece.actions.unreceive.message`).
+2. Associated item is set to `On order` (en.json `piece.actions.unreceive.message`); the item is **not** deleted. On a **Cancelled** order the item becomes `Order closed` instead (C553012, MODORDERS-1173 — expected result in the case, not re-verified in an env).
 3. Piece keeps Barcode, Call number, Accession number (UIREC-483, fixed 8.0.0); `sequenceNumber`/`displayToPublic` are sent in the unreceive payload (UIREC-474).
-4. POL receipt status recalculates.
-
----
+4. POL receipt status recalculates (Karate `unreceive-piece-and-check-order-line.feature`).
 
 ## Inventory Integration
 
 | Event | Item effect | Source |
 |---|---|---|
 | Add piece with `Create item` checked (POL Create inventory = Instance, holdings, item) | Item created on save (status `On order`; `Order closed` if the POL is cancelled) | docs → Piece details; MODORDERS-1140 |
-| Receive | `On order`/`Order closed` → `In process`; other statuses unchanged | en.json `piece.itemStatus.info`; C367971 |
-| Unreceive | Item set to `On order` | en.json `piece.actions.unreceive.message` |
-| Mark Unreceivable / add piece on cancelled POL | Item `Order closed` | MODORDERS-1140 (via MODORDERS-1173) |
+| Receive / Unreceive | see Receive and Unreceive side effects above | en.json `piece.itemStatus.info`, `piece.actions.unreceive.message`; C367971 |
+| Mark Unreceivable / add piece on cancelled POL / unreceive on cancelled order | Item `Order closed`; POL `Receipt status` stays `Cancelled`, PO `Closed`; a piece quick-received on the cancelled order gets `In process` | MODORDERS-1140 (via MODORDERS-1173); C553012, C543756 |
+| Create item on existing pieces | `Create item` can be ticked on an unsaved-item piece in `Late`, `Claim delayed` and `Claim sent` status (item `On order`); hidden when POL Create inventory = None (no Delete Holdings modal on holding change); hidden and Item details cleared/disabled for Electronic format | C721760 (UIREC-443/419/428), C503266 (UIREC-374/491), C503040 (UIREC-377/399) |
 | Delete expected piece | Connected item deleted | docs → Deleting an expected piece |
 | Delete received piece | Item kept | docs → Deleting a received piece |
 | Edit received piece | Only edited fields are written to the item; untouched fields are not overwritten | MODORDERS-1330/1331, C432301-C432304 |
@@ -102,18 +89,16 @@ If the POL has `Must acknowledge receiving note`, the `Receiving note` dialog ap
 
 Check in is a separate workflow: after receive, Check in moves the item from `In process` to `Available` (or `Awaiting pickup` if a request exists) (docs → Receiving a piece).
 
----
-
 ## Package POL Rules
 
-- Package POL cannot be received directly; titles must be added first (Orders `Package titles` or Receiving `New title`).
+- Package POL cannot be received directly; titles must be added first (Orders `Package titles` or Receiving `New title`) (docs → Creating a receiving title; C343213).
 - A newly created title without pieces appears in the POL's `Package titles` (C466283, C466284; ECS central C468239).
 - `Remove from package` (title Actions / title edit form) deletes the title's pieces and related Holdings/Items; holdings with items of other orders are kept (en.json `title.confirmationModal.removeFromPackage.message`; UIREC-448; Karate `unlink-title.feature`). Hidden for non-package titles (UIREC-452) and titles from "foreign" tenants (UIREC-454). Blocked when the title has Received pieces (ErrorCodes `existingReceivedPiecesTitleRemoval`).
 - A non-package POL may hold only one title (en.json `errors.multipleNonPackageTitles`).
 
----
-
 ## API Surface (mod-orders / mod-orders-storage)
+
+> Source: `ModuleDescriptor-template.json` of mod-orders and mod-orders-storage (master); receive/check-in/expect, pieces-batch, holding-detail, bind-pieces, pieces/claim re-verified 2026-11-25.
 
 | Method + path | permissionsRequired |
 |---|---|
@@ -131,8 +116,6 @@ Check in is a separate workflow: after receive, Check in moves the item from `In
 | `POST /orders-storage/claiming/process` (timer, 6 h) | `orders-storage.claiming.process.execute` |
 | `GET /orders-storage/titles/{id}/sequence-numbers` | `orders-storage.titles.sequence-number.get` |
 
----
-
 ## Main Sections / UI Structure
 
 ### Panes / pages
@@ -149,8 +132,6 @@ Check in is a separate workflow: after receive, Check in moves the item from `In
 - Received accordion excludes Bound pieces by default; `Bound`/`Not bound` filter in its Actions menu (UIREC-264; kept by design — UIREC-449).
 - Main results list: Actions → show/hide columns, persists for the session (UIREC-494); `Vendor` column, not sortable (UIREC-499); full-screen Receive table has its own column manager (UIREC-492).
 
----
-
 ## Search and Filters
 
 Search options (en.json `search.*`): `Keyword`, `Title (Receiving titles)`, `Package (POL Package name)`, `Product ID (For the specific title or the package)`, `PO number`, `POL number`, `Vendor reference number`, `Barcode`.
@@ -158,9 +139,7 @@ Search options (en.json `search.*`): `Keyword`, `Title (Receiving titles)`, `Pac
 Filters (en.json `filter.*`): `Order status`, `Vendor`, `Order type`, `Material type`, `Order format`, `Location`, `Receiving status`, `Rush`, `Bindery active`, `Supplements`/`Non supplements`, `Created by`, `Updated by`, `Date created`, `Date updated`, and piece-level `Created by (Piece)`, `Updated by (Piece)`, `Date created (Piece)`, `Date updated (Piece)`; docs also list Tags, Acquisition unit, Received date, Expected receipt date, Receipt due.
 - Location filter matches PO line locations **or** holdings (UIREC-358).
 - Titles with special characters are found via `Title (Receiving titles)` (UIREC-500, fixed 8.0.3).
-- Pending orders are visible but not receivable.
-
----
+- Pending orders are listed (Order status filter) but not receivable: only Open/Closed (docs → Order status note); with Synchronized workflow `Add piece` is hidden on Pending orders (C627458).
 
 ## Exact UI Texts
 
@@ -210,7 +189,8 @@ Source: `src/Piece/PieceForm/PieceFormActionButtons/constants.js`; C844841.
 | Send claim / Delay claim modals | `Send claim` (`Claim expiry date`, `Internal note`, `External note`); `Delay claim` (`Delay to`) | acq: `claiming.modal.*` |
 | Remove from package | `Remove from package` / `Removing this title from the package will delete all related pieces and delete any related inventory Holdings and Items. Holdings that contain items that are not related to this order and receiving title will not be deleted.` | `title.paneTitle.removeFromPackage`, `title.confirmationModal.removeFromPackage.message` |
 | Bind with requests | `There are requests on the following pieces: <b>{barcodes}</b>. <b>Transfer requests</b> to the new record?` — `Transfer` / `Do not transfer` | `bind.pieces.modal.transfer.message`, `.button.*` |
-| Receive item with open request | `An item has an open request` / `Multiple items have open requests` | `requests.title.*` |
+| Receive item with open request | `An item has an open request` / `Multiple items have open requests` | `requests.title.*`; C986309 |
+| Bind: requests exist, must delete first | `There are requests on the following pieces: <b>{barcodes}</b>. Please <b>delete requests</b> before proceeding.` | `bind.pieces.modal.delete.message` (en.json only; trigger condition not verified) |
 | Synchronized title warning | `Adding or removing pieces from this record will update the purchase order line quantity and location detail and in turn the estimated price.` | `title.changePieceQuantityMessage` |
 | Export | `Export settings` modal; `This export could take a few minutes. …` | `exportSettings.*` |
 
@@ -226,7 +206,7 @@ Source: `src/Piece/PieceForm/PieceFormActionButtons/constants.js`; C844841.
 | Acq-unit restriction | `Action is restricted by acquisition unit. User is not assigned to the specified acquisitions unit.` | `errors.userNotAMemberOfTheAcq` |
 | Fund distribution in amounts | `Pieces can not be added to or deleted from this Title until all the Fund distributions on the related purchase order line are converted from amounts to percentages.` | `errors.receivingProcessEncumbrancesError` |
 | Fund not visible/deleted | `One or more funds could not be loaded. The fund(s) may have been deleted or you may not have permission to view the associated fund(s).` | `errors.fundsNotFound`; UIREC-488 |
-| POL number too long | `POL number is invalid or bigger than {count, number} alphanumeric characters.` | `errors.polNumberInvalidOrTooLong` |
+| POL number too long | `POL number is invalid or bigger than {count, number} alphanumeric characters.` (the Orders PO form shows `PO Number must not be longer than 22 alphanumeric characters` when prefix+number+suffix exceed 22) | `errors.polNumberInvalidOrTooLong`; C1030045 (MODORDERS-1397, UIOR-1507) |
 | Item update failed on receive | `Piece <b>{enumeration}</b> was not received. The item record failed to be updated` | `errors.itemUpdateFailed` |
 | Loan type missing | `Item can't be created, permanentLoanTypeId is not set, please set it in Settings - Orders - Loan type` | `title.actions.missingLoanTypeId.error` |
 | Piece format mismatch | `Piece format is not compatible with purchase order line format` | `errors.pieceFormatIsNotValid` |
@@ -241,30 +221,30 @@ Source: `src/Piece/PieceForm/PieceFormActionButtons/constants.js`; C844841.
 `Select order lines`, `Delete Holdings` (acq: `holdings.deleteModal.heading`), `Send claim`, `Select locations`, `Delete piece` (`piece.delete.heading`), `Select user`, `Add piece`, `Select Organization`, `Delay piece` (docs), `Are you sure?`, `Select instance`, `Select expected date range` (`piece.modal.expectedDateRange.heading`), `Generate numbers` (`numberGenerator.generateNumbers`), `Receiving note`, `Order closed`, `Unreceiving piece`.
 
 ### Frequent button labels
-`Actions`, `Receive`, `Quick receive`, `Add piece`, `Save & close`, `Cancel`, `Edit`, `Confirm`, `Continue`, `Expect`, `Unreceive`, `Bind pieces`, `Bind`, `Receive & load more`, `Keep Holdings`, `Delete Holdings`, `Export results (CSV)`, `Create another`.
-
----
+[en.json `title.details.button.*`, `piece.action.button.*`; cases] `Actions`, `Receive`, `Quick receive`, `Add piece`, `Save & close`, `Cancel`, `Edit`, `Confirm`, `Continue`, `Expect`, `Unreceive`, `Bind pieces`, `Bind`, `Receive & load more`, `Keep Holdings`, `Delete Holdings`, `Export results (CSV)`, `Create another`.
 
 ## Capability Sets (Eureka) and permissions
 
-From docs `_index.md` → Capabilities and ui-receiving `package.json`:
+Names follow the Cypress dictionary `capabilitySets.js` (`type - resource - action`), docs `_index.md` → Capabilities & capability sets and ui-receiving `package.json` (`stripes.permissionSets`).
 
-| Capability set | Legacy display name | Notes |
+| Capability set | Legacy display name | Confirmed by / notes |
 |---|---|---|
-| `Data - UI-Receiving - View` | Receiving: View | receive/check-in/expect endpoints, routing lists read, piece history; enough to receive pieces with connected items (UIREC-479) |
-| `Data - UI-Receiving - Edit` | Receiving: View, edit | + bind pieces, batch status, send claims, title edit, routing list edit |
-| `Data - UI-Receiving - Create` | Receiving: View, edit, create | + create titles |
-| `Data - UI-Receiving - Delete` | Receiving: View, edit, delete | + delete titles |
-| `Procedural - UI-Receiving - Execute` | Receiving: Export search results | CSV export |
-| `Procedural - UI-Receiving Acq-Units Assignment - Execute` | Receiving: Assign acquisition units to new receiving title | |
-| `Data - UI-Receiving Acq-Units Assignment - Manage` | Receiving: Manage acquisition units | |
+| `Data - UI-Receiving - View` | Receiving: View | Cypress `uiReceivingView`; docs; C986309. Receive endpoints, routing lists read, piece history; enough to receive pieces with connected items (UIREC-479) |
+| `Data - UI-Receiving - Edit` | Receiving: View, edit | Cypress `uiReceivingEdit`; docs; C446053, C1030045. + bind pieces, batch status, send claims, title edit, routing list edit |
+| `Data - UI-Receiving - Create` | Receiving: View, edit, create | Cypress `uiReceivingCreate`; docs; C543748, C503040. + create titles |
+| `Data - UI-Receiving - Delete` | Receiving: View, edit, delete | Cypress `uiReceivingDelete`; docs; C503266. + delete titles |
+| `Procedural - UI-Receiving - Execute` | Receiving: Export search results | docs (resource `UI-Receiving`, procedural, execute); package.json `ui-receiving.exportCSV`; not in the Cypress dictionary |
+| `Procedural - UI-Receiving Titles Acquisitions Units Assign - Execute` | Receiving: Assign acquisition units to new receiving title | C1045985 (UIREC-490) precondition; package.json `titles.acquisitions_units.assign.execute`. Docs name it `UI-Receiving Acq-Units Assignment` (capability set name not confirmed — verify; see Known Gaps) |
+| `Procedural - UI-Receiving Titles Acquisitions Units Manage - Execute` | Receiving: Manage acquisition units | C1045986 (UIREC-490) precondition; package.json `titles.acquisitions_units.manage.execute`. Docs list it as `data - manage` on `UI-Receiving Acq-Units Assignment` (capability set name not confirmed — verify; see Known Gaps) |
+| `Data - UI-Claims Claiming - View` | Claiming: View | Cypress `uiClaimsClaimingView` (Claiming app) |
+| `Data - UI-Service-Interaction NumberGenerator - View` (or `- Manage`) | Settings (Service-interaction): View number generator settings and use number generators within apps | docs `settings_service_interaction.md` (Data, `app-service-interaction`, view/manage); legacy name from Cypress `permissions.js` `numbersGeneratorView`; C700856 precondition assigns role `NumberGenerators` |
 
+- User with only one of `Data - UI-Receiving - View / Edit / Create / Delete` can receive pieces (full-screen Receive and Quick receive), each set verified separately (C986309, UIREC-479).
+- Acq-unit sets (C1045985, C1045986): with `Assign`, the `Acquisition unit` dropdown on `New title` is enabled and, once saved, disabled on `Edit title`; with `Manage`, it is disabled on `New title` and enabled on `Edit title`.
 - Claiming app needs Claiming view + Receiving view/edit; without Receiving view no pieces are listed, without Receiving edit no claim actions (UIREC-430; Cypress `claiming/user-without-receiving-*.cy.js`).
-- Number generators need the NumberGenerators role/capabilities; otherwise the modal shows `numberGenerator.noPermission` (SI-166, C700856).
-- Frequently co-required: `Data - UI-Orders Orders - View`, `Data - UI-Inventory Instance - View` [from cases].
-- Legacy `Receiving: View` is minimal since 8.0.0 (UIREC-479); permissions were renamed in UIREC-490 — verify set names in the env.
-
----
+- Number generators: besides the Receiving set the user needs the NumberGenerator set above; otherwise the modal shows `numberGenerator.noPermission` (SI-166, C700856).
+- Frequently co-required: `Data - UI-Orders Orders - View` (C446053), `Data - UI-Inventory Instance - View` (C721760, C1003529); for editing holdings/items `Data - UI-Inventory - Manage` (C543748, C553012).
+- Legacy `Receiving: View` is minimal since 8.0.0 (UIREC-479); UIREC-490 introduced the separate `Titles Acquisitions Units` permissions (C1045985/6).
 
 ## Settings that change Receiving behavior
 
@@ -273,25 +253,18 @@ From docs `_index.md` → Capabilities and ui-receiving `package.json`:
 - `Settings > Orders > Routing` list configuration for printing routing lists (docs; acq: `routing.list.actions.printRoutingList.error`).
 - Vendor organization `Claiming interval` and claiming integrations (Organizations app) drive Send claim behavior (docs, UIREC-412).
 - ECS: `Settings > Orders > Network ordering > Central ordering` and `Active affiliation default` (C511231).
-- POL fields: Receiving workflow, Create inventory, Claiming active/interval, Bindery active, Must acknowledge receiving note, Receipt status.
-
----
+- POL fields that drive Receiving: Receiving workflow, Create inventory, Claiming active/interval, Bindery active, Must acknowledge receiving note, Receipt status (en.json `title.receivingWorkflow.*`, `title.isAcknowledged`, `filter.isBinderyActive`; docs; C446053, C476838).
 
 ## Common Verification Patterns (from cases)
 
-1. Title details verification — open title; verify Expected/Received/Unreceivable counts; act on piece; re-verify counts, status and the toast.
-2. Order linkage — from title details open the POL number link; verify the PO line; verify receipt status after receive/unreceive.
-3. Claiming state — set Claiming active + interval on POL; set piece state (Expected / Late / Claim delayed / Claim sent); run or wait for claiming job; verify status, `Status log` row and Item status `On order`.
-4. Inventory side effect — after receive/unreceive/delete/edit holding, open the Instance and verify holdings count, item count per holding and item status.
-
----
+1. Title details and order linkage — open title; verify Expected/Received/Unreceivable counts; act on a piece; re-verify counts, status, toast; open the POL link and verify the PO line and receipt status (C553012, C543748).
+2. Claiming and inventory — set Claiming active + interval on POL, set piece state, run or wait for the claiming job; verify status, `Status log` row and Item status `On order`; after receive/unreceive/delete/edit holding open the Instance and verify holdings, items per holding and item status (C446053, C721760).
 
 ## Claiming / Late Status Timing Rules (C436495, C436793, C436794, C436736 and more)
 
 > Requires POL `Claiming active` + `Claiming interval` (days). `POST /orders-storage/claiming/process` (timer every 6 h, or run manually) evaluates and flips statuses.
 
-- **Late via Claiming interval**: Expected piece whose `Expected receipt date` + interval has passed becomes `Late` after the job runs. POL receipt status unaffected; Item stays `On order`.
-- **Late via Claim sent expiry**: `Claim sent` piece becomes `Late` once the claim expiry date passes and the job runs (ongoing POL shows `Ongoing`).
+- Expected piece whose `Expected receipt date` + interval has passed becomes `Late` after the job runs; `Claim sent` piece becomes `Late` after its expiry date (transitions in the table above). POL receipt status is unaffected (ongoing POL shows `Ongoing`). The flip follows the tenant time zone (Settings > Tenant > Language and localization): a piece due "yesterday" is `Late` once the job has run after local midnight, a future-dated piece stays `Expected` (C446053; MODORDSTOR-378/433/492 — since Trillium the timer interval is 6 h).
 - **Delay claim vs interval**: a passed `Delay claim` date makes the piece `Late` even if the interval has not separately expired (C436794; Karate "Late After Delay Claim Date Passed") — docs disagree, see Known Gaps.
 - No `Expected receipt date` → piece stays `Expected` (Karate `piece-status-transitions-claiming.feature` scenario 1).
 - `Claiming active` unchecked → status never changes (C436808).
@@ -306,13 +279,13 @@ From docs `_index.md` → Capabilities and ui-receiving `package.json`:
 > Requires POL `Bindery active` = Yes, only allowed for Physical or P/E Mix with Create inventory = Instance, Holding, Item and Independent workflow (ErrorCodes `orderFormatIncorrectForBindaryActive`, `createInventoryIncorrectForBindaryActive`, `receivingWorkflowIncorrectForBindaryActive`; Karate `bind-piece.feature`). Not shown when bindery inactive (C476877).
 
 - Only `Received`, not-yet-bound pieces are listed (BE: `piecesMustHaveReceivedStatus`); sorted by expected receipt date (UIREC-392).
-- Bind page: `Barcode`, `Call number`, `Material type*`, `Permanent loan type*`, `Permanent location*`; table of eligible pieces; `Bind` disabled until required fields + ≥ 1 piece.
+- Bind page: `Barcode`, `Call number`, `Material type*`, `Permanent loan type*`, `Permanent location*`; table of eligible pieces; `Bind` disabled until required fields + ≥ 1 piece (field list from C476838 steps; `Bind`-disabled rule (unverified in code)). Errors: `bind.pieces.create.error.barcodeIsNotUnique`, `...bindItemMustIncludeEitherHoldingIdOrLocationId`, `...generic` (en.json).
 - Success: toast `Item <b>{barcode}</b> created successfully`; new item `In process` in `Bound items`; items of bound pieces become `Unavailable`; pieces get `Bound` flag and leave the default Received view (UIREC-353).
 - Requests on bound pieces' items: Transfer / Do not transfer / Cancel; Transfer moves all requests chronologically; if one user has several, only the oldest is moved and the others cancelled (UIREC-354; C476882, C477535, C477550).
 - Bound piece shows `Item details (original)` = first item ever created; "original" stays the first item after repeated bind/unbind (UIREC-371, C506655). Manually checking/unchecking `Bound` does not change item status (C506703).
 - Removing a piece from the bound item: `Bound pieces data` `X` → `Are you sure?` / `Remove this piece from the bound item?` (C494018, C502960).
 - Non-unique barcode → no holding is created (C773251). Existing holding selected → no new holding (UIREC-391). Two items can be bound in the same holding (C543761).
-- Holdings are not deleted or merged by binding.
+- Holdings are not deleted or merged by binding (unverified — no source found).
 
 ## Abandoned Holdings (C503243, C503244, C934313-C934320, C1273162, C1273175)
 
@@ -321,14 +294,14 @@ From docs `_index.md` → Capabilities and ui-receiving `package.json`:
 - Deleting a piece that leaves its holding empty prompts the holdings/item delete choice (en.json `piece.delete.deleteHoldingsAndItem.message`); C503243 reported auto-deletion without prompt — see Known Gaps.
 - Holdings that still contain an item or received piece, or that are linked to the POL with Independent workflow, are not offered for deletion (C934314, C934315, UIREC-484 comment, C1273162).
 - Full-screen batch: holding created on one row is not offered to other rows, including on later batches (UIREC-487, C813585).
-- Edited locations appear on the POL after receiving from full screen (C478259, C543782, C543784).
+- Edited locations appear on the POL after receiving from full screen (C478259, C543782, C543784). On a Cancelled order, receiving first shows the `Order closed` modal (`Cancel` / `Continue`), then the Delete Holdings modal when the location is changed (C543748, C543753).
 
 ## Batch Receiving on the Full-Screen "Receive" View (C813585)
 
 - More than 50 expected pieces → `Select expected date range` modal (`Start date`/`End date` required, `Required!`); empty range → `The list contains no items`.
 - Loads 50 at a time by `Expected receipt date`; subheader `{count} of {totalRecords} receiving pieces · {startDate} - {endDate}`; `Receive & load more` until the last batch (`Receive`).
-- Per-row Create new holding / existing holding; Delete Holdings modal may appear mid-batch.
-- Final commit → `Receiving successful`.
+- Per-row `Create new holdings for location` link / existing holding in the `Select location` column; Delete Holdings modal may appear mid-batch (C543748).
+- Final commit → `Receiving successful` (en.json `title.actions.receive.success`).
 - ECS member tenant: `Receive & load more` follows `receivingTenantId` filtering (UIREC-486); `Create item` disabled from member tenant (UIREC-394).
 
 ## Number Generators for Barcode / Accession Number / Call Number (C700856)
@@ -355,10 +328,8 @@ From docs `_index.md` → Capabilities and ui-receiving `package.json`:
 ## Routing Lists (docs → Routing pieces; acq: `routing.list.*`)
 
 - Only for Physical / P/E Mix POLs; one routing list per physical piece; title shows `This title has routing.` (`title.hasRouting`) and an expanded `Routing lists` accordion.
-- Name must be unique (`Name must be unique`); Print all routing lists needs routing configuration in Settings.
+- Name must be unique (`Name must be unique`, acq `routing.list.create.error.nameMustBeUnique`); Print all routing lists needs routing configuration in Settings.
 - Regression: saving a routing list on a duplicated POL (UIREC-512); app no longer closes after closing the Routing list page (UIREC-380).
-
----
 
 ## ECS / Consortia (C468235 family, C471514-C471517, C473256-C473259, C511231)
 
@@ -374,54 +345,40 @@ From docs `_index.md` → Capabilities and ui-receiving `package.json`:
 - Received pieces are counted on reopen of a synchronized order (MODORDERS-1421; Karate `consortia/features/received-pieces-counted-when-reopening-synchronized-order.feature`).
 - Export with item data in a member tenant fixed (UIREC-509).
 
----
-
 ## Key Business Rules for Test Cases
-
 1. Receiving is available only for Open or Closed orders; Pending orders are not receivable. (docs `_index.md` → Order status)
 2. Receiving against a Closed or Cancelled order shows the `Order closed` confirmation before receive, also for Quick receive. (UIREC-497; `piece.confirmReceiving.*`)
 3. Piece lifecycle: Expected → Received (Quick receive / Receive), reversible via Unreceive; Expected → Unreceivable, reversible via Expect. (PieceFormActionButtons/constants.js; C423617, C436833)
 4. `Must acknowledge receiving note` blocks receive until `Continue` is clicked in the `Receiving note` dialog. (docs; `title.isAcknowledged`)
-5. Receiving changes a connected item from `On order`/`Order closed` to `In process`; items in any other status keep it. (`piece.itemStatus.info`; C367971)
-6. Unreceive sets the connected item to `On order` and keeps it; the piece keeps Barcode/Call number/Accession number. (`piece.actions.unreceive.message`; UIREC-483)
+5. Receiving changes a connected item from `On order`/`Order closed` to `In process`; items in any other status keep it. (`piece.itemStatus.info`; C367971) On a Cancelled order, Unreceive / Unreceivable leave the item `Order closed`. (C553012, MODORDERS-1173)
+6. Unreceive sets the connected item to `On order` (`Order closed` on a Cancelled order) and keeps it; the piece keeps Barcode/Call number/Accession number. (`piece.actions.unreceive.message`; UIREC-483; C553012)
 7. Package POLs cannot be received directly; a title must be added first. (docs → Creating a receiving title)
-8. POL receipt status recalculates automatically (Partially / Fully Received; Ongoing for ongoing orders). (Karate `pieces-batch-update-status.feature`; C436793)
-9. Auto-close can trigger from Receiving when receipt and payment are complete. (MODORDERS-1170; Karate `create-order-payment-not-required-fully-receive.feature`)
-10. Quick receive receives a single piece from Edit piece; full-screen Receive handles many pieces and per-row edits. (docs → Receiving a piece)
-11. Check in is a separate step after receiving. (docs)
-12. Claiming status changes only happen with POL `Claiming active` checked and a claiming interval > 0. (C436808; ErrorCodes `claimingConfigInvalid`)
-13. A passed `Delay claim` date makes the piece `Late` without waiting for the claiming interval. (C436794; Karate `piece-status-transitions-claiming.feature`) — docs disagree, see Known Gaps
-14. Only Received, not-yet-bound pieces can be bound. (C476838, C476880; ErrorCodes `piecesMustHaveReceivedStatus`)
-15. Delete Holdings choice appears when a piece delete or holding change would leave a holding with no other POLs, pieces or items; holdings with other content are never offered. (UIREC-350; C503244, C934314, C934316)
-16. Full-screen Receive pages in batches of 50 after a Start/End expected-date range when the title has > 50 expected pieces; a holding created on one row is not offered to other rows. (UIREC-461, UIREC-487; C813585)
-17. After receipt, Piece details is a frozen snapshot and Item details mirrors the live item. (C959222)
-18. Two ECS mechanics exist: Location-lookup `Affiliation` dropdown vs. `Active affiliation default` toggle. (C471516, C471517, C511231)
-19. Adding a piece with Create item / new holding fails with `The piece was <b>not saved</b>` and creates no Holdings/Item when encumbrance limits are enforced and exceeded or the budget is not Active. (MODORDERS-1415; C1250459, C1250460)
-20. With Synchronized workflow the last piece cannot be deleted (`errors.lastPiece`); Independent workflow allows it. (UIREC-481; C594357, C1273175)
-21. With Synchronized workflow and Pending order, `Add piece` is hidden and the API rejects the piece. (UIREC-362, MODORDERS-1220; C627458)
-22. With Synchronized workflow, adding or deleting a piece changes POL quantity and location (warning `title.changePieceQuantityMessage`); Independent does not. (docs → Adding an expected piece)
-23. The Save & close dropdown depends on piece status: Late hides `Mark late`; Received offers only Save and create another / Unreceive / Delete; Unreceivable offers Save and create another / Expect / Delete; new piece has no `Send claim`. (PieceFormActionButtons/constants.js; C844841, C656338)
-24. `Send claim` asks for a future `Claim expiry date`; with an org claiming integration it creates an Export manager claim job per integration, without one it just sets `Claim sent`. (UIREC-412; C692110, C423993)
-25. Internal/external notes from Send claim are saved to the piece, also for a new piece. (UIREC-450; C1602438)
-26. Re-applying Delay claim / Send claim without status change updates `statusUpdatedDate` and the new interval. (MODORDERS-1494; C1602555)
-27. A piece without `Expected receipt date` never becomes Late via the claiming job. (Karate `piece-status-transitions-claiming.feature`)
-28. Received or Unreceivable pieces keep their status when claim/delay dates pass. (C436739, C436743, C436801)
-29. Claiming batch job runs every 6 hours (`POST /orders-storage/claiming/process`); tests may trigger it via API. (mod-orders-storage ModuleDescriptor)
-30. Bindery active requires Physical or P/E Mix, Create inventory = Instance, Holding, Item and Independent workflow. (ErrorCodes; Karate `bind-piece.feature`)
-31. Binding creates an `In process` item; items of bound pieces become `Unavailable`; requests can be transferred (oldest per requester kept, others cancelled). (UIREC-353, UIREC-354; C476882, C477535)
-32. Bound piece shows `Item details (original)` = first item ever created, stable over repeated bind/unbind; toggling `Bound` manually does not change item status. (UIREC-371; C506655, C506703)
-33. Sequence: new piece = highest + 1 (deleted pieces count); changing it reshuffles the pieces in between; out-of-range blocks save. (UIREC-465, UIREC-466; C844209)
-34. Editing a received piece writes only changed fields to the item and never unsuppresses it. (MODORDERS-1331, MODORDERS-1316; C784497)
-35. Deleting an expected piece deletes its connected item; deleting a received piece keeps the item. (docs → Deleting a piece)
-36. `Remove from package` deletes the title's pieces, items and empty related holdings; it is not offered for non-package or foreign-tenant titles and fails when pieces are Received. (UIREC-448, UIREC-452, UIREC-454; ErrorCodes `existingReceivedPiecesTitleRemoval`; C736743, C770416)
-37. Unopening an order deletes unreceived pieces in every non-received status (Expected, Late, Claim sent, Claim delayed, Unreceivable). (MODORDERS-1295; C736710)
-38. Piece `Expected receipt date` inherits from the POL. (MODORDERS-1322; C805752)
-39. ECS: users see only pieces of tenants they are affiliated with (central: all affiliations, member: active only). (UIREC-390, MODORDERS-1174)
-40. A user with only a UI-Receiving capability set (view/edit/create/delete) can receive pieces with connected items. (UIREC-479)
-41. Acq units: a user outside the title's acq unit cannot receive, unreceive or change status of its pieces; title acq-unit assign/edit needs the dedicated capability sets. (C436813, C436815-C436818, C430248, C430254)
-42. Received accordion hides bound pieces by default (`Bound`/`Not bound` filter); this default is intentional. (UIREC-264, UIREC-449)
-
----
+8. POL receipt status recalculates automatically (Partially / Fully Received; Ongoing for ongoing orders) and the PO auto-closes when receipt and payment are complete. (Karate `pieces-batch-update-status.feature`, `create-order-payment-not-required-fully-receive.feature`; MODORDERS-1170; C436793)
+9. Quick receive receives a single piece from Edit piece; full-screen Receive handles many pieces and per-row edits; Check in is a separate step after receiving. (docs → Receiving a piece)
+10. Claiming status changes only happen with POL `Claiming active` checked and a claiming interval > 0; the job runs every 6 h (`POST /orders-storage/claiming/process`, tests may trigger it via API); a piece without `Expected receipt date` never becomes Late; Received or Unreceivable pieces keep their status when claim/delay dates pass. (C436808, C436739, C436743, C436801; ErrorCodes `claimingConfigInvalid`; mod-orders-storage ModuleDescriptor; Karate `piece-status-transitions-claiming.feature`)
+11. A passed `Delay claim` date makes the piece `Late` without waiting for the claiming interval. (C436794; Karate `piece-status-transitions-claiming.feature`) — docs disagree, see Known Gaps
+12. Only Received, not-yet-bound pieces can be bound. (C476838, C476880; ErrorCodes `piecesMustHaveReceivedStatus`)
+13. Delete Holdings choice appears when a piece delete or holding change would leave a holding with no other POLs, pieces or items; holdings with other content are never offered. (UIREC-350; C503244, C934314, C934316)
+14. Full-screen Receive pages in batches of 50 after a Start/End expected-date range when the title has > 50 expected pieces; a holding created on one row is not offered to other rows. (UIREC-461, UIREC-487; C813585)
+15. After receipt, Piece details is a frozen snapshot and Item details mirrors the live item. (C959222)
+16. Two ECS mechanics exist: Location-lookup `Affiliation` dropdown vs. `Active affiliation default` toggle; users see only pieces of tenants they are affiliated with (central: all affiliations, member: active only). (C471516, C471517, C511231; UIREC-390, MODORDERS-1174)
+17. Adding a piece with Create item / new holding fails with `The piece was <b>not saved</b>` and creates no Holdings/Item when encumbrance limits are enforced and exceeded or the budget is not Active. (MODORDERS-1415; C1250459, C1250460)
+18. With Synchronized workflow the last piece cannot be deleted (`errors.lastPiece`); Independent workflow allows it. (UIREC-481; C594357, C1273175)
+19. With Synchronized workflow and Pending order, `Add piece` is hidden and the API rejects the piece. (UIREC-362, MODORDERS-1220; C627458)
+20. With Synchronized workflow, adding or deleting a piece changes POL quantity and location (warning `title.changePieceQuantityMessage`); Independent does not. (docs → Adding an expected piece)
+21. `Send claim` asks for a future `Claim expiry date`; with an org claiming integration it creates an Export manager claim job per integration, without one it just sets `Claim sent`; internal/external notes are saved to the piece (also for a new piece); re-applying Delay claim / Send claim without status change updates `statusUpdatedDate` and the new interval. (UIREC-412, UIREC-450, MODORDERS-1494; C692110, C423993, C1602438, C1602555)
+22. Bindery active requires Physical or P/E Mix, Create inventory = Instance, Holding, Item and Independent workflow. (ErrorCodes; Karate `bind-piece.feature`)
+23. Binding creates an `In process` item; items of bound pieces become `Unavailable`; requests can be transferred (oldest per requester kept, others cancelled). (UIREC-353, UIREC-354; C476882, C477535) Bound piece shows `Item details (original)` = first item ever created, stable over repeated bind/unbind; toggling `Bound` manually does not change item status. (UIREC-371; C506655, C506703)
+24. Sequence: new piece = highest + 1 (deleted pieces count); changing it reshuffles the pieces in between; out-of-range blocks save. (UIREC-465, UIREC-466; C844209)
+25. Editing a received piece writes only changed fields to the item and never unsuppresses it. (MODORDERS-1331, MODORDERS-1316; C784497)
+26. `Remove from package` deletes the title's pieces, items and empty related holdings; it is not offered for non-package or foreign-tenant titles and fails when pieces are Received. (UIREC-448, UIREC-452, UIREC-454; ErrorCodes `existingReceivedPiecesTitleRemoval`; C736743, C770416)
+27. Unopening an order deletes unreceived pieces in every non-received status (Expected, Late, Claim sent, Claim delayed, Unreceivable). (MODORDERS-1295; C736710)
+28. Piece `Expected receipt date` inherits from the POL. (MODORDERS-1322; C805752)
+29. A user with only one `Data - UI-Receiving` set (View, Edit, Create or Delete) can receive pieces with connected items (full-screen and Quick receive). (UIREC-479; C986309)
+30. Acq units: a user outside the title's acq unit cannot receive, unreceive or change status of its pieces; title acq-unit assign/edit needs the dedicated capability sets. (C436813, C436815-C436818, C430248, C430254)
+31. Received accordion hides bound pieces by default (`Bound`/`Not bound` filter); this default is intentional. (UIREC-264, UIREC-449)
+32. `Create item` is offered for pieces in `Late`, `Claim delayed`, `Claim sent` status; it is hidden when POL Create inventory = None and for Electronic piece format; an empty `Piece format` disables Save & close. (C721760, C503266, C503040; UIREC-443/419/428, UIREC-374, UIREC-377)
+33. Acq-unit sets: `Assign` enables the `Acquisition unit` dropdown on `New title` (disabled on Edit); `Manage` enables it on `Edit title` only. (C1045985, C1045986; UIREC-490)
 
 ## Existing Automated Coverage
 
@@ -432,25 +389,23 @@ From docs `_index.md` → Capabilities and ui-receiving `package.json`:
 
 **Cypress** (stripes-testing): `cypress/e2e/receiving/` (113 specs: status changes, claiming timing, bind/unbind, abandoned holdings, sequence, routing lists, acq units, export `receiving/export/`), `cypress/e2e/orders/receiving-and-check-in/`, `cypress/e2e/claiming/`, `cypress/e2e/consortia/receiving/`. Fragments: `cypress/support/fragments/receiving/` (`receiving.js`, `receivingDetails.js`, `pieceForm.js`, `bindPiecesForm.js`, `receivingStates.js`, …).
 
----
-
 ## Authoring style (measured 2026-07-23)
 
 Receiving is almost purely `Functional` (~99.6%, 243/244), median ~8 steps, `User Journey` ~0%. Cases walk a real piece flow (`Title > Expected/Received accordion > Actions > Add piece / Receive / Edit piece / Delete`) and verify Inventory and often Finance side effects. Preconditions carry the acquisition setup (Open PO with ongoing/one-time POL, Synchronized/Independent workflow, Create inventory, Fund/budget state) and any Number-generator / claiming / bindery settings. Set `Type = Functional`.
 
----
-
 ## Known Gaps and Verification Notes
 
-- [ ] TestRail not queried (bridge disconnected) in the 2026-11-24 refresh — no new case IDs beyond the 2026-06-17 build, the 2026-11-07 delta (C1574482-C1574484 bulk edit/delete pieces, C1453676 CSV export) and Cypress spec titles. Re-run Phase 1 when TestRail is reachable.
+- [ ] TestRail was not queried in the 2026-11-24 refresh (bridge disconnected); partially read 2026-11-25 (13 case bodies, listed in Sources; titles of 17995 / 9459 / 123). Still unread: bodies of the other ~100 cases in 17995 (rest rely on the 2026-06-17 build, the 2026-11-07 delta C1574482-C1574484 bulk edit/delete pieces, C1453676 CSV export, Cypress spec titles), all 56 cases of section 123 (titles only, e.g. C358972, C367971, C423616, C451594, C553012 siblings), section 17996. Re-run Phase 1 for the rest.
 - [ ] **Delay claim expiry target status** — docs (`_index.md` → Claiming) say a passed delay date reverts the piece to `Late` **or `Expected`** depending on expected receipt date and interval; C436794 and Karate say `Late`. Verify in env before asserting the `Expected` branch.
-- [ ] **Delete Holdings modal wording** — C503244 recorded `…no other pieces OR items connected to the related Holdings record(s)…`; current shared text (acq: `holdings.deleteModal.message`) adds `purchase order lines,`; ui-receiving also has a singular variant (`piece.actions.edit.deleteHoldings.message`). Which one the Edit piece form renders on master was not confirmed in code.
+- [ ] **Delete Holdings modal wording** — C503244 recorded `…no other pieces OR items connected to the related Holdings record(s)…`; current shared text (acq: `holdings.deleteModal.message`) adds `purchase order lines,`; ui-receiving also has a singular variant (`piece.actions.edit.deleteHoldings.message`). C543748 shows both variants inside one case (open order: `…no other purchase order lines, pieces OR items…`; cancelled order: `…no other pieces OR items…`, "Since Trillium"). Which one the Edit piece / full-screen Receive form renders on master was not confirmed in code.
 - [ ] **Piece delete leaving empty holding** — C503243 says the holding is auto-deleted without a prompt; en.json has `piece.delete.deleteHoldingsAndItem.message` (prompt). Confirm current behavior in env.
 - [ ] Bind success toast in Jira/cases is `Item (barcode) created successfully`; source is `Item <b>{barcode}</b> created successfully` — assert the source form.
-- [ ] Earlier "version drift" note (Unreceivable / Delay claim removed from the dropdown) was wrong for master — see the per-status dropdown section (source: constants.js, C844841).
-- [ ] Earlier claim that Unreceive deletes items created on receive was wrong — Unreceive sets the item to `On order` (en.json `piece.actions.unreceive.message`).
+- [x] Resolved notes: the earlier "version drift" claim (Unreceivable / Delay claim removed from the dropdown) was wrong for master — see the per-status dropdown section (constants.js, C844841); the earlier claim that Unreceive deletes items created on receive was wrong — Unreceive sets the item to `On order` (en.json `piece.actions.unreceive.message`), `Order closed` on a Cancelled order (C553012).
 - [ ] UIREC-518 (same-days re-delay from Edit piece doesn't update `statusUpdatedDate`) still open at refresh time.
-- [ ] Eureka capability set names for claiming and number generators were not confirmed from a capability source; UIREC-490 renamed permissions — verify names in the env.
+- [ ] Capability set names: View/Edit/Create/Delete, Claiming View and the NumberGenerator sets are now confirmed (Cypress dictionary, docs, C986309). Acq-units sets conflict: TestRail C1045985/C1045986 (UIREC-490) say `procedural - UI-Receiving Titles Acquisitions Units Assign/Manage - execute`, docs `_index.md` say `UI-Receiving Acq-Units Assignment` (procedural execute for Assign, data manage for Manage); package.json permissions are both `...acquisitions_units.*.execute`. Docs may be stale — verify in the env role editor. `Procedural - UI-Receiving - Execute` (CSV export) is confirmed only by docs, not by the Cypress dictionary.
+- [ ] Number generator with option `Off`: C700856 `custom_steps` (Scenario 4) say the `Generate numbers` icon is displayed but not active in Edit piece, while its separated steps and UIREC-460 say it is hidden; the file follows UIREC-460/separated steps — verify in env.
+- [ ] Cancelled order item statuses: C543748 (steps marked "Will be implemented in MODORDERS-1173") expects the received item `In process` while C553012 expects `Order closed` after Unreceive/Unreceivable; behavior of an item received on a Cancelled order before/after MODORDERS-1173 not verified in env.
+- [ ] `bind.pieces.modal.delete.message` ("Please delete requests before proceeding") exists in en.json but no case or Jira issue read explains when it appears (vs Transfer / Do not transfer).
 - [ ] Sequence numbers for predicted piece sets (C844201/C844209/C844210) — Serials integration angle not yet read.
 - [ ] ~94 cases in section 36735 (ECS piece/title lifecycle) are still unaudited.
 - Jira fixVersions for 2026 UIREC issues are mostly empty; release assignment is inferred from ui-receiving CHANGELOG (8.0.x = Trillium, 9.0.0 = Umbrellaleaf).
