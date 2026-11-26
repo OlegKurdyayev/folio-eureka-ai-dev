@@ -1,14 +1,14 @@
 ---
 area: serials-management
-generated_on: 2026-11-24
+generated_on: 2026-11-25
 generator_version: manual (build-app-context method, full refresh)
 jira_status: ok
 ---
 
 # FOLIO Serials Management — Business Logic Context
 
-> Built: 2026-11-07 · Refreshed: 2026-11-24 · Release: Umbrellaleaf (R2 2026) master — ui-serials-management 2.2.0 / mod-serials-management 2.2.0 "IN PROGRESS" at HEAD; last released line = Trillium (R1 2026) ui 2.1.1 / mod 2.1.1 (CHANGELOG.md, NEWS.md) · Builder: build-app-context method, manual
-> Sources: TestRail suite 21 section 34766 "Serials Management" (9 cases) + 34767 "Publication patterns" (25) + 111083 "Prediction pattern templates" (1) + 34768 "Predicted piece sets" (7) = 42 cases; preconditions of all cases and full steps of C451603 read.
+> Built: 2026-11-07 · Refreshed: 2026-11-25 · Release: Umbrellaleaf R2 2026 (master — ui-serials-management 2.2.0 / mod-serials-management 2.2.0 "IN PROGRESS" at HEAD per package.json, CHANGELOG.md, NEWS.md; last released line = Trillium R1 2026: ui 2.1.1 2026-05-05 / mod 2.1.1 2026-05-29) · Builder: build-app-context method, manual
+> Sources: TestRail suite 21 section 34766 "Serials Management" (9 cases) + 34767 "Publication patterns" (25) + 111083 "Prediction pattern templates" (1) + 34768 "Predicted piece sets" (7) = 42 cases; preconditions of all cases read; full steps read for C451603, C553044, C446127, C446128, C446129, C446130, C446151, C619001, C619002, C619003, C613211, C1346385, C1322911, C709265, C622592/3/4, C446154; C446131–C446150, C446152, C446153, C446155, C446156 have no steps (title-only stubs).
 > GitHub: folio-org/ui-serials-management (translations/ui-serials-management/en.json, package.json, src/), folio-org/mod-serials-management (service/src/main/okapi/ModuleDescriptor-template.json, grails-app controllers/domain, NEWS.md), folio-org/stripes-testing, folio-org/folio-integration-tests.
 > Jira: UISER / MODSER Done/Closed issues resolved 2024-09 → 2026-07 (186 issues listed, ~60 read in detail). Note: fixVersion is empty on most UISER/MODSER issues — release attribution comes from CHANGELOG.md / NEWS.md.
 > Docs: docs.folio.org/docs/acquisitions/serials/ (capability table, workflow).
@@ -72,14 +72,16 @@ Pattern status transitions (mod `SerialRulesetController.groovy`): saving / acti
 | Serials: Manage serials | `ui-serials-management.serials.manage` | Data - UI-Serials-Management Serials - Manage (C709265) |
 | Serials: Edit publication patterns | `ui-serials-management.rulesets.edit` | Data - UI-Serials-Management Rulesets - Edit (C622594) |
 | Serials: View publication pattern templates | `ui-serials-management.modelrulesets.view` | Data - UI-Serials-Management Modelrulesets - View (C1322911) |
-| Serials: Manage publication pattern templates | `ui-serials-management.modelrulesets.manage` | Data - UI-Serials-Management Modelrulesets - Manage (docs) |
-| Serials: Search & view predicted pieces | `ui-serials-management.predictedpieces.view` | Data - UI-Serials-Management Predictedpieces - View (docs) |
+| Serials: Manage publication pattern templates | `ui-serials-management.modelrulesets.manage` | Data - UI-Serials-Management Modelrulesets - Manage (docs: Acquisitions/Serials/_index.md) |
+| Serials: Search & view predicted pieces | `ui-serials-management.predictedpieces.view` | Data - UI-Serials-Management Predictedpieces - View (docs: Acquisitions/Serials/_index.md) |
 | Serials: Create predicted pieces | `ui-serials-management.predictedpieces.edit` | Data - UI-Serials-Management Predictedpieces - Edit (C446151) |
 | Serials: Delete predicted pieces | `ui-serials-management.predictedpieces.delete` | Data - UI-Serials-Management Predictedpieces - Delete (C451603) |
-| Settings (Serials): View pick lists and values | `ui-serials-management.picklists.view` | Data - UI-Serials-Management Picklists - View (docs) |
-| Settings (Serials): Manage pick lists and values | `ui-serials-management.picklists.manage` | Data - UI-Serials-Management Picklists - Manage (docs) |
-| (number generator for Pattern ID) | — | Data - UI-Service-Interaction NumberGenerator - View or Manage (docs; C446129) |
-| (receiving piece creation, mod-orders) | `orders.pieces.collection.post` | see Known Gaps — C451603 uses "Data - Orders Pieces Collection - create", C553044 / UISER-241 use "Procedural - Orders Pieces Collection - Execute" |
+| Settings (Serials): View pick lists and values | `ui-serials-management.picklists.view` | Data - UI-Serials-Management Picklists - View (docs: Settings/Settings_serials/Settings_serials.md) |
+| Settings (Serials): Manage pick lists and values | `ui-serials-management.picklists.manage` | Data - UI-Serials-Management Picklists - Manage (docs: Settings/Settings_serials/Settings_serials.md) |
+| (number generator for Pattern ID) | — | Data - UI-Service-Interaction NumberGenerator - View or Manage (docs: Settings/Settings_service_interaction/settings_service_interaction.md; View in C446129, C553044) |
+| (receiving piece creation, mod-orders) | `orders.pieces.collection.post` | Data - Orders Pieces Collection - Create (capability set name not confirmed — verify; C451603 spells it "Data - Orders Pieces Collection - create", C553044 / UISER-241 "Procedural - Orders Pieces Collection - Execute"; module descriptor of mod-orders confirms only the permission `orders.pieces.collection.post` for `POST /orders/pieces-batch`) |
+
+Other capability sets named in preconditions (exact spelling from the case): `Data - UI-Orders Orders - view`, `Settings - UI-Inventory Settings List - view` (C446128); `Data - UI-Receiving - create` + `Settings - UI-Inventory Settings List - view` (C451603); `Data - UI-Receiving - View, Edit, Create` + `Settings - UI-Inventory Settings Material-Types - View` (C553044). The Cypress dictionary (`cypress/support/dictionary/capabilitySets.js`, `permissions.js`) contains no Serials capability sets (only the Okapi name of NumberGenerator view); names above come from TestRail preconditions and the docs repo.
 
 Permission composition (ui package.json): serials.edit ⊃ serials.view; serials.manage ⊃ serials.edit; rulesets.edit ⊃ serials.edit + `serials-management.modelRulesets.view` (template picker); predictedpieces.view ⊃ serials.view; predictedpieces.edit / .delete ⊃ predictedpieces.view; modelrulesets.manage ⊃ modelrulesets.view; picklists.manage ⊃ picklists.view.
 
@@ -115,10 +117,10 @@ Source: `service/src/main/okapi/ModuleDescriptor-template.json`. No PUT exists f
 1. Serial Status values are Active and Closed (mod `Serial.groovy`); search filter "Status" uses `serialStatus.value`, plus a "PO line" filter (ui `routes/SerialsRoute/SerialsRoute.js`).
 2. Serials search covers id, description and `orderLine.title`; results are paginated 50 per page; Title sort = `orderLine.title,id` (ui `SerialsRoute.js`; UISER-185, UISER-242).
 3. Serials and Piece sets search do not load records until a search or filter is entered (UISER-189).
-4. "New" serial button is shown only with Serials: Edit serials (UISER-164; ui `SerialsRoute.js` IfPermission).
-5. Delete serial: Actions → Delete shown only with Serials: Manage serials; confirm modal "Delete serial" / `serials.deleteSerial.confirmMessage`; a serial with one or more publication patterns is not deleted and shows `serials.deleteSerial.error.hasPublicationPattern` (UISER-197; C709265; ui `SerialView.js`).
+4. "New" serial button is shown only with Serials: Edit serials (UISER-164; ui `SerialsRoute.js` IfPermission); with Serials - View only there is no "New" and no "Add publication pattern", and the pattern view has no Actions menu (C622592, UISER-166). New serial modal: Status defaults to Active, Description empty; a serial without a PO line shows its UUID in the Title column (C446127).
+5. Delete serial: Actions → Delete shown only with Serials: Manage serials; confirm modal "Delete serial" / `serials.deleteSerial.confirmMessage`; a serial with one or more publication patterns is not deleted and shows `serials.deleteSerial.error.hasPublicationPattern` (UISER-197; C709265; ui `SerialView.js`). Success toast "Serial deleted: <uuid>"; Actions list for Manage = Edit, Generate predicted pieces, Delete (C709265).
 6. Closed serial: "Add publication pattern", "Generate predicted pieces" and "Generate receiving pieces" are disabled; Edit and viewing piece sets stay available (UISER-157; ui `PublicationPattern.js`, `SerialView.js`, `PieceSetView.js`).
-7. "Generate predicted pieces" in serial Actions also requires Serials: Create predicted pieces (disabled otherwise) (ui `SerialView.js`).
+7. "Generate predicted pieces" in serial Actions also requires Serials: Create predicted pieces (disabled otherwise) (ui `SerialView.js`; C622594: Rulesets - Edit alone shows it greyed out; C622593: Serials - Edit alone shows Actions with "Edit" only).
 8. Serial view shows "Serial has no active publication patterns" when no Active pattern exists; the accordion badge counts Active + Draft patterns; Deprecated patterns are listed separately (`ruleset.deprecatedPublicationPatterns`) (ui `PublicationPattern.js`, `SerialView.js`).
 9. PO line linking uses the find-po-line plugin; for a package POL the Title selector must search and return more than 10 titles (UISER-244); DELETE serial returned 500 on C-env once — not reproducible after retest (MODSER-140).
 
@@ -126,9 +128,9 @@ Source: `service/src/main/okapi/ModuleDescriptor-template.json`. No PUT exists f
 10. Only one Active pattern per serial: the backend rejects >1 Active (`only.one.active.ruleset`) and saving a new Active pattern auto-deprecates the previous Active one (mod `Serial.groovy`, `SerialRulesetController.groovy`; docs.folio.org).
 11. Recurrence validation: number of issue rules must equal "No. of issues published per cycle" (`rules.must.equal.issues`); each rule ordinal must be within 1..period (`ordinal.not.in.range`) (mod `Recurrence.groovy`, `RecurrenceRule.groovy`).
 12. A pattern has either omission rules or combination rules, never both: "Add omission rule" is disabled with tooltip `ruleset.addOmissionDisabledTooltip` when a combination exists and vice versa (`ruleset.addCombinationDisabledTooltip`) (en.json; mod `PredictedPieceSetController.groovy` applies omission OR combination).
-13. Combination rules support only time unit "Issue" and types Issue / Issue Week / Issue Week Month / Issue Month (mod `CombinationRule.groovy`).
-14. Edit vs Copy and deprecate: Actions → Edit is disabled once the pattern has any predicted piece set (`replaceAndDelete` returns 405 "Cannot delete a serial ruleset which has been used to generate a predicted piece set"); "Copy and deprecate" is always available and deprecates the source (UISER-153; C619001, C619002; ui `RulesetView.js`; mod `SerialRulesetController.groovy`).
-15. Edit / Copy and deprecate actions are hidden (not just disabled) without Serials: Edit publication patterns (UISER-153 QA; ui `RulesetView.js`).
+13. Combination rules support only time unit "Issue" and types Issue / Issue Week / Issue Week Month / Issue Month (mod `CombinationRule.groovy`); UI labels: "Issue (1-n)", "Issue (1-n), Week (1-52)", "Issue (1-n), Week (1-4), Month (Jan-Dec)", "Issue (1-n), Month (Jan-Dec)"; adding a combination rule greys out "Add omission rule" (C613211, C1346385). Example: monthly pattern, Issue 11 combine 2 → 11 pieces for 2024 (C1346385); Issue 1 of July combine 2 → 11 pieces, Issue 7 dated 1 July shows "Combined pieces: 2" with summary "July 24" (C613211, MODSER-54).
+14. Edit vs Copy and deprecate: Actions → Edit is disabled once the pattern has any predicted piece set (`replaceAndDelete` returns 405 "Cannot delete a serial ruleset which has been used to generate a predicted piece set"); "Copy and deprecate" is always available and deprecates the source (UISER-153; C619001, C619002; ui `RulesetView.js`; mod `SerialRulesetController.groovy`). After Copy and deprecate the serial shows the new pattern with a new Pattern ID and a "Deprecated publication patterns" accordion holding the previous one (C619002).
+15. Edit / Copy and deprecate actions are hidden (not just disabled) without Serials: Edit publication patterns (UISER-153 QA; ui `RulesetView.js`; C622593: Serials - Edit shows no "Add publication pattern" and no Actions menu in the pattern view; C622594: Rulesets - Edit shows Add publication pattern and Edit + Copy and deprecate).
 16. After saving a new pattern the publication pattern view opens (UISER-210; C451603 step 5).
 17. Preview is possible without any label template, once status and publication cycle are filled and no rule is half-completed (UISER-70, MODSER-153 — Trillium).
 18. "Days of publication, per cycle" are sorted in cycle order (start → end of year) in view and edit (UISER-240 — Trillium).
@@ -138,9 +140,9 @@ Source: `service/src/main/okapi/ModuleDescriptor-template.json`. No PUT exists f
 22. Pattern ID comes from the number generator; without one the backend falls back to sequential numbering (MODSER-53). Legacy patterns without rulesetNumber had no link (UISER-224, script fix).
 
 ### Predicted piece sets
-23. Number of years/cycles defaults to 1; total predicted issues are capped at 366, enforced by `validate.allowedCycles` (max cycles = floor(366 / issues per year)) (UISER-179; ui `PiecesPreviewModalForm.js`; en.json `numberOfCycles.infoPopover`).
-24. Same start date as an existing set for the serial → warning under Start date (`pieceSets.overlappingDates.warning`) and confirm modal "Confirm generation of overlapping piece sets" with "Generate" to continue; the check is an exact start-date match (UISER-148, UISER-174; ui `PiecesPreviewModal.js`).
-25. When the pattern was used before, the form offers "Follow on from the last piece in a previous set", pre-filling Start date (previous start + number of cycles) and next enumeration values as plain integers (UISER-91, UISER-179 QA). Ramsons defect MODSER-135 closed as not reproducible in Sunflower/Trillium.
+23. Number of years/cycles defaults to 1; total predicted issues are capped at 366, enforced by `validate.allowedCycles` (max cycles = floor(366 / issues per year)) (UISER-179; ui `PiecesPreviewModalForm.js` MAX_PIECES = 366; en.json `numberOfCycles.infoPopover`). Boundary example: daily pattern, start 2024-01-01, 1 cycle → 366 issues (leap year) in preview (C446129); monthly pattern, 3 cycles → 36 issues (C446130).
+24. Same start date as an existing set for the serial → warning under Start date (`pieceSets.overlappingDates.warning`) and confirm modal "Confirm generation of overlapping piece sets" with "Generate" to continue; "Cancel generation" creates no set and returns to the Generate predicted pieces modal; the check is an exact start-date match (UISER-148, UISER-174; ui `PiecesPreviewModal.js`; C446151).
+25. When the pattern was used before, the form offers "Follow on from the last piece in a previous set", pre-filling Start date (previous start + number of cycles) and next enumeration values as plain integers (UISER-91, UISER-179 QA). Selecting the dropdown value "Publication date: 1/1/2026" fills Start date 1 Jan 2026 and Level 1 = 7, Level 2 = 1 after a 2-cycle set started at Level 1 = 5 (C446151). Ramsons defect MODSER-135 closed as not reproducible in Sunflower/Trillium.
 26. Omitted pieces show as "Omitted" in preview and set but create no receiving piece (MODSER-46, MODSER-58; ui `GenerateReceivingModal.js` filters omission pieces).
 27. Omission / combination rules by Issue apply per cycle in multi-cycle prediction (issue 11 omitted in each of 3 cycles → issues 11, 22, 33) (MODSER-151, MODSER-152).
 28. A combined piece consumes all combined issue numbers (Jan/Feb combined as Issue 1 → March = Issue 3), whereas an omitted issue does not consume a number (MODSER-101). Combined piece shows "Combined pieces: {length}" (en.json `pieceSets.combinedPieces`).
@@ -155,7 +157,7 @@ Source: `service/src/main/okapi/ModuleDescriptor-template.json`. No PUT exists f
 35. "Generate receiving pieces" is disabled when the serial is not Active or has no linked POL; the submit button stays disabled until "Time between publication and receipt (days)" (required) is filled (ui `PieceSetView.js`, `GenerateReceivingModalForm.js`; C451603 steps 13–14).
 36. Receiving piece fields: receiptDate = piece publication date + interval days; displaySummary = piece label; format Physical; poLineId/titleId from the serial's POL; supplement / displayOnHolding / displayToPublic default false (ui `GenerateReceivingModal.js`; C451603: interval 9 → expected receipt on the 10th).
 37. All pieces are created in one call `POST /orders/pieces-batch` (createItem as query param); then the set is updated with receiving ids and each row's "Receiving pieces" count becomes 1 (UISER-194; C451603 step 15).
-38. "Create item" checkbox appears only when POL Create inventory = "Instance, Holding, Item"; "Display in holding" / "Display to public" appear only when the POL has holdings (ui `GenerateReceivingModalForm.js`; C553044).
+38. "Create item" checkbox appears only when POL Create inventory = "Instance, Holding, Item"; "Display in holding" / "Display to public" appear only when the POL has holdings (ui `GenerateReceivingModalForm.js`; C553044). With Create item: the order must be Open; each receiving piece shows "Create item" = link "Connected" to an Inventory item with status "On order" and Enumeration data Display summary equal to the predicted piece's (C553044). C553044 calls the column "Generated in receiving"; current en.json label is "Receiving pieces" (`pieceSets.receivingPieces`) — case wording is outdated.
 39. POL with no locations/holdings shows `pieceSets.noOrderLineLocationsOrHoldings` and pieces are created without location (C451603 step 13); a POL with one location pre-fills holding/location and disables Affiliation (ui `GenerateReceivingModal.js`).
 40. Re-generating for a set that already has receiving pieces shows `pieceSets.receivingPiecesAlreadyExistWarning` (ui `GenerateReceivingModalInfo.js`).
 41. Failure shows `pieceSets.generateReceivingErrorMessage` + backend message, and no pieces are created (UISER-118, UISER-241).
@@ -165,8 +167,8 @@ Source: `service/src/main/okapi/ModuleDescriptor-template.json`. No PUT exists f
 
 ### Publication pattern templates (model rulesets)
 45. "Templates" search/sort is visible only with Serials: View publication pattern templates; search covers name and description; filter "Status" (`modelRulesetStatus.value`); default sort name ascending (UISER-225, UISER-230, UISER-232; ui `RouteSwitcher.js`, `TemplatesRoute.js`).
-46. New / Edit / Copy / Delete template actions need Serials: Manage publication pattern templates; Edit = replaceAndDelete (copy into form, delete old on save); Copy opens a pre-filled Create form (UISER-229, UISER-231, UISER-233, UISER-234, MODSER-141).
-47. Template name is required; status required (Active / Closed); the template's embedded pattern is saved without an owner serial (mod `ModelRuleset.groovy`, `ModelRulesetController.groovy`; MODSER-105).
+46. New / Edit / Copy / Delete template actions need Serials: Manage publication pattern templates (docs: Manage = create and delete templates; but C1322911 lists only Modelrulesets - View as precondition while using "New" — see Known Gaps); Edit = replaceAndDelete (copy into form, delete old on save); Copy opens a pre-filled Create form (UISER-229, UISER-231, UISER-233, UISER-234, MODSER-141).
+47. Template name is required; status required (Active / Closed); the template form's chronology label has a Locale field (`ruleset.chronology.locale`; C1322911); the template's embedded pattern is saved without an owner serial (mod `ModelRuleset.groovy`, `ModelRulesetController.groovy`; MODSER-105).
 48. A user without the templates view permission must still open the Serials app without errors (UISER-235).
 
 ## Edge cases from bugs (regression candidates)
@@ -187,13 +189,14 @@ Source: `service/src/main/okapi/ModuleDescriptor-template.json`. No PUT exists f
 
 ## Known Gaps / Items to Verify
 
-- [ ] Orders pieces capability for receiving piece creation: C451603 "Data - Orders Pieces Collection - create" vs C553044 / UISER-241 "Procedural - Orders Pieces Collection - Execute" — confirm on Eureka env.
+- [ ] Orders pieces capability for receiving piece creation: C451603 "Data - Orders Pieces Collection - create" (case updated 2026-06) vs C553044 / UISER-241 "Procedural - Orders Pieces Collection - Execute" (case updated 2025-04) — confirm on Eureka env. Checked 2026-11-25: no source decides — mod-orders `descriptors/ModuleDescriptor-template.json` maps `POST /orders/pieces-batch` to `orders.pieces.collection.post` (no `.execute` permission exists for pieces), ui-receiving / ui-serials-management package.json do not grant it, Cypress dictionary has no entry. Name stays marked not confirmed.
 - [ ] C553044 lists "Data - UI-Receiving - View, Edit, Create" and C451603 "Data - UI-Receiving - create"; whether Receiving UI capability is needed beyond verification in Receiving is unconfirmed.
-- [ ] Capability set names for Predictedpieces View, Modelrulesets Manage, Picklists View/Manage come from docs.folio.org (Trillium docs), not from cases.
+- [ ] Capability set names for Predictedpieces View, Modelrulesets Manage, Picklists View/Manage are confirmed only by the docs repo (`Acquisitions/Serials/_index.md`, `Settings/Settings_serials/Settings_serials.md`: resource + data + action), not by TestRail cases or the Cypress dictionary.
+- [ ] C1322911 (add template) precondition lists only "UI-Serials-Management Modelrulesets -> View" yet uses the "New" button and saves; docs and ui package.json say create needs Manage — case precondition likely outdated; confirm.
 - [ ] UISER-157: Jira description lists expected Closed-serial behaviour; resolution comment not read — verified only against UI code (disabled buttons).
 - [ ] MODSER-135 (follow-on enumeration) closed Not reproducible; MODSER-117 volume-change calculation partially explained as by-design in comments — confirm expected numbering with PO before asserting.
 - [ ] Settings → Serials pick lists: no TestRail cases; behaviour from en.json only.
-- [ ] Draft frequency cases C446131–C446150 steps not read.
+- [ ] Draft frequency cases C446131–C446150 (and C446152, C446153, C446155, C446156) read 2026-11-25: title-only stubs without preconditions, steps or refs — no expected results available; behaviour for those scenarios comes from rules above only.
 - [ ] `pieceSets.receivingPiecesAlreadyExistWarning` exists in en.json but not yet in en_US.json (Lokalise lag).
 - [ ] Jira fixVersion fields are mostly empty for UISER/MODSER; release per change taken from CHANGELOG/NEWS.
 
