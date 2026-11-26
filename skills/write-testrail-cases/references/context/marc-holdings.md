@@ -2,14 +2,14 @@
 area: marc-holdings
 generated_on: 2026-11-24
 previous_version: 2026-11-07
-release: Umbrellaleaf (R2 2026) — master; ui-quick-marc 11.1.0 (in progress), mod-quick-marc 8.1.0 (in progress)
+Release: Umbrellaleaf R2 2026 (master; ui-quick-marc 11.1.0 in progress, mod-quick-marc 8.1.0 in progress)
 generator_version: manual (build-app-context method)
 jira_status: ok
 ---
 
 # FOLIO MARC Holdings (quickMARC) — Business Logic Context
 
-> Built: 2026-11-24 (previous build 2026-11-07) · Release: Umbrellaleaf (R2 2026) master — ui-quick-marc 11.1.0 / mod-quick-marc 8.1.0 in progress; Trillium (R1 2026) = ui-quick-marc 11.0.x / mod-quick-marc 8.0.x; Sunflower (R1 2025) = 10.0.x / 7.0.x (Jira project versions UIQM, MODQM) · Builder: build-app-context method, manual
+> Built: 2026-11-24 (previous build 2026-11-07) · Release: Umbrellaleaf R2 2026 (master; ui-quick-marc 11.1.0 / mod-quick-marc 8.1.0 in progress); Trillium (R1 2026) = ui-quick-marc 11.0.x / mod-quick-marc 8.0.x; Sunflower (R1 2025) = 10.0.x / 7.0.x (Jira project versions UIQM, MODQM) · Builder: build-app-context method, manual
 > Sources: TestRail suite 21 section 16714 "MARC > MARC Holdings" (28 cases) with sub-sections 39766 "Create MARC holdings" (36 cases) and 39767 "Edit MARC holdings" (43 cases) — titles for all, full steps for C350646, C983156, C1045403, C353227, C396394, C496218, C345402; no case created or updated after 2026-11-07.
 >          GitHub (HEAD 2026-11-12/16): folio-org/ui-quick-marc (`translations/ui-quick-marc/en.json` = `en_US.json` for every key used here, `package.json`, `src/hooks/useValidation/rules.js`, `src/QuickMarcEditor/utils.js`, `constants.js`, `LeaderField/leaderConfig.js`, CHANGELOG); folio-org/mod-quick-marc (`descriptors/ModuleDescriptor-template.json`, `service/validation/impl/holdings/*`, `convertion/elements/LeaderItem.java`, `convertion/merger/HoldingsRecordMerger.java`, `db/changelog/changes/v2.6.0/field008_holdings.json`, NEWS.md); folio-integration-tests `mod-quick-marc` Karate; stripes-testing `cypress/e2e/marc/marc-holdings`.
 >          Jira (anonymous REST): ~60 UIQM/MODQM Done issues mentioning holdings since 2024-09, MODINV/UIIN MARC-holdings bugs since 2025-01, open UIQM/MODQM holdings issues. docs.folio.org quickMARC page (last modified 2026-05-28).
@@ -26,7 +26,7 @@ A holdings record whose source is MARC (`Source` = MARC) is edited in quickMARC,
 | `Add MARC holdings record` | Instance detail (Source = MARC) → `Actions` | Pane `New MARC holdings record` (en.json `holdings-record.create.title`; "Create a" prefix removed — UIQM-744), record status `New`, `Save & close` disabled until a change is made (UIQM-522). Not offered on the Central tenant instance page in ECS (C409473) |
 | `Edit in quickMARC` | Holdings detail (Source = MARC) → `Actions` | Pane `Edit MARC holdings - Location: {location} - [{callNumber}]` |
 | `View source` | Holdings detail → `Actions` | MARC source view; `Edit` and `Print` from the source pane (UIIN-3012, UIQM-352, C543800). `Print` works with view-only permission (C396394). Version history (clock icon) on View source — UIQM-747 (Closed) |
-| Import | Data Import, job profile `Default - Create Holdings and SRS MARC Holdings` | Imported MARC holdings record (see `data-import.md`) |
+| Import | Data Import, job profile `Default - Create Holdings and SRS MARC Holdings` (stripes-testing `cypress/support/constants/constants.js` `CREATE_HOLDINGS_AND_SRS`) | Imported MARC holdings record (see `data-import.md`) |
 
 Pane header in edit mode: `Edit MARC holdings - Location: {location} - [{callNumber}]` (en.json `holdings-record.edit.title`). Record status values in the editor header (en.json `record.status.*`): `New`, `Current`, `In progress`, `Error`; `Last updated: {date} {time}` (`record.lastUpdated`).
 
@@ -56,8 +56,8 @@ MARC holdings can be created only for an instance with Source = MARC. Holdings w
 | LDR positions | Only 05, 06, 17, 18 editable for holdings | `Record cannot be saved. Please check the Leader. Only positions 5, 6, 17, 18 can be edited in the Leader.` (`record.error.leader.forbiddenBytes.holdings`) |
 | LDR invalid value | Per-position valid values (see Leader table) | `Record cannot be saved. Please enter a valid {positions}. Valid values are listed at {link}` — link `https://www.loc.gov/marc/holdings/hdleader.html` (`constants.js`; C357572 example `Leader 05, Leader 17 and Leader 18`) |
 | Multiple LDR | Blocks save; generic server toast | `Record not saved: Communication problem with server. Please try again.` (C496204, C496206) |
-| 001 | One; an added 001 becomes read-only and is dropped on save (C387461, C387462) | `Record cannot be saved. Can only have one MARC 001.` is in the holdings validator list (`rules.js` `BASE_HOLDINGS_VALIDATORS`) but cases show the duplicate dropped — see Known Gaps |
-| 004 | Exactly one, read-only, must match an existing instance HRID | `Record cannot be saved. Can only have one MARC 004.` (`record.error.instanceHrid.multiple`; C345399, C503115). API: wrong HRID → 422 `Failed to map marc-holdings record ... No instance found for HRID: <hrid> in tenant: <tenant>`; duplicate → 422 `Is unique tag` (Karate) |
+| 001 | One; an added 001 becomes read-only and is dropped on save: success toast, reopened record has a single system-generated 001 (C387461 steps 8–10, C387462) | `Record cannot be saved. Can only have one MARC 001.` is in the holdings validator list (`rules.js` `BASE_HOLDINGS_VALIDATORS`) but cases show the duplicate dropped — see Known Gaps |
+| 004 | Exactly one, read-only, must match an existing instance HRID | `Record cannot be saved. Can only have one MARC 004.` (`record.error.instanceHrid.multiple`; C345399, C503115). C345399 (edit): the added 004 row becomes read-only; `Save & close` shows the inline `Fail:` error after both 004 fields and the toast `Fail errors: 2`; after `Cancel` View source shows no change. API: wrong HRID → 422 `Failed to map marc-holdings record ... No instance found for HRID: <hrid> in tenant: <tenant>`; duplicate → 422 `Is unique tag` (Karate) |
 | 008 | Required, one, valid values (32 positions; imported records with fewer positions can still be edited — C387479) | `Record cannot be saved without 008 field` / `Record cannot be saved with more than one 008 field` / `Record cannot be saved. Field 008 contains an invalid value in "{name}" position.` |
 | 852 | Required, exactly one, valid location in `$b`, single `$b` with no extra spaces (C386514) | `Record cannot be saved. An 852 is required.` / `Record cannot be saved. Can only have one MARC 852.` / `852 $b contains an invalid Location code. Please try again.` / `<b>{fieldTag}</b> can only have one <b>{subField}</b>.` (`record.error.field.onlyOneSubfield`). API: delete 852 → 422 `Is required tag`, duplicate → 422 `Is unique tag`, FOLIO call number unchanged (Karate) |
 | 999 ff | Several allowed on create (C503071) | — |
@@ -131,14 +131,16 @@ Source: `descriptors/ModuleDescriptor-template.json`. The `status` endpoint is g
 
 ## Permissions (Okapi → Eureka, from team cases)
 
-| Okapi permission | Eureka capability (type – resource – action) |
+| Okapi permission | Eureka capability (Type - Resource - Action) |
 |---|---|
-| `quickMARC: View MARC holdings record` | `data - UI-Quick-Marc Quick-Marc-Holdings-Editor - view` (docs.folio.org quickMARC permissions table; not yet in a case) |
-| `quickMARC: View, edit MARC holdings record` | `data - UI-Quick-Marc Quick-Marc-Holdings-Editor - manage` |
-| `quickMARC: Create a new MARC holdings record` | `data - UI-Quick-Marc Quick-Marc-Holdings-Editor - create` |
-| `Inventory: View instances, holdings, and items` | `data - UI-Inventory Instance - view` |
-| `Inventory: View, create, edit holdings` | `data - UI-Inventory Holdings - edit` |
-| `Inventory: All permissions` | `data - UI-Inventory - manage` |
+| `quickMARC: View MARC holdings record` | `Data - UI-Quick-Marc Quick-Marc-Holdings-Editor - View` (stripes-testing `capabilitySets.js` `uiQuickMarcQuickMarcHoldingsEditorView`; `permissions.js` `ui-quick-marc.quick-marc-holdings-editor.view`; docs.folio.org; not yet in a case) |
+| `quickMARC: View, edit MARC holdings record` | `Data - UI-Quick-Marc Quick-Marc-Holdings-Editor - Manage` (`capabilitySets.js` `...HoldingsEditorManage`; C916266, C345399 precondition) |
+| `quickMARC: Create a new MARC holdings record` | `Data - UI-Quick-Marc Quick-Marc-Holdings-Editor - Create` (`capabilitySets.js` `...HoldingsEditorCreate`; C916266) |
+| `Inventory: View instances, holdings, and items` | `Data - UI-Inventory Instance - View` (`capabilitySets.js` `uiInventoryInstanceView`; C916266) |
+| `Inventory: View, create, edit holdings` | `Data - UI-Inventory Holdings - Edit` (`capabilitySets.js` `uiInventoryHoldingsEdit`; C916266) |
+| `Inventory: All permissions` | `Data - UI-Inventory - Manage` (`capabilitySets.js` `uiInventory`) |
+
+All six names are confirmed by the Cypress dictionary (the cases themselves spell them lowercase, e.g. `data - UI-Inventory Instance - view`; use the capitalised form in new cases).
 
 Recent cases use the two-column Okapi / Eureka table in preconditions (C1045403) or the Eureka list only (C983156). Create/manage capability names also appear in UIIN-3434 and UIIN-3498 preconditions.
 
@@ -152,15 +154,15 @@ UI permission sets (`package.json`): view = `marc-records-editor.item.get`, `inv
 
 ## Key Business Rules for Test Cases
 
-1. MARC holdings exist only under an instance with Source = MARC; the create action is absent for FOLIO-source instances (cases).
-2. 852 is required and non-repeatable; 004 and 008 are non-repeatable; 008 is required (en.json + cases).
-3. Only LDR positions 05, 06, 17, 18 are editable — do not reuse the bib list (5, 6, 7, 8, 17, 18, 19) or the authority list (5, 17, 18) (en.json).
+1. MARC holdings are created only for an instance with Source = MARC (docs.folio.org `Metadata/Inventory/QuickMARC.md`: "The instance source must be MARC"). That the `Add MARC holdings record` action is hidden for FOLIO-source instances is (unverified) — see Known Gaps.
+2. 852 is required and non-repeatable; 004 and 008 are non-repeatable; 008 is required (en.json messages in the table above; `rules.js` `BASE_HOLDINGS_VALIDATORS`; C345399 for 004).
+3. Only LDR positions 05, 06, 17, 18 are editable — do not reuse the bib list (5, 6, 7, 8, 17, 18, 19) or the authority list (5, 17, 18) (en.json `record.error.leader.forbiddenBytes.holdings`; mod-quick-marc `HoldingsLeaderValidationRule.java`).
 4. An added duplicate 001 is dropped on save (C387461, C387462); an added duplicate 005 is dropped on create (C496215) but both 005 are saved on edit (C496218); duplicate 004, 008, 852 or LDR block the save (C345399, C503115, C499629, C499630, C350721, C503109, C496204, C496206).
 5. Every save updates 005 and the `Record last updated` source user (C417047, C356850, C353227).
 6. A quickMARC save must not clear FOLIO-only holdings fields or tags (MODQM-505, MODINV-1323).
 7. Call number type follows the 852 first indicator, including after edit (MODQM-506).
 8. Optimistic locking: two users editing the same MARC holdings record — the second save shows the conflict banner; `Save & keep editing` follows the same rule (C353227, C353229, C360103).
-9. Create and edit are separate sections (39766, 39767); the team writes the same validation as two cases, one per flow. Keep that split.
+9. Create and edit are separate sections (39766, 39767); the team writes the same validation as two cases, one per flow. Keep that split (TestRail sections 39766 / 39767, e.g. C916266 create, C345399 edit).
 10. 001, 004 and 005 rows are read-only; LDR, 001, 003, 004, 005, 008 and 852 cannot be deleted from the row action (ui-quick-marc `src/QuickMarcEditor/utils.js`; C375123 for 852).
 11. The 005 tag box is editable (like 008); a record saved without any 005 gets a system-generated 005 (UIQM-781, C916266, C496218).
 12. 004 is pre-filled with the instance HRID on create and must match an existing instance HRID; otherwise the API returns 422 `No instance found for HRID` (`getCreateHoldingsMarcRecordDefaultFields`; Karate `quick-marc-holdings-records.feature`).
@@ -191,7 +193,8 @@ Type `Functional` in the create/edit sub-sections (type_id 6 in all 82 cases); t
 
 ## Known Gaps / Items to Verify
 
-- [ ] Eureka capability for view-only (`Quick-Marc-Holdings-Editor - view`) — confirmed by docs.folio.org only, not yet in a case.
+- [ ] Eureka capability for view-only (`Data - UI-Quick-Marc Quick-Marc-Holdings-Editor - View`) — name confirmed by the Cypress dictionary and docs.folio.org, but no TestRail case precondition uses it yet.
+- [ ] Visibility of `Add MARC holdings record` for FOLIO-source instances — docs only say the instance source must be MARC; no case/spec read confirms the action is hidden or disabled (rule 1).
 - [ ] MODQM-513 (number of items, receipt status cleared after quickMARC save) is still In Refinement — expect failure until fixed; code confirms (`HoldingsRecordMerger` ignore list lacks both fields).
 - [ ] 008 control type: docs.folio.org says dropdowns per position; MODQM-519 (fixed in mod-quick-marc 8.1.0) restored text inputs for boxes without allowed values. Check which boxes are dropdowns on the target build before writing 008 steps.
 - [ ] Duplicate 001: `rules.js` has a NON_REPEATABLE 001 rule with `Can only have one MARC 001.`, while C387461/C387462 expect the added 001 to be read-only and silently dropped. Follow the cases; verify in env.
