@@ -1,7 +1,7 @@
 # FOLIO Fees/Fines — Business Logic Context
 
-> Built: 2026-11-24 · Release: Umbrellaleaf (R2 2026) — master (ui-users 13.1.0 in progress, mod-feesfines 19.5.0-SNAPSHOT) · Builder: build-app-context (refresh of the 2026-07-21 build + 2026-11-07 delta)
-> Sources: TestRail project 14 / suite 21, section 88 "Fees&Fines" and subsections (Settings Users (Fee/fine) 89, Manual 90, Pay 91, Display 92, Waive 1533, Transfer 1534, Cancel 1530, Refund 1532, Overdue Fines 1141, Reminder Fees 25512, Declared Lost 1312, Aged to Lost 1531, Claimed Returned 1313, Bursar 11060, Financial Transactions Detail Report 16509, Cash Drawer Reconciliation Report 16510, Lost items requiring actual cost 20624).
+> Built: 2026-11-25 · Release: Umbrellaleaf R2 2026 (master: ui-users 13.1.0 in progress, mod-feesfines 19.5.0-SNAPSHOT; release mapping from CHANGELOG dates, see Known Gaps) · Builder: build-app-context (refresh of the 2026-07-21 build + 2026-11-07 delta)
+> Sources: TestRail project 14 / suite 21, section 88 "Fees&Fines" and subsections (Settings Users (Fee/fine) 89, Manual 90, Pay 91, Display 92, Waive 1533, Transfer 1534, Cancel 1530, Refund 1532, Overdue Fines 1141, Reminder Fees 25512, Declared Lost 1312, Aged to Lost 1531, Claimed Returned 1313, Bursar 11060, Financial Transactions Detail Report 16509, Cash Drawer Reconciliation Report 16510, Lost items requiring actual cost 20624). Second pass also read case bodies from Declared Lost 1312, Aged to Lost 1531, Overdue Fines 1141, Permissions --> Fees and Fines 183, Bursar 11060.
 >          GitHub: `folio-org/ui-users` (translations/ui-users/en.json, package.json `stripes.permissionSets`, src/components/Accounts/**), `folio-org/mod-feesfines` (descriptors/ModuleDescriptor-template.json, ramls/, src/main/java/.../service/action/**, NEWS.md), `folio-org/folio-integration-tests` (mod-feesfines), `folio-org/stripes-testing`, `folio-org/docs` (content/en/docs/Access/Additional topics/feesfines/feesfines.md).
 >          Jira: UIU + MODFEE Story/Bug, Done/Closed, resolved ≥ 2024-06-01 (fixVersions hold module versions, not release names).
 > UI strings: `en.json` key named in brackets = exact string from source; `C…` = string asserted in a TestRail case. Where this file and an older case disagree, the `en.json` key wins.
@@ -19,15 +19,15 @@ Fees/Fines are monetary charges against a patron — either **manual** (staff-cr
 | Term | Definition |
 |---|---|
 | Account | The fee/fine record (`/accounts`). Has `amount` (billed), `remaining`, `status.name` (Open/Closed), `paymentStatus.name`. Parent object (docs feesfines.md; ramls/accountdata.json). |
-| Fee/fine action | Child transaction of an account (`/feefineactions`): charge, payment, waive, transfer, refund, credit, cancel, staff info. One account → 1..n actions. |
+| Fee/fine action | Child transaction of an account (`/feefineactions`): charge, payment, waive, transfer, refund, credit, cancel, staff info. One account → 1..n actions (ramls/feefineactiondata.json: required `accountId`, `userId`). |
 | Fee/fine owner | Office/agent that owns charges; manual charges, payment methods, transfer accounts are per owner. Owners are linked to service points; automatic fees pick the owner via item location → primary service point → owner (docs feesfines.md). |
 | Shared owner | An owner named `Shared`; cannot have associated service points (C350615, en.json `owners.noServicePoints`). |
 | Manual charge (Fee/fine type) | Owner-scoped charge type with default amount and charge/action notices. Names of automated types are reserved (`feefines.errors.reservedName`). |
-| Payment method | Owner-scoped; has `Refund method allowed` flag. |
-| Transfer account | Owner-scoped external account (e.g. bursar) a balance can be transferred to. |
-| Waive reason / Refund reason | Tenant-wide reason lists (no owner). |
-| Suspended | Lost-item fees on a Claimed-returned loan: `paymentStatus` = `Suspended claim returned`, blocked from actions; counted in "Total suspended balance". |
-| Credit | Internal action created before every Refund (paired Credit + Refund). |
+| Payment method | Owner-scoped (`ownerId`); has `Refund method allowed` flag (`allowedRefundMethod`) (ramls/paymentdata.json; en.json). |
+| Transfer account | Owner-scoped (`ownerId`) external account (e.g. bursar) a balance can be transferred to (ramls/transferdata.json). |
+| Waive reason / Refund reason | Tenant-wide reason lists, no `ownerId` field (ramls/waivedata.json, refunddata.json). |
+| Suspended | Lost-item fees on a Claimed-returned loan: `paymentStatus` = `Suspended claim returned`, blocked from actions; counted in "Total suspended balance" (ramls/accountdata.json `paymentStatus`; en.json `accounts.history.*`; UIU-3125). |
+| Credit | Internal action created before every Refund (paired Credit + Refund) (RefundActionService.java; C15209). |
 
 ---
 
@@ -52,6 +52,7 @@ Owner fallback: an owner should be configured for every service point, otherwise
 ## Charge lifecycle and statuses
 
 ```
+(sources: ramls/accountdata.json, mod-feesfines service/action/*, FeeFineActions.js; rules 6, 10-13, 22)
 (Manual)    "New fee/fine" → "Charge only"  |  "Charge & pay now" (→ Pay modal)
 (Automatic) circulation creates Overdue fine / Lost item fee / Lost item processing fee / Reminder fee
 
@@ -81,9 +82,10 @@ Closed (remaining = 0)
   - Page buttons: `New fee/fine`, `Pay`, `Waive`, `Transfer`, `Refund`, `Export fees/fines (CSV)`.
   - Row ellipsis: `Pay`, `Waive`, `Transfer`, `Error` (cancel as error, `accounts.button.error`), `Refund`, `Loan details` / `Loan details (anonymized)`, `Go to details`.
   - Action buttons are hidden (not disabled) when the user lacks the permission (UIU-3156 in ui-users CHANGELOG).
-- **Fee/fine details page** (`Fee/fine details`; pane id `pane-account-action-history`): header `Fee/fine details - {userName} ({patronGroup})`; fields `Fee/fine type`, `Fee/fine owner`, `Billed date`, `Billed amount`, `Remaining amount`, `Latest payment status`, `Instance (Material type)`, `Item type`, `Barcode` (`{barcode} (not found)` if item missing — C358152), `Effective call number string`, `Location`, `Due date`, `Returned date`, `Loan details` (`View`). Buttons: Pay / Waive / Refund / Transfer / `Error` / Export (ids `payAccountActionsHistory`, `waiveAccountActionsHistory`, `refundAccountActionsHistory`, `transferAccountActionsHistory`, `errorAccountActionsHistory`, `exportAccountActionsHistoryReport`), `New staff info`.
+- **Fee/fine details page** (`Fee/fine details`; pane id `pane-account-action-history`): header `Fee/fine details - {userName} ({patronGroup})`; fields `Fee/fine type`, `Fee/fine owner`, `Billed date`, `Billed amount`, `Remaining amount`, `Latest payment status`, `Instance (Material type)`, `Item type`, `Barcode` (`{barcode} (not found)` if item missing — C358152), `Effective call number string`, `Location`, `Due date`, `Returned date`, `Loan details` (`View`), plus links `Barcode` (Item details), `Overdue policy`, `Lost item policy` that must open the right records (C11149 — recurring Barcode-link problem). Buttons: Pay / Waive / Refund / Transfer / `Error` / Export (ids `payAccountActionsHistory`, `waiveAccountActionsHistory`, `refundAccountActionsHistory`, `transferAccountActionsHistory`, `errorAccountActionsHistory`, `exportAccountActionsHistoryReport`), `New staff info`.
   - Action history columns (`details.columns.*`): `Action date`, `Action`, `Amount`, `Balance`, `Transaction information`, `Created at`, `Source`, `Additional information`. Staff/patron comment prefixes `STAFF : {text}` / `PATRON : {text}` (`accounts.actions.tag.*`, FeeFineActions.js `assembleTagInfo`).
   - Page must survive reload and direct-URL open (UIU-3428, C808511).
+  - Export (CSV) of selected fees/fines: one row per action; columns `Patron name`, `Patron barcode`, `Patron group`, `Action date`, `Action description`, `Action amount`, `Action balance`, `Action transaction information`, `Action created at`, `Action source`, `Action additional information for staff` / `…for patron`, `Fee/fine type`, `Fee/fine owner`, `Fee/fine billed date` / `billed amount` / `remaining amount` / `latest payment status` / `details`, `Item instance`, `Item material type`, `Item barcode`, `Item call number`, `Item location`, `Item due date`, `Item returned date`, `Item overdue policy`, `Item lost item policy`, `Item loan details` (C359591; UIU-1605).
 - **New fee/fine page** (`New fee/fine`, ChargeForm.js; modal id `new-modal`): `Fee/fine owner` (`ownerId`), `Fee/fine type` (`feeFineType`), `Fee/fine amount` (`amount`), `Additional information for staff` (`comments`), `Notify patron` (`notify`), `Item information` block (`Scan or enter item barcode`, `Enter`, `Barcode`, `Instance`, `Item Status`, `Effective call number string`, `Location`). Buttons `Cancel` (`cancelCharge`), `Charge & pay now` (`chargeAndPay`, en.json `charge.Pay`), `Charge only` (`chargeOnly`).
   - Unknown barcode: `No item with barcode {barcode} could be found`, both charge buttons disabled (UIU-2701).
   - No current service point: modal `Access denied` — `You must select a service point to create and view patron fees/fines. …` (`errorModal.currentUserServicePointAbsentee.*`; button `Back`).
@@ -157,7 +159,7 @@ API messages: DefaultActionValidationService / RefundActionValidationService / C
 
 ---
 
-## API surface (mod-feesfines `feesfines` 19.1, `feefine-reports` 2.3, `actual-cost-fee-fine` 0.3)
+## API surface (mod-feesfines `feesfines` 19.1, `feefine-reports` 2.3, `actual-cost-fee-fine` 0.3; descriptors/ModuleDescriptor-template.json, verified 2026-11-25)
 
 | Endpoint | permissionsRequired |
 |---|---|
@@ -168,7 +170,7 @@ API messages: DefaultActionValidationService / RefundActionValidationService / C
 | `POST /accounts-bulk/{pay,waive,transfer,cancel,refund}` | `feesfines.accounts-bulk.*.post` |
 | `/feefineactions`, `/feefines` (manual charge types), `/owners`, `/payments`, `/waives`, `/refunds`, `/transfers`, `/comments`, `/transfer-criterias`, `/manualblocks`, `/manual-block-templates`, `/overdue-fines-policies`, `/lost-item-fees-policies` (CRUD) | `<resource>.collection.get` / `<resource>.item.{get,post,put,delete}` |
 | `POST /actual-cost-fee-fine/bill` · `/cancel` | `actual-cost-fee-fine-bill.post` / `actual-cost-fee-fine-cancel.post` |
-| `POST /feefine-reports/refund` · `/financial-transactions-detail` · `/cash-drawer-reconciliation` · `/cash-drawer-reconciliation/sources` | `feefine-reports.refund.post`, `feefine-reports.financial-transactions-detail.post`, `feesfines.feefine-reports.cash-drawer-reconciliation.post`, `…-source.post` |
+| `POST /feefine-reports/refund` · `/financial-transactions-detail` · `/cash-drawer-reconciliation` · `/cash-drawer-reconciliation/sources` | `feefine-reports.refund.post`, `feefine-reports.financial-transactions-detail.post`, `feesfines.feefine-reports.cash-drawer-reconciliation.post`, `feesfines.feefine-reports.cash-drawer-reconciliation-source.post` |
 
 - Account required fields: `amount`, `remaining`, `status`, `paymentStatus`, `userId`, `feeFineId`, `ownerId` (ramls/accountdata.json); POST `/accounts` generates an id if missing (MODFEE-296).
 - Check-* response: `accountId`, `amount`, `allowed`, `remainingAmount`, `errorMessage` (ramls/actions/checkActionResponse.json). Action endpoints: 404 unknown account, 422 for zero/negative/invalid amount or closed account (Karate accounts.feature).
@@ -181,16 +183,17 @@ API messages: DefaultActionValidationService / RefundActionValidationService / C
 
 | Action | Capability set (type - resource - action) | Legacy permission (ui-users package.json) |
 |---|---|---|
-| View fees/fines, details, history | `data - UI-Users Feesfines - view` (C808511, C491280) | `Users: Can view fees/fines and loans` (`ui-users.feesfines.view`) |
-| Charge, pay, waive, transfer, refund, cancel (all actions) | `data - UI-Users Feesfines Actions - manage` (C375239, C491280, UIU-3602) | `Users: Can create, edit and remove fees/fines` (`ui-users.feesfines.actions.all`) |
-| Pay only | `procedural - UI-Users Manual-Pay - execute` (C375239) | `Fees/Fines: Can pay` (`ui-users.manual-pay.execute`) |
-| Waive only | `procedural - UI-Users Manual-Waive - execute` (by pattern — verify) | `Fees/Fines: Can waive` (`ui-users.manual-waive.execute`) |
-| Charge (incl. pay) | `procedural - UI-Users Manual-Charge - execute` (by pattern — verify) | `Fees/Fines: Can charge` (`ui-users.manual-charge.execute`) |
-| Fee/fine actions history CRUD | (verify) | `Fee/Fine Details: Can create, edit and remove fee/fine actions` |
-| Reports | (verify) | `Users: Create and download Financial transaction detail report` / `… Cash drawer reconciliation report` / `… Refunds to process manually report` |
-| Actual cost processing | `procedural - UI-Users Lost-Items-Requiring-Actual-Cost - execute` (users context) | `Users: Can process lost items requiring actual cost` |
-| Settings — all fee/fine settings | (verify; legacy set `ui-users.settings.feefines.all`) | `Settings (Users): Can create, edit and remove all feefines-related entries`; per-page: `… Can create, edit and remove owners` / `manual charges` / `payment methods` / `refunds reasons` / `waive reasons` / `transfer accounts`; view-only `Settings (Users): Can view feefines-related entries` |
+| View fees/fines, details, history | `Data - UI-Users Feesfines - View` (Cypress dictionary `uiUsersFeeFinesView`; C808511, C491280) | `Users: Can view fees/fines and loans` (`ui-users.feesfines.view`) |
+| Charge, pay, waive, transfer, refund, cancel (all actions) | `Data - UI-Users Feesfines Actions - Manage` (C375239, C491280; UIU-3602). Not in the Cypress dictionary — its `uiUsersFeeFineActionManage` is `Data - UI-Users Fee-Fine-Actions - Manage`, a different set | `Users: Can create, edit and remove fees/fines` (`ui-users.feesfines.actions.all`) |
+| Pay only | `Procedural - UI-Users Manual-Pay - Execute` (Cypress dictionary `uiUsersManualPay`; C375239) | `Fees/Fines: Can pay` (`ui-users.manual-pay.execute`) |
+| Waive only | `Procedural - UI-Users Manual-Waive - Execute` (capability set name not confirmed — verify) | `Fees/Fines: Can waive` (`ui-users.manual-waive.execute`) |
+| Charge (incl. pay) | `Procedural - UI-Users Manual-Charge - Execute` (capability set name not confirmed — verify) | `Fees/Fines: Can charge` (`ui-users.manual-charge.execute`; package.json includes `ui-users.manual-pay.execute`) |
+| Fee/fine actions history CRUD | `Data - UI-Users Fee-Fine-Actions - Manage` (Cypress dictionary `uiUsersFeeFineActionManage`; mapping to the legacy permission by naming only) | `Fee/Fine Details: Can create, edit and remove fee/fine actions` (`ui-users.fee-fine-actions.all`; included in Can pay / Can waive) |
+| Reports | (capability set name not confirmed — verify) | `Users: Create and download Financial transaction detail report` / `… Cash drawer reconciliation report` / `… Refunds to process manually report` (package.json) |
+| Actual cost processing | `Procedural - UI-Users Lost-Items-Requiring-Actual-Cost - Execute` (C359236 preconditions) | `Users: Can process lost items requiring actual cost` (`ui-users.lost-items-requiring-actual-cost.execute`) |
+| Settings — all fee/fine settings | (capability set name not confirmed — verify); legacy set `ui-users.settings.feefines.all` | `Settings (Users): Can create, edit and remove all feefines-related entries`; per-page: `… Can create, edit and remove owners` / `manual charges` / `payment methods` / `refunds reasons` / `waive reasons` / `transfer accounts`; view-only `Settings (Users): Can view feefines-related entries` (package.json) |
 
+- In package.json `Users: Can create, edit and remove fees/fines` (`ui-users.feesfines.actions.all`) already includes `ui-users.feesfines.view`, `manual-charge`, `manual-pay` and `manual-waive`, plus the transfer / refund / cancel API permissions; `Fees/Fines: Can pay` and `Can waive` each pull in `ui-users.fee-fine-actions.all`.
 - There is **no separate refund or transfer permission** — refund, transfer and cancel come only from `Users: Can create, edit and remove fees/fines` (package.json). The former `Procedural - UI-Users Feefine Refund - Execute` / `Data - UI-Users Feesfines - Create/Edit` names had no source and are removed.
 - `Fees/Fines: Can pay` alone allows Pay (Export disabled); `Fees/Fines: Can waive` alone allows Waive (UIU-3109; C494013, C494014).
 - `Settings (Users): View all settings` user can view but not edit Manual charges, Transfer accounts, Comment required (C407702–C407704, C411867).
@@ -279,11 +282,11 @@ Configured in an Overdue fine policy (`Settings > Circulation > Fee/fine > Overd
 17. A staff user without a current service point cannot create or view patron fees/fines (`Access denied` modal) (en.json `errorModal.currentUserServicePointAbsentee.*`; Cypress `check-user-cannot-create-fee-fine-without-service-point.cy.js`).
 18. A manual fee/fine with an unknown item barcode cannot be saved: `No item with barcode {barcode} could be found`, charge buttons disabled (UIU-2701).
 19. Amount inputs in action modals are number fields — whitespace and letters cannot be entered; comma decimals are not supported (UIU-2836, UIU-3206).
-20. `Fees/Fines: Can pay` / `Fees/Fines: Can waive` allow only that action; refund, transfer and cancel need `Users: Can create, edit and remove fees/fines` (`data - UI-Users Feesfines Actions - manage`); action buttons are hidden without permission (UIU-3109, UIU-3156; package.json; C494013, C494014).
-21. Creating a fee/fine from an open loan works with `data - UI-Users Feesfines Actions - manage` alone (inventory item lookup is included) (UIU-3602).
+20. `Fees/Fines: Can pay` / `Fees/Fines: Can waive` allow only that action; refund, transfer and cancel need `Users: Can create, edit and remove fees/fines` (`Data - UI-Users Feesfines Actions - Manage`); action buttons are hidden without permission (UIU-3109, UIU-3156; package.json; C494013, C494014).
+21. Creating a fee/fine from an open loan works with `Data - UI-Users Feesfines Actions - Manage` alone (inventory item lookup is included) (UIU-3602).
 22. Lost-item fees on a Claimed-returned loan are `Suspended claim returned` and blocked from actions; fees of an earlier, closed loan of the same item stay actionable (UIU-3125; C491280).
 23. Resolving a claim as Missing should cancel the suspended lost item fee and processing fee (C196748); this is done by a second UI call and has failed intermittently (UIU-3490/MODFEE-411 Won't Do, UIU-3573 Duplicate; backend move planned in MODFEE-444/UIU-3544).
-24. Resolving a lost item by check-in or renewal reverses paid/transferred amounts as Credit + Refund, cancels the outstanding rest as `Cancelled item returned`, never reverses waived amounts; the processing fee follows its own policy toggle (C11031, C11032, C15201).
+24. Resolving a lost item by check-in or renewal reverses paid/transferred amounts as Credit + Refund, cancels the outstanding rest as `Cancelled item returned`, never reverses waived amounts; the processing fee follows its own policy toggle (C11031, C11032, C15201, C15209 for a former declared-lost item already `Lost and paid`).
 25. Claimed-returned loans are excluded from aged-to-lost billing; recalled items age to lost on their own interval (C15198, C196743).
 26. When all fees of a lost loan are resolved by pay / waive / cancel, the loan closes and the item becomes `Lost and paid` (docs feesfines.md; C366535, C410831).
 27. When a fee/fine is resolved (including by transfer to a bursar), the loan closes and the history list may show a `Returned date` equal to the resolution date — expected behaviour (MODFEE-433, Won't Do).
@@ -292,6 +295,14 @@ Configured in an Overdue fine policy (`Settings > Circulation > Fee/fine > Overd
 30. Fee/fine details page must load on refresh and direct URL (UIU-3428, C808511); the Refund action must be enabled right after a fresh login when a paid fee/fine is selected on the history page (UIU-3549, C15189).
 31. Financial-transactions and cash-drawer reports require a Start date (and owner / service point respectively) and End date ≥ Start date; the Financial report is for one owner and 0..n service points (C343207, C343311, C343314, C343324).
 32. Deleting an item does not delete its fee/fine; the account keeps stored item data but the UI may show an error for it (docs feesfines.md) — avoid deleting items with fees in test data.
+33. On Check out, the borrower's `Fees/fines owed` amount is a link to the patron's fees/fines page only with `Check out: View fees/fines` + `Users: Can view fees/fines and loans`; with only `Check out: Check out circulating items` it is plain text (C388524, C388525; UICHKOUT-802).
+34. Overdue fine amount = interval count × rate from due date to returned/renewed date, minus the Loan-policy grace period, capped by `Maximum overdue fine` (5 min × 5.00 = 25.00 → billed 15.00 at max 15.00); recalled items use `Overdue recall fine` / `Maximum recall overdue fine`, and `Ignore grace periods for recalls` = No keeps the grace period (C9270, C9273; CIRC-524, CIRC-548, UICHKIN-125).
+35. `Forgive overdue fine if item renewed` = Yes → no overdue fine on renewal; = No → fine billed for the overdue minutes (C9271; CIRC-677).
+36. Overdue-fine record: type `Overdue fine`, owner via item effective location → primary service point → owner, `Payment status` = `Outstanding`, history action `Overdue fine`, `Created at` = check-in service point, `Source` = staff user who checked in, `Transaction information` blank (C9270, C9273).
+37. A Declared lost or Aged to lost item that is returned or renewed still gets an overdue fine when the Lost item fee policy says `If lost item returned or renewed = Charge overdues based on returned date up to maximum` (1.00 per minute from due date to returned date in the case) (C15207 body; C15208, C15203, C15204 by title only).
+38. Actual cost on declared lost: the `Lost item processing fee` is billed immediately and the loan's `Fees/Fines Incurred` equals it (25.00 in the case); the actual-cost amount itself is billed later from `Lost items requiring actual cost` (C365133; CIRC-1623, CIRC-2522, CIRC-2523, CIRC-2530).
+39. Aged to lost with Actual cost: the item is aged to lost only if the policy has a `Lost item processing fee` > 0; with no processing fee it is excluded and stays checked out (C235864 / C235865; TestRail-only, outdated risk — see Known Gaps).
+40. After an actual-cost fee is billed and paid, the item shows `Lost and paid` (no borrower, loan date or due date) and the closed loan's action table has `Action` = `Closed loan`, `Item status` = `Lost and paid`, `Source` = staff who closed the fee/fine (C359236; UIU-1605, CIRC-1556, CIRC-1566, CIRC-2044, CIRC-2066).
 
 ---
 
@@ -321,12 +332,14 @@ Fees&Fines has the shortest cases in the project — median ~2 steps, `Type` Oth
 - C1504471, C1464248, C1464247, C1464246 — Set/Actual cost lost item fee closed on check-in (CIRC-2130).
 - C1395066, C1405034 — Set cost lost item fee / processing fee suspended and refunded when claimed returned (UIU-3603, CIRC-2637 in refs).
 - C375239 (UIU-1097), C808511 (UIU-3428) — updated with Eureka capability sets.
+- Outdated: C3646 `Fees/Fines: Can pay` (section 183) has only a precondition note "Will be renamed to User can pay fee/fines"; C3647 `Fees/Fines: Can waive` is marked OBSOLETE — do not copy as models (Waive-only permission behaviour is in C494014).
+- Bursar section 11060 (C196783, C196787, C400631, C400632, C400641) is site-specific (Cornell / Alabama / Duke bursar files) and C400625 has only a one-line precondition (5-column CSV with separators and EOL, no steps); bodies of the others were not read.
 
 ---
 
 ## Known Gaps / Items to Verify
 
-- [ ] Capability set names for Waive-only (`UI-Users Manual-Waive`), Charge (`UI-Users Manual-Charge`), reports, fee/fine actions history and fee/fine settings are inferred from legacy permission names — only `UI-Users Feesfines - view`, `UI-Users Feesfines Actions - manage`, `UI-Users Manual-Pay - execute` are confirmed in cases (C375239, C491280, C808511).
+- [ ] Capability set names for Waive-only (`UI-Users Manual-Waive`), Charge (`UI-Users Manual-Charge`), reports and fee/fine settings are NOT confirmed (marked `(capability set name not confirmed — verify)`; not in the Cypress dictionary or any case read). Confirmed: `UI-Users Feesfines - View`, `UI-Users Feesfines Actions - Manage` (C375239, C491280, C808511 only — the Cypress dictionary instead has `UI-Users Fee-Fine-Actions - Manage`, so verify which set exists on the env), `UI-Users Manual-Pay - Execute` (dictionary + C375239), `UI-Users Lost-Items-Requiring-Actual-Cost - Execute` (C359236). Fee/fine actions history = `UI-Users Fee-Fine-Actions - Manage` is mapped to its legacy permission by naming only.
 - [ ] `Users: Can create, edit and remove fees/fines` lacks `feesfines.accounts-bulk.check-transfer.post` / `check-refund.post` (package.json; UIU-3398 closed as Okapi-only) — verify bulk Transfer/Refund with only this capability set on Eureka.
 - [ ] Success callout shows the account's billed `amount`, not the action amount, and uses `fee/fine` + count 1 per account in bulk (FeeFineActions.js) — confirm in env before asserting the amount in a callout.
 - [ ] Claimed returned → Mark as missing fee cancellation is intermittent until MODFEE-444 / UIU-3544 (Draft) ship.
@@ -335,3 +348,5 @@ Fees&Fines has the shortest cases in the project — median ~2 steps, `Type` Oth
 - [ ] en_US.json was not compared with en.json in this refresh; all strings above are from en.json (master, 2026-11-16).
 - [ ] Release mapping (ui-users 13.0.x = Trillium, 13.1.0 = Umbrellaleaf) inferred from CHANGELOG dates; Jira fixVersions hold module versions only.
 - [ ] `Partially waive` / `Partially transfer` summary verbs (en.json) differ in form from `Partially paying` / `Partially refunding` — real strings, assert as written.
+- [ ] Aged-to-lost job timing conflicts between cases: C235864 says the job runs hourly on the hour with billing 30 min later; C235865 says every 30 minutes — verify in the environment before asserting timing. C235864 / C235865 (actual cost needs a processing fee to age to lost) predate the actual-cost processing work (CIRC-2130) — verify the rule on current master (rule 39).
+- [ ] TestRail second pass read bodies of C3646, C388524, C388525, C359236, C359591, C365133, C15207, C15209, C400625, C9270, C9271, C9273, C235864, C235865, C11149, C375239, C491280, C808511. NOT read (titles only): sections 90 Manual, 91 Pay, 92 Display (except C11149), 1533 Waive, 1141 other cases (C9267-C9269, C9272, C9274, C9275), 25512 Reminder Fees, 1312/1531 other cases, 1535 Settings Circulation, 1536 Manual Patron Blocks, 94 Automated Patron Blocks, 1142 Item Blocks, 17145 Fees/fines patron notices, 16509/16510 report cases beyond those cited, 11060 Bursar (except C400625).
