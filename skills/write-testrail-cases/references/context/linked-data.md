@@ -1,13 +1,13 @@
 ---
 area: linked-data
-generated_on: 2026-11-24
+generated_on: 2026-11-25
 generator_version: manual (build-app-context method, full refresh)
 jira_status: ok
 ---
 
 # FOLIO Linked Data Editor (Marigold) — Business Logic Context
 
-> Built: 2026-11-24 · Release: Umbrellaleaf R2 2026 (master: ui-linked-data 2.0.4 and ui-ld-folio-wrapper 2.0.6 per package.json; mod-linked-data NEWS "v3.0.0 (IN PROGRESS)"; previous release Trillium R1 2026 = mod-linked-data 2.0.x / UILD 2.0.x, Sunflower = 1.x) · Builder: build-app-context method, manual
+> Built: 2026-11-24 (remediated 2026-11-25) · Release: Umbrellaleaf R2 2026 (master: ui-linked-data 2.0.4 and ui-ld-folio-wrapper 2.0.6 per package.json; mod-linked-data NEWS "v3.0.0 (IN PROGRESS)"; previous release Trillium R1 2026 = mod-linked-data 2.0.x / UILD 2.0.x, Sunflower = 1.x) · Builder: build-app-context method, manual
 > Previous build: 2026-11-07.
 > Sources: TestRail project 14 suite 21: section 26752 "Marigold" (user journeys C624167…C721761) and sub-sections 118240 (LD Authority, UILD-825/826 cases), 66260 (RDF Import), 29721 (locale); C1292045 (Marigold administrator role, section 40728).
 > GitHub (master, 2026-11-24): folio-org/ui-linked-data (`translations/ui-linked-data/en.json`, CHANGELOG), folio-org/ui-ld-folio-wrapper (`package.json` stripes.permissionSets / okapiInterfaces), folio-org/mod-linked-data (`descriptors/ModuleDescriptor-template.json`, `ValidationMessages.properties`, `errors.yml`, validators in `src/main/java/org/folio/linked/data/validation/`, `src/main/resources/profiles/*.json`, NEWS, README), folio-org/mod-linked-data-import (ModuleDescriptor), folio-org/ui-inventory (`translations/ui-inventory/en.json`), folio-org/folio-integration-tests (`mod-linked-data/`), folio-org/stripes-testing (`cypress/e2e/linked-data/`, `cypress/support/fragments/linked-data/`, `cypress/support/dictionary/marigoldCapabilities.js`).
@@ -48,8 +48,8 @@ Create URL pattern for an authority profile: `/linked-data-editor/resources/crea
 - Hubs tab: sources "Library of Congress" / "Local" (`ld.source.*`); LoC result → "Import/Edit" → hub preview (Creator, Title, Language) with Cancel / Continue → Continue imports the hub and opens Edit hub (UILD-725/726, MODLD-1053).
 - Edit pages for Work / Instance / Hub / Authority: "Save & close", "Save & keep editing", "Cancel", Duplicate (titles get "(DUPLICATE WORK)" etc.), "View MARC", "Export instance RDF file", "Inventory View" (Instance Actions → Inventory instance preview in the same tab, UILD-768), unsaved changes modal. The Work "Actions" button sits inside the Work edit area, separate from Instance Actions (UILD-765).
 - Authority assignment: "Assign authority" / "Change", modal with Search / Browse and, for Subject of the Work, Authorities / Hubs toggle (UILD-711); hubs are imported on "Import/Assign" click (UILD-732); "Change authority" opens the modal in the view matching what is assigned (UILD-730).
-- Profiles: "Choose a resource profile" modal with "Set as my default"; "Change work/instance profile" from Actions (UILD-577); "Manage profile settings" with multiple named settings per profile, drag & drop between "Selected components" / "Unused components".
-- Import: "Import resources" / "Import hubs" via JSON file or URL; import log downloaded.
+- Profiles: "Choose a resource profile" modal with "Set as my default"; "Change work/instance profile" from Actions (UILD-577); "Manage profile settings" with multiple named settings per profile, drag & drop between "Selected components" / "Unused components" (en.json `ld.manageProfileSettings`, `ld.selectedComponents`, `ld.unusedComponents`, `ld.profileSettings.*`).
+- Import: Actions → "Import resources" / "Import hubs" via JSON file or URL; import log downloaded (en.json `ld.importInstances`, `ld.importHubs`, `ld.importFileSuccess`; UILD-839, C1415956).
 - Inventory integration: "Edit resource in Marigold" in Inventory instance Actions (ui-inventory en.json `editInMarigold`), permission-gated; MARC-sourced instances open a read-only preview with "Continue" which converts the record into the graph.
 
 ## API surface (mod-linked-data `linked-data 2.0`, `linked-data-profile 1.0`, `linked-data-vocabularies 1.0`, `linked-data-batch-job 1.0`, `linked-data-admin 1.0`)
@@ -105,7 +105,7 @@ Error codes (`src/main/resources/errors.yml`): `not_found` 404, `mapping` 400, `
 
 ## Capability Sets (Eureka) and roles
 
-Roles used by the team (stripes-testing `marigoldCapabilities.js`, C1292045, MODLD-1053, MODLD-1071): **"Cataloger"** + **"Cataloger - Marigold"** for catalogers; add **"Marigold Administrator"** for batch/admin APIs.
+Roles used by the team; all names below were checked against stripes-testing `cypress/support/dictionary/marigoldCapabilities.js` (resource + action + type match exactly; none are derived from naming conventions) (C1292045, MODLD-1053, MODLD-1071): **"Cataloger"** + **"Cataloger - Marigold"** for catalogers; add **"Marigold Administrator"** for batch/admin APIs.
 
 | Action | Capability / set | Source |
 |---|---|---|
@@ -185,7 +185,7 @@ Roles used by the team (stripes-testing `marigoldCapabilities.js`, C1292045, MOD
 ### Import / export
 40. Import resources (file or URL): empty file → `ld.importFileEmptyError`; wrong type → `ld.importFileTypeError`; failure must show "Import failed", never "Import successful" (UILD-692, en.json).
 41. Work type must exist in imported data, otherwise the default work type (URL import dropdown; Monographs if not chosen) is used; the downloaded CSV log has a "Type" column (MODLD-983, UILD-757, C736765).
-42. Works can be RDF-imported directly, without joining an instance graph (MODLD-1109, UILD-839, C1415956).
+42. Works can be RDF-imported directly, without joining an instance graph (MODLD-1109, UILD-839, C1415956); after URL or JSON-file import a "Import successful" modal appears, the Work is searchable by title, and the Hubs tab (Source "Local") also finds the Work's hub with Source "Library of Congress, Local" (C1415956 steps 1–5).
 43. Importing the same RDF via bulk and single import must not create duplicate Works (MODLD-989); instances added in UI stay searchable after a bulk import update (MODLD-1008).
 44. "Export instance RDF file" calls `GET /linked-data/resource/{id}/rdf` (en.json, ModuleDescriptor).
 
