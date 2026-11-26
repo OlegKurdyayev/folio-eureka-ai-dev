@@ -1,6 +1,6 @@
 # FOLIO quickMARC — MARC Bibliographic Editing — Business Logic Context
 
-> Built: 2026-11-24 · Release: Umbrellaleaf R2 2026 (master: ui-quick-marc 11.1.0, mod-quick-marc 8.1.0, mod-record-specifications 3.1.0 — all unreleased "next minor"; Trillium R1 2026 = ui-quick-marc 11.0.x / mod-quick-marc 8.0.x) · Builder: build-app-context (full refresh; previous build 2026-07-21, delta 2026-11-07 folded into the main sections)
+> Built: 2026-11-25 · Release: Umbrellaleaf R2 2026 (master: ui-quick-marc 11.1.0, mod-quick-marc 8.1.0, mod-record-specifications 3.1.0 — all unreleased "next minor"; Trillium R1 2026 = ui-quick-marc 11.0.x / mod-quick-marc 8.0.x) · Builder: build-app-context (full refresh; previous build 2026-07-21, delta 2026-11-07 folded into the main sections)
 
 > Sources (2026-11-24): TestRail suite 21 section 1285 "MARC" > 16715 "MARC Bibliographic" (23705 Create new MARC bib, 23706 Derive MARC bib, 24360 Edit MARC bib — each with Manual linking / Automated linking / Consortia sub-sections — plus 27186 Optimistic locking, 39274 "API | MARC validation rules (bibliographic)", 58862 Version history). GitHub: folio-org/ui-quick-marc (translations/ui-quick-marc/en.json, package.json, src/hooks/useValidation, src/QuickMarcEditor), folio-org/mod-quick-marc (descriptors/ModuleDescriptor-template.json, docs/features/*.md, NEWS.md), folio-org/mod-record-specifications (translations/mod-record-specifications/en.json, validator severities, descriptor), folio-org/stripes-components (en.json), folio-org/folio-integration-tests (mod-quick-marc), folio-org/stripes-testing (cypress/e2e/marc/marc-bibliographic), folio-org/docs (Metadata/Inventory/QuickMARC.md). Jira: UIQM + MODQM Done stories/bugs resolved 2024-06-01 → 2026-11-24 (105 issues; fixVersions are module versions, so the window is by resolution date). Confluence: FOLIJET "MARC validation - Logic" (page 1407631).
 > This file covers **MARC Bibliographic** editing only. MARC Holdings (section 16714 → `marc-holdings.md`) and MARC Authority (section 17151 → `marc-authority.md`) share the quickMARC editor shell and part of the string vocabulary but have their own field rules — don't assume a Bib rule (e.g. 1XX/245/010 handling) transfers unchanged.
@@ -142,13 +142,15 @@ Real cases (C496193, C503013, C496208, C514879) use the team's two-column Okapi/
 
 | Permission name for Okapi env. | Capabilities/Sets for Eureka env. |
 |---|---|
-| Inventory: All permissions | `data - UI-Inventory - manage` |
-| Inventory: View instances, holdings, and items | `data - UI-Inventory Instance - view` (C514879) |
-| quickMARC: View MARC bibliographic record | `data - UI-Quick-Marc Quick-Marc-Editor - view` |
-| quickMARC: Create a new MARC bibliographic record | `data - UI-Quick-Marc Quick-Marc-Editor - create` |
-| quickMARC: View, edit MARC bibliographic record | `data - UI-Quick-Marc Quick-Marc-Editor - manage` |
-| quickMARC: Derive new MARC bibliographic record | `procedural - UI-Quick-Marc Quick-Marc-Editor Derive - execute` (C514879; docs QuickMARC.md) |
-| quickMARC: Can Link/unlink authority records to bib records | `procedural - UI-Quick-Marc Quick-Marc-Authority-Records Link-Unlink - execute` (docs QuickMARC.md resource "UI-Quick-Marc Quick-Marc-Authority-Records Link-Unlink", procedural/execute) |
+| Inventory: All permissions | `Data - UI-Inventory - Manage` (C496208; docs Inventory/_index.md; Cypress capabilitySets `uiInventory`) |
+| Inventory: View instances, holdings, and items | `Data - UI-Inventory Instance - View` (C496210, C514879; docs Inventory/_index.md; Cypress `uiInventoryInstanceView`) |
+| quickMARC: View MARC bibliographic record | `Data - UI-Quick-Marc Quick-Marc-Editor - View` (docs QuickMARC.md; Cypress `uiQuickMarcQuickMarcEditorView`) |
+| quickMARC: Create a new MARC bibliographic record | `Data - UI-Quick-Marc Quick-Marc-Editor - Create` (C496208; docs QuickMARC.md; no bib `Create` entry in Cypress capabilitySets) |
+| quickMARC: View, edit MARC bibliographic record | `Data - UI-Quick-Marc Quick-Marc-Editor - Manage` (C496208, C496210; Cypress `uiQuickMarcQuickMarcEditor`) |
+| quickMARC: Derive new MARC bibliographic record | `Procedural - UI-Quick-Marc Quick-Marc-Editor Derive - Execute` (C496210, C514879; Cypress `uiQuickMarcEditorDuplicate`) |
+| quickMARC: Can Link/unlink authority records to bib records | `Procedural - UI-Quick-Marc Quick-Marc-Authority-Records Link-Unlink - Execute` (docs QuickMARC.md; Cypress `uiQuickMarcQuickMarcAuthorityRecordsLinkUnlink`) |
+
+All names above are confirmed by the Cypress dictionary, docs, and/or case preconditions (the corpus writes the type/action in lower case, `data - ... - manage`; use the title-case form here). No `(derived)`/unconfirmed capability names remain in this file.
 
 Legacy permission ids (ui-quick-marc package.json): `ui-quick-marc.quick-marc-editor.view` / `.create` / `.all` / `.derive.execute`, `ui-quick-marc.quick-marc-authority-records.link-unlink.execute`. Notable sub-permissions: `.view` includes `audit.config.groups.settings.*` (Version history, UIQM-761 era); `.create`, `.all` and `.derive.execute` include `marc-records-editor.validate.post`, `marc-specifications.item.get` and the LCCN-setting read permission; link/unlink includes `marc-records-editor.links.suggestion.post`.
 
@@ -335,12 +337,12 @@ MARC Bib / quickMARC: **`Func` ~79%** / Other ~21%, median ~8 steps, `User Journ
 ## Known Gaps / Items to Verify
 
 - [ ] **Stale Cypress constants**: `quickMarcEditor.js` still holds legacy strings (`Record cannot be saved with more than one field 245.`, `Record cannot be saved. Can only have one MARC 001.`, `Record cannot be saved with more than one 010 field`, `Record cannot be saved without 008 field`) whose bib keys are no longer referenced in ui-quick-marc `src` — confirm in env which wording a bib user sees before reusing them; backend `Field is non-repeatable.` / `Field {tag} is required.` are case-confirmed.
-- [ ] **005 rule vs older cases**: UIQM-781 (Trillium) changed 005 handling, but C496208/C496210 (Create/Derive multiple 005) were not re-read; C496209 (Edit) still says the row becomes "read only" after typing 005 while UIQM-781 makes the tag editable — verify exact behaviour (tag vs content box) in env.
+- [ ] **005 rule vs older cases**: UIQM-781 (Trillium) changed 005 handling, but C496208/C496210 (Create/Derive multiple 005) were re-read 2026-11-25: C496208 (Create) and C496210 (Derive) say that typing `005` in the new row's tag box makes the row "read only" and that after save only one system-generated 005 remains; C496209 (Edit) still says the row becomes "read only" after typing 005 while UIQM-781 makes the tag editable — verify exact behaviour (tag vs content box) in env.
 - [ ] **docs.folio.org lag**: QuickMARC.md (2026-05-28) still says "Fields 005 and 999ff are system supplied and cannot be edited or deleted" — conflicts with UIQM-781 for the 005 tag box.
 - [ ] **validate endpoint severity**: mod-quick-marc `docs/features/validate-record.md` says only `ERROR` issues are returned, but the UI shows Warn issues (UIQM-631/691, C496208) and mod-record-specifications emits WARN severities — confirm against a `/records-editor/validate` response before writing an API case.
 - [ ] **LCCN structure rule** (`010 $a is in an invalid format.`, MODQM-447) is LoC-oriented; whether it is enabled by default in the bib specification on every tenant is not confirmed — check `GET /specification-storage/specifications/{id}/rules` first.
 - [ ] **Delete-fields modal / Edit toast after 1XX change**: `record.save.updatingLinkedBibRecords` is fired when 1XX/010 of an **authority** changes; not expected on bib edits — not case-confirmed for bib.
-- [ ] **TestRail sweep was partial**: read C353225, C496209, C514849, C514879 in full plus titles/refs for sections 27186 and for refs UIQM-786/807/785/829/838/791/661/709, MODQM-509 and the 005 title search; cases created after 2026-07-21 were listed only for the first 250 suite-wide results (MARC bib hits: none new beyond C1563888/C1434628 from the previous delta).
+- [ ] **TestRail sweep was partial**: read C353225, C496208, C496209, C496210, C514849, C514879 in full plus titles/refs for sections 27186 and for refs UIQM-786/807/785/829/838/791/661/709, MODQM-509 and the 005 title search; cases created after 2026-07-21 were listed only for the first 250 suite-wide results (MARC bib hits: none new beyond C1563888/C1434628 from the previous delta).
 - [ ] UIQM-834 (ECS 852 $b after ownership update) from the 2026-11-07 delta is a **MARC Holdings** issue — tracked in `marc-holdings.md`, not here.
 - [ ] Karate has no scenario titled for `/records-editor/validate` or `/records-editor/links/suggestion` — candidates for Karate-first coverage.
 
