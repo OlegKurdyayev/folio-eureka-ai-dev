@@ -2,6 +2,7 @@
 area: claiming
 generated_on: 2026-11-25
 generator_version: manual (build-app-context method, refresh)
+Release: Umbrellaleaf R2 2026
 jira_status: ok
 ---
 
